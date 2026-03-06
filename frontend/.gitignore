@@ -1,0 +1,44 @@
+# =============================================================================
+# FILE: .gitignore  (place in project ROOT)
+# =============================================================================
+# PURPOSE: Tells Git which files to NEVER track or commit.
+#          Critical for security — .env files contain secret keys.
+# =============================================================================
+
+# ── Python ───────────────────────────────────────────────────────────────────
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+*.egg
+
+# ── Virtual Environments ─────────────────────────────────────────────────────
+venv/
+env/
+.venv/
+
+# ── Environment Variables (NEVER commit these) ───────────────────────────────
+.env
+.env.local
+.env.production
+.env.development
+
+# ── Database Files ───────────────────────────────────────────────────────────
+*.db
+*.sqlite
+*.sqlite3
+instance/
+
+# ── Node / React ─────────────────────────────────────────────────────────────
+node_modules/
+dist/
+.DS_Store
+
+# ── IDE ──────────────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp

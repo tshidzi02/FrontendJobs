@@ -1,0 +1,24 @@
+
+# =============================================================================
+# FILE: backend/requirements.txt
+# =============================================================================
+# PURPOSE: Lists every Python package this project needs.
+#          Anyone can reproduce your exact environment with:
+#            pip install -r requirements.txt
+#
+# Install all at once with:
+#   cd backend
+#   pip install -r requirements.txt
+# =============================================================================
+
+flask                    # The web framework — creates our API server
+flask-cors               # Allows React frontend to call our API
+flask-bcrypt             # Password hashing
+flask-jwt-extended       # JWT token creation and verification
+flask-sqlalchemy         # Database ORM (Python objects → SQL)
+python-dotenv            # Reads .env files into os.environ
+openai                   # OpenAI API client (GPT-4, embeddings)
+numpy                    # Math library (used in semantic_matcher for cosine similarity)
+google-auth              # Google OAuth token verification
+docxtpl                  # Word document template engine (for CV generation)
+requests --break-system-packages

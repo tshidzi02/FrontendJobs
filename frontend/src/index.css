@@ -1,0 +1,628 @@
+/* =============================================================================
+   FILE: frontend/src/index.css
+   =============================================================================
+   PURPOSE: This is the GLOBAL stylesheet for the entire React application.
+            It defines styles that apply everywhere — the design system.
+   
+   HOW IT FITS IN THE FLOW:
+     main.jsx imports this file:
+       import './index.css'
+     This causes the browser to apply these styles to the ENTIRE app.
+     Every component automatically inherits styles defined here.
+   
+   DESIGN SYSTEM COLOURS (your brand palette):
+     #0B1E2A  → Deep navy (dark background)
+     #003B44  → Dark teal (card/panel background)
+     #00F5D4  → Bright teal/mint (primary accent, buttons, highlights)
+     #00B4FF  → Bright blue (secondary accent)
+     #E0FFFF  → Light cyan/white (text on dark backgrounds)
+     #1DE9B6  → Button hover colour (slightly different teal)
+   
+   FILE STRUCTURE:
+     1. Font imports (from Google Fonts CDN)
+     2. Custom @font-face declarations (local font file)
+     3. Global CSS reset
+     4. Layout wrappers
+     5. Navbar styles
+     6. Background theme utility classes
+     7. Button styles
+     8. Card/input component styles
+     9. Special text effects (brand name, circle text)
+   ============================================================================= */
+
+
+/* =============================================================================
+   SECTION 1: FONT IMPORTS
+   Load fonts from Google Fonts before anything else.
+   These are downloaded by the browser from Google's CDN.
+   ============================================================================= */
+
+@import url('https://fonts.googleapis.com/css2?family=Train+One&display=swap');
+/*
+  @import url() loads an EXTERNAL CSS file (or font) into this stylesheet.
+  This must be at the VERY TOP of the CSS file (before any rules).
+  
+  'https://fonts.googleapis.com/css2?family=Train+One&display=swap'
+  → Fetches the "Train One" font from Google Fonts
+  
+  display=swap:
+    While the font is downloading, show a fallback font (e.g. sans-serif)
+    SWAP to the real font once it loads.
+    Without this, you'd see no text until the font loads ("FOIT" = Flash of Invisible Text).
+    With this, you see text immediately ("FOUT" = Flash of Unstyled Text) — much better UX.
+  
+  Usage: font-family: 'Train One', cursive;
+  Used for: the large brand name / logo text
+*/
+
+@import url("https://fonts.googleapis.com/css2?family=Libre+Bodoni:wght@700&display=swap");
+/*
+  Loads "Libre Bodoni" at font weight 700 (bold) from Google Fonts.
+  Bodoni is a classic, elegant serif typeface — professional and distinctive.
+  wght@700 = only load the Bold weight (saves bandwidth vs loading all weights)
+  
+  NOTE: The project also uses a LOCAL Bodoni font file (bodoni-mt-bold.ttf)
+  defined below with @font-face. These are slightly different fonts —
+  "Libre Bodoni" is the open-source Google version, "Bodoni MT Black" is
+  a local TTF file. The local one is preferred (listed first) with serif as fallback.
+  
+  Usage: font-family: 'Libre Bodoni', serif;
+*/
+
+
+/* =============================================================================
+   SECTION 2: GLOBAL CSS RESET
+   CSS resets remove inconsistent default styles that different browsers apply.
+   Without a reset, Chrome, Firefox, and Safari render margins/padding differently.
+   ============================================================================= */
+
+* {
+  /* * = "wildcard selector" = applies to EVERY single HTML element */
+  margin: 0;
+  /* Remove ALL default margins (browser adds margins to <p>, <h1>, <ul>, etc.) */
+  padding: 0;
+  /* Remove ALL default padding (browser adds padding to some elements) */
+  box-sizing: border-box;
+  /*
+    THE MOST IMPORTANT CSS RESET.
+    
+    By default (content-box): an element's width DOESN'T include its padding/border.
+      e.g. width: 200px + padding: 20px → actual rendered width = 240px 😕
+    
+    With border-box: width INCLUDES padding and border.
+      e.g. width: 200px + padding: 20px → actual rendered width = 200px ✓
+    
+    Without this, layouts constantly break with unexpected overflow.
+    Every modern CSS framework/reset includes this.
+  */
+}
+
+html, body, #root {
+  /* Apply to the html element, body element, AND the React mount div (id="root") */
+  height: 100%;
+  /*
+    Set height to 100% of the PARENT's height.
+    html's parent is the browser viewport → html takes full viewport height.
+    body's parent is html → body takes full html height.
+    #root's parent is body → #root takes full body height.
+    This chain ensures the app fills the ENTIRE screen vertically.
+    Without this, the background colour might not extend to the bottom.
+  */
+  width: 100%;
+  /* Same but horizontal — fill the full viewport width */
+  font-family: system-ui, Arial, sans-serif;
+  /*
+    Set the default font for all text in the app.
+    CSS uses the FIRST font in the list that's available.
+    
+    system-ui → uses the operating system's native UI font:
+      macOS/iOS: SF Pro
+      Windows:   Segoe UI
+      Android:   Roboto
+      Linux:     varies
+    These look native and load instantly (no download needed).
+    
+    Arial → fallback if system-ui somehow isn't available
+    sans-serif → generic fallback (browser picks any sans-serif font)
+    
+    Individual components can override this with their own font-family.
+  */
+}
+
+
+/* =============================================================================
+   SECTION 3: LAYOUT WRAPPERS
+   Classes applied to top-level structural elements to control overall layout.
+   ============================================================================= */
+
+.app-wrapper {
+  /* Applied to the outermost div in App.jsx (wraps navbar + page content) */
+  min-height: 100vh;
+  /*
+    min-height: minimum height.
+    100vh = 100% of the Viewport Height (the visible browser window).
+    "min-height" not "height" because content can be TALLER than the viewport.
+    This ensures the background fills the screen even on short-content pages.
+  */
+  display: flex;
+  /* Enables Flexbox — a modern CSS layout system for 1D layouts (rows or columns) */
+  flex-direction: column;
+  /*
+    Stack children VERTICALLY (in a column).
+    Without this, flex defaults to flex-direction: row (horizontal).
+    Here we want: Navbar on top, content below → vertical layout.
+  */
+}
+
+.page-content {
+  /* Applied to the main content area below the navbar */
+  flex: 1;
+  /*
+    flex: 1 is shorthand for: flex-grow: 1; flex-shrink: 1; flex-basis: 0;
+    In a flex column container, this means:
+    "Take up ALL REMAINING vertical space after fixed-size siblings (navbar) are laid out."
+    This creates a "sticky footer" effect — content fills the space, footer stays at bottom.
+    Even if the page content is short, .page-content stretches to fill the screen.
+  */
+  padding: 100px 60px 40px 60px;
+  /*
+    Shorthand padding: top right bottom left (clockwise from top)
+    top:    100px → pushes content below the fixed navbar (navbar height is 100px)
+    right:  60px  → 60px space from the right edge
+    bottom: 40px  → 40px space below the content
+    left:   60px  → 60px space from the left edge
+    
+    The 100px top padding is CRUCIAL — without it, the fixed navbar would
+    overlap the top of your page content.
+  */
+
+  max-width: 1200px;
+  
+  
+  margin: 0 auto;                  
+  width: 100%;  
+}
+
+
+/* =============================================================================
+   SECTION 4: NAVBAR
+   The fixed navigation bar at the top of the page.
+   ============================================================================= */
+
+.navbar {
+  /* Applied to the <nav> element in your Navbar component */
+  position: fixed;
+  /*
+    "fixed" positioning removes the element from the normal document flow
+    and positions it relative to the BROWSER VIEWPORT (not the page).
+    Effect: the navbar STAYS at the top even when you scroll down.
+    This is what makes it a "sticky" navbar.
+  */
+  top: 0;
+  /* Pin to the TOP EDGE of the viewport */
+  left: 0;
+  /* Pin to the LEFT EDGE of the viewport */
+  width: 100%;
+  /* Stretch across the FULL WIDTH of the viewport */
+  height: 100px;
+  /* Fixed height of 100px — must match the 100px padding-top in .page-content */
+  background: #0B1E2A;
+  /* Deep navy background colour (the darkest colour in your palette) */
+  display: flex;
+  /* Enable flexbox for arranging navbar children */
+  align-items: center;
+  /*
+    Vertically CENTRE all children within the navbar.
+    (align-items works on the CROSS axis — vertical when flex-direction is row)
+  */
+  justify-content: space-between;
+  /*
+    Distribute children with MAXIMUM SPACE BETWEEN them.
+    Effect: Logo/brand pushed to the LEFT, nav links pushed to the RIGHT.
+    This is the classic navbar layout pattern.
+  */
+  padding: 0 40px;
+  /* 0 top/bottom padding, 40px left/right padding */
+  z-index: 1000;
+  /*
+    z-index controls STACKING ORDER on the z-axis (depth).
+    Higher z-index = appears ON TOP of elements with lower z-index.
+    1000 is arbitrarily high — ensures the navbar is ABOVE all page content.
+    Without this, content might visually scroll over the navbar when scrolling.
+  */
+}
+
+.nav-left {
+  /* Container for logo + brand name on the left side of navbar */
+  display: flex;
+  /* Flexbox to put logo and brand name in a row */
+  align-items: center;
+  /* Vertically centre logo and brand name with each other */
+  gap: 15px;
+  /* 15px space BETWEEN flex children (logo and brand text) */
+}
+
+.logo {
+  /* The small square logo/icon in the navbar */
+  width: 40px;
+  height: 40px;
+  background: #00F5D4;
+  /* Bright teal background — stands out against the dark navbar */
+  color: #0B1E2A;
+  /* Dark text on the bright logo box */
+  display: flex;
+  /* Flexbox to centre the letter/icon inside */
+  align-items: center;
+  /* Vertically centre content */
+  justify-content: center;
+  /* Horizontally centre content */
+  font-weight: bold;
+  border-radius: 6px;
+  /* Slightly rounded corners (0 = square, 50% = circle, 6px = subtle rounding) */
+}
+
+.brand-name {
+  /* The app name text next to the logo (first definition) */
+  color: #E0FFFF;
+  /* Light cyan colour — readable on dark background */
+  font-family: 'Bodoni MT Black', serif;
+  /* Use the Bodoni font (defined in @font-face below) */
+  font-weight: 900;
+  /* 900 = "Black" weight — the heaviest/boldest variant */
+  font-size: 1.2rem;
+  /* 1.2rem = 1.2 × the root font size (usually 16px) = about 19px */
+}
+
+@font-face {
+  /*
+    @font-face lets you load a CUSTOM FONT FILE from your own server.
+    Instead of relying on Google Fonts or system fonts, you host the font yourself.
+    Visitors download it from your server once, then it's cached.
+  */
+  font-family: 'Bodoni MT Black';
+  /* The NAME you give this font — used when referencing it in font-family */
+  src: url('fonts/bodoni-mt-bold.ttf') format('truetype');
+  /*
+    url() → path to the font file, relative to this CSS file.
+    The file must be at: frontend/src/fonts/bodoni-mt-bold.ttf
+    
+    format('truetype') → tells the browser this is a .ttf (TrueType Font) file.
+    Helps browsers load the right format. Other formats: 'woff2', 'opentype'.
+    .woff2 is preferred for web (smaller file size) but .ttf also works.
+  */
+  font-weight: 900;
+  /* This @font-face applies when font-weight: 900 is requested */
+  font-style: normal;
+  /* This @font-face applies when font-style: normal (not italic) is requested */
+}
+
+.nav-links {
+  /* The container holding navigation links on the right side of the navbar */
+  display: flex;
+  /* Display links in a horizontal row */
+  gap: 25px;
+  /* 25px space between each link */
+  font-size: 25px;
+  /* Large, prominent link text */
+  font-family: 'Bodoni MT Black', serif;
+  font-weight: 900;
+}
+
+.nav-links a {
+  /* Targets <a> (anchor/link) elements INSIDE .nav-links */
+  text-decoration: none;
+  /* Remove the default blue underline from links */
+  color: #E0FFFF;
+  /* Light cyan text colour */
+  font-weight: 500;
+  /* Medium weight (note: overridden by the 900 below — the 900 takes effect) */
+  transition: 0.2s ease;
+  /*
+    CSS transitions animate changes smoothly.
+    "0.2s ease" means: when any property on this element changes,
+    animate the change over 0.2 seconds with an "ease" timing function
+    (starts fast, ends slow → natural feel).
+    Used here for the hover colour change.
+  */
+  font-family: 'Bodoni MT Black', serif;
+  font-weight: 900;
+}
+
+.nav-links a:hover {
+  /* :hover is a CSS "pseudo-class" — applies when the user's mouse is OVER the element */
+  color: #00F5D4;
+  /* On hover: colour changes from #E0FFFF to the bright teal #00F5D4 */
+  /* The transition in .nav-links a makes this colour change animate smoothly */
+  font-family: 'Bodoni MT Black', serif;
+  font-weight: 900;
+}
+
+
+/* =============================================================================
+   SECTION 5: BACKGROUND THEME UTILITY CLASSES
+   Reusable classes you apply to sections to set their background theme.
+   Apply these to any div/section: <div className="bg-1">
+   ============================================================================= */
+
+.bg-1 {
+  background: #0B1E2A;
+  /* Darkest: deep navy — the app's primary background */
+  color: #E0FFFF;
+  /* Light cyan text — readable on dark background */
+}
+
+.bg-2 {
+  background: #003B44;
+  /* Medium: dark teal — used for cards, panels, alternating sections */
+  color: #E0FFFF;
+}
+
+.bg-3 {
+  background: #00B4FF;
+  /* Brightest: electric blue — for high-contrast sections, CTAs, hero sections */
+  color: #0B1E2A;
+  /* Dark text on bright background for readability */
+}
+
+
+/* =============================================================================
+   SECTION 6: BUTTONS
+   ============================================================================= */
+
+.primary-btn {
+  /* The main call-to-action button style */
+  background: #00F5D4;
+  /* Bright teal background — eye-catching against the dark UI */
+  color: #0B1E2A;
+  /* Dark text on bright button for contrast/readability */
+  border: none;
+  /* Remove default browser button border */
+  padding: 12px 20px;
+  /* 12px top/bottom, 20px left/right — gives the button comfortable size */
+  border-radius: 6px;
+  /* Slightly rounded corners */
+  cursor: pointer;
+  /* Show hand cursor on hover — signals to users this is clickable */
+  font-family: 'Bodoni MT Black', serif;
+  font-weight: 900;
+}
+
+.primary-btn:hover {
+  /* Hover state: changes background colour to give visual feedback */
+  background: #1DE9B6;
+  /* Slightly different teal — subtle but noticeable colour shift on hover */
+}
+
+
+/* =============================================================================
+   SECTION 7: CARD SYSTEM
+   Cards are rounded rectangular containers that hold content.
+   Used for: login form, register form, dashboard widgets, etc.
+   ============================================================================= */
+
+.card {
+  background: #003B44;
+  /* Dark teal — slightly lighter than the main bg (#0B1E2A), creates depth */
+  padding: 40px;
+  /* 40px space on all sides inside the card */
+  border-radius: 12px;
+  /* Noticeable rounded corners — more rounded than buttons (6px) */
+  width: 100%;
+  /* Fill the available width */
+  max-width: 900px;
+  /*
+    But NEVER wider than 500px.
+    This keeps forms readable on wide screens — a 1200px-wide form would be ugly.
+    On mobile, width: 100% takes over since the screen is narrower than 500px.
+  */
+  font-weight: 900;
+  font-style: normal;
+  font-family: 'Bodoni MT Black', serif;
+}
+
+.card-title {
+  /* The heading text inside a card (e.g. "Login", "Register") */
+  font-size: 2rem;
+  /* 2rem = 2 × 16px = 32px — large, prominent heading */
+  margin-bottom: 20px;
+  /* 20px space below the title before the form fields */
+  color: #00F5D4;
+  /* Bright teal — draws attention to the card's purpose */
+  font-family: 'Bodoni MT Black', serif;
+  font-weight: 900;
+}
+
+.input-field {
+  /* Applied to all <input> and <textarea> elements in forms */
+  width: 100%;
+  /* Fill the full width of the card */
+  padding: 12px;
+  /* 12px inner spacing — makes the input field tall enough to click comfortably */
+  margin-bottom: 20px;
+  /* 20px space BELOW each input (separates fields from each other) */
+  border-radius: 6px;
+  /* Slightly rounded corners */
+  border: none;
+  /* Remove default browser input border (we'll add one on focus instead) */
+  background: #0B1E2A;
+  /* Darkest navy inside the input — contrasts with the card's #003B44 background */
+  color: #E0FFFF;
+  /* Light text so what the user types is readable */
+  font-family: 'Bodoni MT Black', serif;
+  font-weight: 900;
+}
+
+.input-field:focus {
+  /*
+    :focus pseudo-class applies when the element HAS KEYBOARD FOCUS —
+    i.e. when the user clicked into the input field and is typing.
+    Good UX: clearly show WHICH field is currently active.
+  */
+  outline: 2px solid #00F5D4;
+  /*
+    outline is similar to border but:
+    1. Doesn't take up space (doesn't push other elements)
+    2. Drawn OUTSIDE the element's border
+    
+    2px solid = a 2-pixel solid line
+    #00F5D4   = bright teal colour — matches the brand
+    
+    This replaces the browser's default blue/black focus outline with our brand colour.
+  */
+  font-family: 'Bodoni MT Black', serif;
+  font-weight: 900;
+}
+
+
+/* =============================================================================
+   SECTION 8: BRAND NAME (Second definition — overrides first)
+   Note: .brand-name is defined TWICE in this file.
+   The SECOND definition (below) overrides the first for the logo area.
+   In CSS, when the same class is defined multiple times,
+   the LAST definition wins (assuming equal specificity).
+   ============================================================================= */
+
+.brand-name {
+  color: #E0FFFF;
+  font-family: 'Train One', cursive;
+  /* Overrides to 'Train One' font for the large decorative brand name */
+  letter-spacing: 3px;
+  /* 3px extra space BETWEEN each letter — creates spread-out, impactful look */
+  font-size: 48px;
+  /* Much larger: 48px for the big hero/landing page brand name */
+  font-weight: 900;
+  font-style: normal;
+}
+
+
+/* =============================================================================
+   SECTION 9: CIRCLE TEXT EFFECT
+   A circular text animation — text arranged in a circle (like a badge or stamp).
+   ============================================================================= */
+
+.circle-text {
+  /* The container div for circular text */
+  position: relative;
+  /* "relative" positioning keeps the element in normal flow BUT
+     allows child elements with position: absolute to be positioned
+     RELATIVE TO THIS CONTAINER (not the whole page). */
+  width: 200px;
+  height: 200px;
+  /* Fixed 200×200px square (becomes circular via the spans inside) */
+  font-family: 'Train One', cursive;
+  font-size: 17px;
+  border-radius: 50%;
+  /* 50% border-radius on a square element creates a CIRCLE */
+  color: #00F5D4;
+  /* Bright teal colour for the circular text */
+}
+
+.circle-text span {
+  /* Each letter in the circular text is its own <span> element */
+  position: absolute;
+  /*
+    "absolute" positioning removes the span from normal flow and places it
+    relative to the nearest "position: relative" ancestor (.circle-text).
+    Each span is then rotated around the centre to spell out text in a circle.
+    In JavaScript, you'd calculate each span's rotation:
+      rotate(0deg), rotate(15deg), rotate(30deg), etc.
+  */
+  left: 50%;
+  /* Start each span at the horizontal centre of the container */
+  top: 25%;
+  /* Start each span 25% from the top */
+  transform-origin: 0 50px;
+  /*
+    transform-origin sets the PIVOT POINT for CSS transforms (like rotation).
+    "0 50px" means:
+      x = 0   → pivot at the LEFT EDGE of the span (x position)
+      y = 50px → pivot 50px DOWN from the span (y position)
+    
+    When you rotate this span, it rotates AROUND this point.
+    By setting different rotation degrees on each span in JavaScript,
+    you can arrange the letters in a circle.
+  */
+}
+
+
+/* =============================================================================
+   SECTION 10: DUPLICATE @font-face (Second declaration — same as above)
+   This is a duplicate of the @font-face from Section 4 above.
+   Having it twice doesn't cause errors but is redundant — 
+   the first declaration is sufficient.
+   ============================================================================= */
+
+@font-face {
+  font-family: 'Bodoni MT Black';
+  src: url('fonts/bodoni-mt-bold.ttf') format('truetype');
+  font-weight: 900;
+  font-style: normal;
+}
+
+
+/* =============================================================================
+   SECTION 11: ELEMENT UTILITY CLASS
+   ============================================================================= */
+
+.element {
+  /* A generic utility class to apply Bodoni Black to any element */
+  font-family: 'Bodoni MT Black', serif;
+  font-weight: 900;
+}
+
+/* =============================================================================
+   SECTION 12: SKELETON LOADING ANIMATION
+   Used in GenerateCV.jsx while waiting for the AI response.
+   A "skeleton" is a pulsing placeholder that shows the shape of content
+   before it loads — better UX than a blank screen or just a spinner.
+   ============================================================================= */
+
+@keyframes pulse {
+  /*
+    @keyframes defines a named animation sequence.
+    "pulse" is the name — referenced in GenerateCV.jsx as:
+      animation: "pulse 1.5s ease-in-out infinite"
+
+    The animation cycles through these keyframes:
+    0%   → start state  (dim)
+    50%  → middle state (brighter)
+    100% → end state    (back to dim)
+
+    Because it runs "infinite", it loops forever while loading.
+  */
+  0% {
+    opacity: 0.4;
+    /* Start dim — skeleton bar is barely visible */
+  }
+  50% {
+    opacity: 0.9;
+    /* Peak brightness — skeleton bar pulses brighter */
+  }
+  100% {
+    opacity: 0.4;
+    /* Back to dim — one full cycle complete, loops again */
+  }
+}
+
+/* =============================================================================
+   @keyframes spin
+   Used in GenerateCV.jsx for the Download CV button loading spinner.
+   The spinner is a small circle with one transparent side that rotates.
+   ============================================================================= */
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+
+
+
+
+
+
+
