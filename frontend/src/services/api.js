@@ -9,16 +9,8 @@
 import axios from "axios";
 
 const api = axios.create({
-
   baseURL: import.meta.env.VITE_API_URL || "http://127.0.0.1:5000/api",
-  // import.meta.env.VITE_API_URL reads the environment variable from frontend/.env
-  // The || "http://127.0.0.1:5000/api" part is a FALLBACK.
-  // If the env variable is missing for any reason, we fall back to localhost.
-  // This prevents the app from breaking during initial setup.
-
-  headers: {
-    "Content-Type": "application/json",
-  },
+  headers: { "Content-Type": "application/json" },
 });
 
 // REQUEST interceptor — attaches JWT token to every outgoing request
