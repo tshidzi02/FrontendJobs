@@ -18,6 +18,7 @@ from flask_jwt_extended import (
     jwt_required,
     get_jwt_identity
 )
+from flask_migrate import Migrate
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import func
 import re
@@ -33,6 +34,12 @@ from services.cv_generator import generate_cv
 from services.cover_letter_generator import generate_cover_letter
 from services.cover_letter_docx import generate_cover_letter_docx
 from services.job_search import search_jobs
+from services.tools_ai import (
+    generate_interview_prep,
+    optimise_linkedin_bio,
+    estimate_salary,
+    generate_skills_gap,
+)
 from google.oauth2 import id_token
 from google.auth.transport import requests as google_requests
 
@@ -48,7 +55,7 @@ CORS(app, origins=["http://localhost:5173", "http://127.0.0.1:5173", "http://loc
 bcrypt = Bcrypt(app)
 jwt = JWTManager(app)
 db = SQLAlchemy(app)
-
+migrate = Migrate(app, db)
 
 # =============================================================================
 # DATABASE MODELS

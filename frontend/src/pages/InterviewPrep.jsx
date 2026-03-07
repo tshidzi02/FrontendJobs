@@ -117,7 +117,7 @@ function Flashcard({ questions }) {
           ← Prev
         </button>
         <button
-          onClick={() => { setFlipped(false); }}
+          onClick={() => { setFlipped(f => !f); }}
           style={{
             padding: "10px 20px", borderRadius: "8px", cursor: "pointer",
             background: "rgba(0,245,212,0.08)", border: "1px solid rgba(0,245,212,0.2)",
