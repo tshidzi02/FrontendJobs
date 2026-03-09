@@ -1,3 +1,4 @@
+
 // =============================================================================
 // FILE: frontend/src/pages/SalaryEstimator.jsx  (NEW — Phase 7)
 // =============================================================================
@@ -89,11 +90,11 @@ export default function SalaryEstimator() {
 
   return (
     <DashboardLayout>
-      <div style={{ maxWidth: "800px", paddingBottom: "60px" }}>
+      <div style={{ maxWidth: "min(800px, 100%)", paddingBottom: "clamp(40px, 6vw, 80px)" }}>
 
         {/* Header */}
         <div style={{ marginBottom: "32px" }}>
-          <h1 style={{ fontFamily: "'Train One', cursive", fontSize: "32px", color: "#00F5D4", letterSpacing: "2px", marginBottom: "6px" }}>
+          <h1 style={{ fontFamily: "'Train One', cursive", fontSize: "clamp(20px, 4vw, 32px)", color: "#00F5D4", letterSpacing: "2px", marginBottom: "6px" }}>
             SALARY ESTIMATOR
           </h1>
           <p style={{ color: "#E0FFFF", fontSize: "13px", opacity: 0.5 }}>
@@ -154,7 +155,7 @@ export default function SalaryEstimator() {
                   <p style={{ color: "#E0FFFF", fontSize: "11px", opacity: 0.4, letterSpacing: "2px", textTransform: "uppercase", fontFamily: "'Bodoni MT Black', serif", marginBottom: "4px" }}>
                     {result.role} · {result.location}
                   </p>
-                  <h2 style={{ color: "#00F5D4", fontFamily: "'Train One', cursive", fontSize: "42px", lineHeight: 1 }}>
+                  <h2 style={{ color: "#00F5D4", fontFamily: "'Train One', cursive", fontSize: "clamp(22px, 4vw, 42px)", lineHeight: 1 }}>
                     {s}{result.range_mid?.toLocaleString()}
                     <span style={{ color: "#E0FFFF", fontSize: "14px", opacity: 0.5, fontFamily: "system-ui", marginLeft: "8px" }}>
                       / {result.period}
@@ -201,7 +202,7 @@ export default function SalaryEstimator() {
                   📈 Market Factors
                 </p>
                 {(result.market_factors || []).map((f, i) => (
-                  <div key={i} style={{ display: "flex", gap: "10px", marginBottom: "10px", alignItems: "flex-start" }}>
+                  <div key={i} style={{ display: "flex", flexWrap: "wrap", gap: "10px", marginBottom: "10px", alignItems: "flex-start" }}>
                     <span style={{ color: "#00F5D4", fontSize: "12px", marginTop: "1px", flexShrink: 0 }}>▸</span>
                     <p style={{ color: "#E0FFFF", fontSize: "13px", lineHeight: 1.5, fontFamily: "system-ui", opacity: 0.8 }}>{f}</p>
                   </div>
@@ -228,7 +229,7 @@ export default function SalaryEstimator() {
                   💡 Negotiation Tips
                 </p>
                 {(result.negotiation_tips || []).map((tip, i) => (
-                  <div key={i} style={{ display: "flex", gap: "10px", marginBottom: "12px", alignItems: "flex-start" }}>
+                  <div key={i} style={{ display: "flex", flexWrap: "wrap", gap: "10px", marginBottom: "12px", alignItems: "flex-start" }}>
                     <span style={{ background: "rgba(74,222,128,0.15)", borderRadius: "50%", width: "20px", height: "20px", display: "flex", alignItems: "center", justifyContent: "center", color: "#4ADE80", fontSize: "10px", fontFamily: "'Bodoni MT Black', serif", fontWeight: 900, flexShrink: 0, marginTop: "1px" }}>
                       {i + 1}
                     </span>
@@ -244,3 +245,4 @@ export default function SalaryEstimator() {
     </DashboardLayout>
   );
 }
+

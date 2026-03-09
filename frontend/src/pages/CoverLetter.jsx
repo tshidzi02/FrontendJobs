@@ -1,3 +1,4 @@
+
 // =============================================================================
 // FILE: frontend/src/pages/CoverLetter.jsx  (UPDATED — Lesson 4.1 Signature)
 // =============================================================================
@@ -338,13 +339,13 @@ export default function CoverLetter() {
   // ── RENDER ────────────────────────────────────────────────────────────────
   return (
     <DashboardLayout>
-      <div style={{ maxWidth: "1000px", margin: "0 auto" }}>
+      <div style={{ maxWidth: "min(1000px, 100%)", margin: "0 auto" }}>
 
         {/* ── PAGE HEADER ──────────────────────────────── */}
         <div style={{ marginBottom: "28px" }}>
           <h1 style={{
             fontFamily: "'Train One', cursive",
-            fontSize: "32px", color: "#00F5D4",
+            fontSize: "clamp(20px, 4vw, 32px)", color: "#00F5D4",
             letterSpacing: "2px", marginBottom: "6px",
           }}>
             Cover Letter
@@ -363,7 +364,7 @@ export default function CoverLetter() {
             borderRadius: "10px",
             padding: "14px 18px",
             marginBottom: "20px",
-            display: "flex", alignItems: "center", gap: "12px",
+            display: "flex", flexWrap: "wrap", alignItems: "center", gap: "12px",
           }}>
             <span style={{ fontSize: "18px" }}>⚠</span>
             <p style={{ color: "#FFB347", fontSize: "13px", margin: 0 }}>
@@ -467,7 +468,7 @@ export default function CoverLetter() {
               fontSize: "15px", padding: "13px 36px",
               opacity: loading ? 0.65 : 1,
               cursor: loading ? "not-allowed" : "pointer",
-              display: "flex", alignItems: "center", gap: "8px",
+              display: "flex", flexWrap: "wrap", alignItems: "center", gap: "8px",
             }}
           >
             {loading ? (
@@ -601,7 +602,7 @@ export default function CoverLetter() {
                     background: saved ? "#1DE9B6" : saving ? "#00B4D8" : "#00F5D4",
                     opacity: saving ? 0.75 : 1,
                     cursor: (saving || saved) ? "not-allowed" : "pointer",
-                    display: "flex", alignItems: "center", gap: "8px",
+                    display: "flex", flexWrap: "wrap", alignItems: "center", gap: "8px",
                   }}
                 >
                   {saving ? (
@@ -717,7 +718,7 @@ export default function CoverLetter() {
                     background: sigSaved ? "#1DE9B6" : "#00F5D4",
                     opacity: sigSaving ? 0.7 : 1,
                     cursor: (sigSaving || sigSaved) ? "not-allowed" : "pointer",
-                    display: "flex", alignItems: "center", gap: "7px",
+                    display: "flex", flexWrap: "wrap", alignItems: "center", gap: "7px",
                   }}
                 >
                   {sigSaving ? (
@@ -976,7 +977,7 @@ export default function CoverLetter() {
                     )}
 
                     {isConfirming && (
-                      <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                      <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "6px" }}>
                         <span style={{ color: "#E0FFFF", fontSize: "11px", opacity: 0.5 }}>Sure?</span>
                         <button
                           onClick={() => handleDelete(cl.id)}
@@ -1042,3 +1043,4 @@ export default function CoverLetter() {
     </DashboardLayout>
   );
 }
+

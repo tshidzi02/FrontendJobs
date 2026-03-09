@@ -1,3 +1,4 @@
+
 // =============================================================================
 // FILE: frontend/src/pages/InterviewPrep.jsx  (NEW — Phase 7)
 // =============================================================================
@@ -43,10 +44,10 @@ function Flashcard({ questions }) {
   const progress = ((idx + 1) / questions.length) * 100;
 
   return (
-    <div style={{ maxWidth: "680px", margin: "0 auto" }}>
+    <div style={{ maxWidth: "min(680px, 100%)", margin: "0 auto" }}>
 
       {/* Progress bar */}
-      <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "28px" }}>
+      <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "12px", marginBottom: "28px" }}>
         <div style={{ flex: 1, height: "4px", background: "rgba(0,245,212,0.1)", borderRadius: "2px" }}>
           <div style={{ width: `${progress}%`, height: "100%", background: "#00F5D4", borderRadius: "2px", transition: "width 0.3s ease" }} />
         </div>
@@ -103,7 +104,7 @@ function Flashcard({ questions }) {
       </div>
 
       {/* Navigation */}
-      <div style={{ display: "flex", gap: "12px", marginTop: "20px", justifyContent: "center" }}>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: "12px", marginTop: "20px", justifyContent: "center" }}>
         <button
           onClick={() => { setIdx(i => Math.max(0, i - 1)); setFlipped(false); }}
           disabled={idx === 0}
@@ -235,11 +236,11 @@ export default function InterviewPrep() {
 
   return (
     <DashboardLayout>
-      <div style={{ maxWidth: "900px", paddingBottom: "60px" }}>
+      <div style={{ maxWidth: "min(900px, 100%)", paddingBottom: "clamp(40px, 6vw, 80px)" }}>
 
         {/* Header */}
         <div style={{ marginBottom: "32px" }}>
-          <h1 style={{ fontFamily: "'Train One', cursive", fontSize: "32px", color: "#00F5D4", letterSpacing: "2px", marginBottom: "6px" }}>
+          <h1 style={{ fontFamily: "'Train One', cursive", fontSize: "clamp(20px, 4vw, 32px)", color: "#00F5D4", letterSpacing: "2px", marginBottom: "6px" }}>
             INTERVIEW PREP
           </h1>
           <p style={{ color: "#E0FFFF", fontSize: "13px", opacity: 0.5 }}>
@@ -337,3 +338,4 @@ export default function InterviewPrep() {
     </DashboardLayout>
   );
 }
+

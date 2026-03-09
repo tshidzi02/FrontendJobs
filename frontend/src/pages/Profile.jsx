@@ -1,3 +1,4 @@
+
 // =============================================================================
 // FILE: frontend/src/pages/Profile.jsx  (UPDATED — Education + Projects optional)
 // =============================================================================
@@ -57,7 +58,7 @@ const PROFICIENCY_LEVELS = [
 
 function ProficiencyBar({ level }) {
   return (
-    <div style={{ display: "flex", gap: "4px", marginTop: "6px" }}>
+    <div style={{ display: "flex", flexWrap: "wrap", gap: "4px", marginTop: "6px" }}>
       {Array.from({ length: 6 }).map((_, i) => (
         <div key={i} style={{
           width: "28px", height: "8px", borderRadius: "2px",
@@ -278,7 +279,7 @@ export default function Profile() {
   ────────────────────────────────────────────────────────────────────────── */}
   {loading && (
     <DashboardLayout>
-      <div style={{ maxWidth: "800px", margin: "0 auto", paddingBottom: "60px" }}>
+      <div style={{ maxWidth: "min(800px, 100%)", margin: "0 auto", paddingBottom: "clamp(40px, 6vw, 80px)" }}>
 
         {/* Page title skeleton */}
         <div style={{
@@ -358,11 +359,11 @@ export default function Profile() {
 
   return (
     <DashboardLayout>
-      <div style={{ maxWidth: "1000px", margin: "0 auto" }}>
+      <div style={{ maxWidth: "min(1000px, 100%)", margin: "0 auto" }}>
 
         {/* ── Page Header ─────────────────────────────── */}
         <h1 style={{
-          fontFamily: "'Train One', cursive", fontSize: "32px",
+          fontFamily: "'Train One', cursive", fontSize: "clamp(20px, 4vw, 32px)",
           color: "#00F5D4", letterSpacing: "2px", marginBottom: "6px",
         }}>
           CV Profile
@@ -376,7 +377,7 @@ export default function Profile() {
         <div className="card" style={{ maxWidth: "100%", marginBottom: "20px" }}>
           <SectionHeader title="👤 Personal Information" />
 
-          <div style={{ display: "flex", gap: "16px", marginBottom: "16px" }}>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "16px", marginBottom: "16px" }}>
             <div style={{ flex: 1 }}>
               <label style={labelStyle}>First Name</label>
               <input style={inputStyle} value={personalInfo.firstName}
@@ -395,7 +396,7 @@ export default function Profile() {
               onChange={(e) => handlePersonalChange("jobTitle", e.target.value)} />
           </div>
 
-          <div style={{ display: "flex", gap: "16px", marginBottom: "16px" }}>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "16px", marginBottom: "16px" }}>
             <div style={{ flex: 1 }}>
               <label style={labelStyle}>City</label>
               <input style={inputStyle} value={personalInfo.city}
@@ -408,7 +409,7 @@ export default function Profile() {
             </div>
           </div>
 
-          <div style={{ display: "flex", gap: "16px", marginBottom: "16px" }}>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "16px", marginBottom: "16px" }}>
             <div style={{ flex: 1 }}>
               <label style={labelStyle}>Email</label>
               <input style={inputStyle} value={personalInfo.email}
@@ -432,7 +433,7 @@ export default function Profile() {
         {/* ══ SECTION 2 — SKILLS ══════════════════════════ */}
         <div className="card" style={{ maxWidth: "100%", marginBottom: "20px" }}>
           <SectionHeader title="🛠 Skills" />
-          <div style={{ display: "flex", gap: "10px", marginBottom: "16px" }}>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "10px", marginBottom: "16px" }}>
             <input style={{ ...inputStyle, marginBottom: 0 }} value={skillInput}
               onChange={(e) => setSkillInput(e.target.value)}
               onKeyDown={handleSkillKeyDown} />
@@ -448,7 +449,7 @@ export default function Profile() {
                   background: "rgba(0,245,212,0.1)", border: "1px solid rgba(0,245,212,0.3)",
                   color: "#00F5D4", padding: "6px 12px", borderRadius: "20px",
                   fontSize: "13px", fontFamily: "'Bodoni MT Black', serif",
-                  display: "flex", alignItems: "center", gap: "8px",
+                  display: "flex", flexWrap: "wrap", alignItems: "center", gap: "8px",
                 }}>
                   {skill}
                   <button onClick={() => handleRemoveSkill(index)} style={{
@@ -482,7 +483,7 @@ export default function Profile() {
                 fontFamily: "'Bodoni MT Black', serif", opacity: 0.6 }}>
                 Position {index + 1}
               </p>
-              <div style={{ display: "flex", gap: "12px", marginBottom: "12px" }}>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "12px", marginBottom: "12px" }}>
                 <div style={{ flex: 2 }}>
                   <label style={labelStyle}>Job Title</label>
                   <input style={inputStyle} value={job.title}
@@ -494,7 +495,7 @@ export default function Profile() {
                     onChange={(e) => handleExperienceChange(index, "company", e.target.value)} />
                 </div>
               </div>
-              <div style={{ display: "flex", gap: "12px", marginBottom: "12px" }}>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "12px", marginBottom: "12px" }}>
                 <div style={{ flex: 1 }}>
                   <label style={labelStyle}>City</label>
                   <input style={inputStyle} value={job.city}
@@ -506,7 +507,7 @@ export default function Profile() {
                     onChange={(e) => handleExperienceChange(index, "country", e.target.value)} />
                 </div>
               </div>
-              <div style={{ display: "flex", gap: "12px", marginBottom: "16px" }}>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "12px", marginBottom: "16px" }}>
                 <div style={{ flex: 1 }}>
                   <label style={labelStyle}>Start Year</label>
                   <input style={inputStyle} value={job.startYear}
@@ -520,7 +521,7 @@ export default function Profile() {
               </div>
               <label style={{ ...labelStyle, marginBottom: "10px" }}>Key Responsibilities / Achievements</label>
               {job.bullets.map((bullet, bIndex) => (
-                <div key={bIndex} style={{ display: "flex", gap: "8px", marginBottom: "8px", alignItems: "center" }}>
+                <div key={bIndex} style={{ display: "flex", flexWrap: "wrap", gap: "8px", marginBottom: "8px", alignItems: "center" }}>
                   <span style={{ color: "#00F5D4", fontSize: "12px", flexShrink: 0 }}>→</span>
                   <input style={{ ...inputStyle, marginBottom: 0, flex: 1 }} value={bullet}
                     onChange={(e) => handleBulletChange(index, bIndex, e.target.value)} />
@@ -580,7 +581,7 @@ export default function Profile() {
               </div>
 
               {/* City + Country */}
-              <div style={{ display: "flex", gap: "12px", marginBottom: "12px" }}>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "12px", marginBottom: "12px" }}>
                 <div style={{ flex: 1 }}>
                   <label style={labelStyle}>City</label>
                   <input style={inputStyle} value={edu.city}
@@ -599,7 +600,7 @@ export default function Profile() {
               ──────────────────────────────────────────────────── */}
               <div style={{ marginBottom: "14px" }}>
                 <label style={labelStyle}>Graduation Status</label>
-                <div style={{ display: "flex", gap: "10px" }}>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: "10px" }}>
                   {["graduated", "expected"].map((status) => (
                     <button
                       key={status}
@@ -638,7 +639,7 @@ export default function Profile() {
                     ? "Expected Graduation Month & Year"
                     : "Graduation Month & Year"}
                 </label>
-                <div style={{ display: "flex", gap: "12px" }}>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: "12px" }}>
                   <select
                     value={edu.graduationMonth || ""}
                     onChange={(e) => handleEducationChange(index, "graduationMonth", e.target.value)}
@@ -682,7 +683,7 @@ export default function Profile() {
                 Relevant Coursework / Achievements
               </label>
               {edu.coursework.map((item, cwIndex) => (
-                <div key={cwIndex} style={{ display: "flex", gap: "8px", marginBottom: "8px", alignItems: "center" }}>
+                <div key={cwIndex} style={{ display: "flex", flexWrap: "wrap", gap: "8px", marginBottom: "8px", alignItems: "center" }}>
                   <span style={{ color: "#00F5D4", fontSize: "12px", flexShrink: 0 }}>•</span>
                   <input style={{ ...inputStyle, marginBottom: 0, flex: 1 }} value={item}
                     onChange={(e) => handleCourseworkChange(index, cwIndex, e.target.value)} />
@@ -731,7 +732,7 @@ export default function Profile() {
 
               {/* ── Include in CV toggle ──────────────────────────── */}
               <div style={{
-                display: "flex", alignItems: "center", gap: "10px",
+                display: "flex", flexWrap: "wrap", alignItems: "center", gap: "10px",
                 marginBottom: "16px",
               }}>
                 <div
@@ -782,7 +783,7 @@ export default function Profile() {
               {/* Bullets */}
               <label style={{ ...labelStyle, marginBottom: "10px" }}>Project Descriptions</label>
               {proj.bullets.map((bullet, bIndex) => (
-                <div key={bIndex} style={{ display: "flex", gap: "8px", marginBottom: "8px", alignItems: "center" }}>
+                <div key={bIndex} style={{ display: "flex", flexWrap: "wrap", gap: "8px", marginBottom: "8px", alignItems: "center" }}>
                   <span style={{ color: "#00F5D4", fontSize: "12px", flexShrink: 0 }}>→</span>
                   <input style={{ ...inputStyle, marginBottom: 0, flex: 1 }} value={bullet}
                     onChange={(e) => handleProjectBulletChange(index, bIndex, e.target.value)} />
@@ -891,3 +892,4 @@ export default function Profile() {
     </DashboardLayout>
   );
 }
+

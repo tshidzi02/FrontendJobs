@@ -1,3 +1,4 @@
+
 // =============================================================================
 // FILE: frontend/src/pages/SkillsGap.jsx  (NEW — Phase 7)
 // =============================================================================
@@ -82,11 +83,11 @@ export default function SkillsGap() {
 
   return (
     <DashboardLayout>
-      <div style={{ maxWidth: "900px", paddingBottom: "60px" }}>
+      <div style={{ maxWidth: "min(900px, 100%)", paddingBottom: "clamp(40px, 6vw, 80px)" }}>
 
         {/* Header */}
         <div style={{ marginBottom: "32px" }}>
-          <h1 style={{ fontFamily: "'Train One', cursive", fontSize: "32px", color: "#00F5D4", letterSpacing: "2px", marginBottom: "6px" }}>
+          <h1 style={{ fontFamily: "'Train One', cursive", fontSize: "clamp(20px, 4vw, 32px)", color: "#00F5D4", letterSpacing: "2px", marginBottom: "6px" }}>
             SKILLS GAP REPORT
           </h1>
           <p style={{ color: "#E0FFFF", fontSize: "13px", opacity: 0.5 }}>
@@ -155,7 +156,7 @@ export default function SkillsGap() {
             </div>
 
             {/* Tabs */}
-            <div style={{ display: "flex", gap: "0", marginBottom: "20px", background: "#003B44", borderRadius: "10px", border: "1px solid rgba(0,245,212,0.1)", overflow: "hidden" }}>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "0", marginBottom: "20px", background: "#003B44", borderRadius: "10px", border: "1px solid rgba(0,245,212,0.1)", overflow: "hidden" }}>
               {tabs.map(tab => (
                 <button
                   key={tab.id}
@@ -188,7 +189,7 @@ export default function SkillsGap() {
                     <div key={i} style={{ background: "#003B44", borderRadius: "12px", padding: "18px 22px", border: `1px solid ${color}20`, borderLeft: `3px solid ${color}` }}>
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "12px", flexWrap: "wrap" }}>
                         <div style={{ flex: 1 }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "6px" }}>
+                          <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "10px", marginBottom: "6px" }}>
                             <p style={{ color: "#E0FFFF", fontFamily: "'Bodoni MT Black', serif", fontWeight: 900, fontSize: "14px" }}>{sk.skill}</p>
                             <span style={{ background: `${color}18`, border: `1px solid ${color}40`, borderRadius: "4px", padding: "1px 8px", color, fontSize: "10px", fontFamily: "'Bodoni MT Black', serif", letterSpacing: "0.5px", textTransform: "uppercase" }}>
                               {sk.importance}
@@ -235,7 +236,7 @@ export default function SkillsGap() {
             {activeTab === "actions" && (
               <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
                 {(result.priority_actions || []).map((action, i) => (
-                  <div key={i} style={{ background: "#003B44", borderRadius: "12px", padding: "18px 22px", border: "1px solid rgba(0,245,212,0.12)", display: "flex", gap: "16px", alignItems: "flex-start" }}>
+                  <div key={i} style={{ background: "#003B44", borderRadius: "12px", padding: "18px 22px", border: "1px solid rgba(0,245,212,0.12)", display: "flex", flexWrap: "wrap", gap: "16px", alignItems: "flex-start" }}>
                     <span style={{ background: "rgba(0,245,212,0.12)", border: "1px solid rgba(0,245,212,0.3)", borderRadius: "50%", width: "28px", height: "28px", display: "flex", alignItems: "center", justifyContent: "center", color: "#00F5D4", fontFamily: "'Bodoni MT Black', serif", fontWeight: 900, fontSize: "12px", flexShrink: 0 }}>
                       {i + 1}
                     </span>
@@ -263,3 +264,4 @@ export default function SkillsGap() {
     </DashboardLayout>
   );
 }
+

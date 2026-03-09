@@ -1,3 +1,4 @@
+
 // =============================================================================
 // FILE: frontend/src/pages/LinkedInOptimiser.jsx  (NEW — Phase 7)
 // =============================================================================
@@ -77,11 +78,11 @@ export default function LinkedInOptimiser() {
 
   return (
     <DashboardLayout>
-      <div style={{ maxWidth: "900px", paddingBottom: "60px" }}>
+      <div style={{ maxWidth: "min(900px, 100%)", paddingBottom: "clamp(40px, 6vw, 80px)" }}>
 
         {/* Header */}
         <div style={{ marginBottom: "32px" }}>
-          <h1 style={{ fontFamily: "'Train One', cursive", fontSize: "32px", color: "#00F5D4", letterSpacing: "2px", marginBottom: "6px" }}>
+          <h1 style={{ fontFamily: "'Train One', cursive", fontSize: "clamp(20px, 4vw, 32px)", color: "#00F5D4", letterSpacing: "2px", marginBottom: "6px" }}>
             LINKEDIN OPTIMISER
           </h1>
           <p style={{ color: "#E0FFFF", fontSize: "13px", opacity: 0.5 }}>
@@ -141,7 +142,7 @@ export default function LinkedInOptimiser() {
 
         {/* Loading skeleton */}
         {loading && (
-          <div style={{ display: "flex", gap: "12px" }}>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "12px" }}>
             {[1,2,3].map(i => (
               <div key={i} style={{ flex: 1, height: "340px", background: "#003B44", borderRadius: "16px", opacity: 1 - i * 0.15 }} />
             ))}
@@ -183,7 +184,7 @@ export default function LinkedInOptimiser() {
 
                 {/* Headline */}
                 <div style={{ marginBottom: "24px", paddingBottom: "20px", borderBottom: "1px solid rgba(0,245,212,0.1)" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "12px", marginBottom: "10px" }}>
+                  <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "flex-start", gap: "12px", marginBottom: "10px" }}>
                     <p style={{ color: "#E0FFFF", fontSize: "11px", opacity: 0.4, letterSpacing: "2px", textTransform: "uppercase", fontFamily: "'Bodoni MT Black', serif" }}>
                       LinkedIn Headline
                     </p>
@@ -221,3 +222,4 @@ export default function LinkedInOptimiser() {
     </DashboardLayout>
   );
 }
+

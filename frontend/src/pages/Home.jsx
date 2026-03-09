@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
@@ -177,7 +178,7 @@ export default function Home() {
             </button>
 
             {/* SMALL row — Login and Register */}
-            <div style={{ display: "flex", gap: "12px" }}>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "12px" }}>
 
               {/* Login */}
               {/*
@@ -261,3 +262,4 @@ export default function Home() {
     </div>
   );
 }
+

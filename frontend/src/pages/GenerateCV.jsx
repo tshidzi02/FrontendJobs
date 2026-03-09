@@ -1,3 +1,4 @@
+
 // =============================================================================
 // FILE: frontend/src/pages/GenerateCV.jsx
 // =============================================================================
@@ -307,11 +308,11 @@ useEffect(() => {
   // ── RENDER ───────────────────────────────────────────────────────────────
   return (
     <DashboardLayout>
-      <div style={{ maxWidth: "1000px", margin: "0 auto" }}>
+      <div style={{ maxWidth: "min(1000px, 100%)", margin: "0 auto" }}>
 
         {/* ── Page Header ──────────────────────────────── */}
         <h1 style={{
-          fontFamily: "'Train One', cursive", fontSize: "32px",
+          fontFamily: "'Train One', cursive", fontSize: "clamp(20px, 4vw, 32px)",
           color: "#00F5D4", letterSpacing: "2px", marginBottom: "6px",
         }}>
           Generate CV
@@ -364,7 +365,7 @@ useEffect(() => {
               fontSize: "15px", padding: "13px 36px",
               opacity: loading ? 0.65 : 1,
               cursor: loading ? "not-allowed" : "pointer",
-              display: "flex", alignItems: "center", gap: "8px",
+              display: "flex", flexWrap: "wrap", alignItems: "center", gap: "8px",
             }}
           >
             {loading ? (
@@ -421,7 +422,7 @@ useEffect(() => {
               }}>📊 ATS Score</h3>
 
               <div style={{
-                fontSize: "56px", fontFamily: "'Train One', cursive",
+                fontSize: "clamp(28px, 5vw, 56px)", fontFamily: "'Train One', cursive",
                 color: scoreColor(result.ats.final_score), lineHeight: 1, marginBottom: "16px",
               }}>
                 {result.ats.final_score}%
@@ -539,7 +540,7 @@ useEffect(() => {
                     borderRadius: "10px",
                     padding: "12px 14px",
                   }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "6px" }}>
+                    <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "8px", marginBottom: "6px" }}>
                       <span style={{
                         color: isNew ? "#FFB347" : "#00F5D4",
                         fontFamily: "'Bodoni MT Black', serif",
@@ -588,7 +589,7 @@ useEffect(() => {
                       marginBottom: newCategories.length > 0 ? "20px" : "0",
                     }}>
                       {/* Zone header */}
-                      <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "16px" }}>
+                      <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "10px", marginBottom: "16px" }}>
                         <div style={{
                           width: "10px", height: "10px", borderRadius: "50%",
                           background: "#00F5D4", flexShrink: 0,
@@ -647,7 +648,7 @@ useEffect(() => {
                       padding: "16px 18px",
                     }}>
                       {/* Zone header */}
-                      <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "16px" }}>
+                      <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "10px", marginBottom: "16px" }}>
                         <div style={{
                           width: "10px", height: "10px", borderRadius: "50%",
                           background: "#FFB347", flexShrink: 0,
@@ -748,7 +749,7 @@ useEffect(() => {
                     </div>
                     {job.bullets?.map((bullet, bi) => (
                       <div key={bi} style={{
-                        display: "flex", gap: "10px", marginBottom: "8px", alignItems: "flex-start",
+                        display: "flex", flexWrap: "wrap", gap: "10px", marginBottom: "8px", alignItems: "flex-start",
                       }}>
                         <span style={{ color: "#00F5D4", fontSize: "12px", marginTop: "3px", flexShrink: 0 }}>→</span>
                         <p style={{ color: "#E0FFFF", fontSize: "13px", lineHeight: "1.65", opacity: 0.85, margin: 0 }}>
@@ -853,7 +854,7 @@ useEffect(() => {
                               padding: "10px 14px",
                               marginBottom: "8px",
                             }}>
-                              <div style={{ display: "flex", gap: "10px", alignItems: "flex-start" }}>
+                              <div style={{ display: "flex", flexWrap: "wrap", gap: "10px", alignItems: "flex-start" }}>
                                 <span style={{
                                   color: "#00F5D4", fontSize: "12px", marginTop: "2px", flexShrink: 0,
                                 }}>•</span>
@@ -914,7 +915,7 @@ useEffect(() => {
                     )}
                     {proj.bullets?.map((bullet, bi) => (
                       <div key={bi} style={{
-                        display: "flex", gap: "10px", marginBottom: "8px", alignItems: "flex-start",
+                        display: "flex", flexWrap: "wrap", gap: "10px", marginBottom: "8px", alignItems: "flex-start",
                       }}>
                         <span style={{ color: "#00F5D4", fontSize: "12px", marginTop: "3px", flexShrink: 0 }}>→</span>
                         <p style={{ color: "#E0FFFF", fontSize: "13px", lineHeight: "1.65", opacity: 0.85, margin: 0 }}>
@@ -996,7 +997,7 @@ useEffect(() => {
                             Each block is a thick rounded rectangle.
                             Filled = solid dark teal (#00B4D8), empty = faint */}
                         <div style={{
-                          display: "flex", gap: "5px", marginBottom: "10px",
+                          display: "flex", flexWrap: "wrap", gap: "5px", marginBottom: "10px",
                         }}>
                           {Array.from({ length: 6 }).map((_, i) => (
                             <div key={i} style={{
@@ -1062,7 +1063,7 @@ useEffect(() => {
                     opacity: downloading ? 0.65 : 1,
                     cursor: downloading ? "not-allowed" : "pointer",
                     background: downloading ? "#1DE9B6" : "#00F5D4",
-                    display: "flex", alignItems: "center", gap: "8px",
+                    display: "flex", flexWrap: "wrap", alignItems: "center", gap: "8px",
                   }}
                 >
                   {downloading ? (
@@ -1156,3 +1157,4 @@ useEffect(() => {
     </DashboardLayout>
   );
 }
+

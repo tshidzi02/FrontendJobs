@@ -1,3 +1,4 @@
+
 // =============================================================================
 // FILE: frontend/src/pages/Dashboard.jsx  (UPDATED — Phase 5.6: Tracker Stats)
 // =============================================================================
@@ -50,7 +51,7 @@ function StatCard({ label, value, subtext, color = "#00F5D4", isEmpty = false, o
       <p style={{
         color:      isEmpty ? "rgba(224,255,255,0.2)" : color,
         fontFamily: "'Train One', cursive",
-        fontSize:   "36px", lineHeight: 1,
+        fontSize: "clamp(20px, 3.5vw, 36px)", lineHeight: 1,
         marginBottom: subtext ? "8px" : "0",
         transition: "color 0.3s ease",
       }}>
@@ -207,7 +208,7 @@ export default function Dashboard() {
           {/* Welcome header */}
           <div style={{ marginBottom: "32px" }}>
             <h1 style={{
-              fontFamily: "'Train One', cursive", fontSize: "32px",
+              fontFamily: "'Train One', cursive", fontSize: "clamp(20px, 4vw, 32px)",
               color: "#00F5D4", letterSpacing: "2px", marginBottom: "6px",
             }}>
               Welcome Back
@@ -472,3 +473,4 @@ export default function Dashboard() {
     </DashboardLayout>
   );
 }
+

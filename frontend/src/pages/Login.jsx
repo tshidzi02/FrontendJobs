@@ -1,3 +1,4 @@
+
 // =============================================================================
 // FILE: frontend/src/pages/Login.jsx  (UPDATED — AuthContext)
 // =============================================================================
@@ -66,6 +67,7 @@ export default function Login() {
       justifyContent: "center",
       alignItems: "center",
       minHeight: "80vh",
+      padding: "0 16px",
     }}>
 
       {/* Background Video */}
@@ -155,3 +157,4 @@ export default function Login() {
     </div>
   );
 }
+

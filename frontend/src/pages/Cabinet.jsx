@@ -1,3 +1,4 @@
+
 // =============================================================================
 // FILE: frontend/src/pages/Cabinet.jsx  (UPDATED — Lesson 3.3: CV Cabinet)
 // =============================================================================
@@ -222,13 +223,13 @@ export default function Cabinet() {
   return (
     <DashboardLayout>
 
-      <div style={{ maxWidth: "1000px", margin: "0 auto" }}>
+      <div style={{ maxWidth: "min(1000px, 100%)", margin: "0 auto" }}>
 
         {/* ── PAGE HEADER ─────────────────────────────── */}
         <div style={{ marginBottom: "32px" }}>
           <h1 style={{
             fontFamily: "'Train One', cursive",
-            fontSize: "32px",
+            fontSize: "clamp(20px, 4vw, 32px)",
             color: "#00F5D4",
             letterSpacing: "2px",
             marginBottom: "8px",
@@ -295,7 +296,7 @@ export default function Cabinet() {
             border: "1px dashed rgba(0,245,212,0.3)",
             marginBottom: "24px",
           }}>
-            <div style={{ fontSize: "48px", marginBottom: "20px" }}>🗂️</div>
+            <div style={{ fontSize: "clamp(24px, 5vw, 48px)", marginBottom: "20px" }}>🗂️</div>
             <h3 style={{
               color: "#00F5D4",
               fontFamily: "'Bodoni MT Black', serif",
@@ -527,7 +528,7 @@ export default function Cabinet() {
 
                     {isConfirming && (
                       // Step 2: confirm delete
-                      <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                      <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "8px" }}>
                         <span style={{ color: "#E0FFFF", fontSize: "12px", opacity: 0.6 }}>
                           Are you sure?
                         </span>
@@ -597,3 +598,5 @@ export default function Cabinet() {
     </DashboardLayout>
   );
 }
+
+

@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import api from "../services/api";
@@ -51,6 +52,7 @@ export default function Register() {
       justifyContent: "center",
       alignItems: "center",
       minHeight: "80vh",
+      padding: "0 16px",
     }}>
 
         {/* Background Video */}
@@ -181,3 +183,4 @@ export default function Register() {
     </div>
   );
 }
+

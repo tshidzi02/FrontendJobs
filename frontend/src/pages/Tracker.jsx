@@ -1,3 +1,4 @@
+
 // =============================================================================
 // FILE: frontend/src/pages/Tracker.jsx
 // =============================================================================
@@ -144,7 +145,7 @@ function AppCard({ app, onDragStart, onEdit, onDelete }) {
           {formatDate(app.created_at)}
         </span>
 
-        <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", alignItems: "center" }}>
           {/* External URL */}
           {app.url && (
             <a
@@ -226,7 +227,8 @@ function KanbanColumn({ column, apps, onDragStart, onDrop, onDragOver, onEdit, o
       onDragLeave={() => setIsDragOver(false)}
       onDrop={(e) => { setIsDragOver(false); onDrop(e, column.id); }}
       style={{
-        flex:         "0 0 240px",
+        flex:         "0 0 clamp(220px, 75vw, 260px)",
+        scrollSnapAlign: "start",
         minHeight:    "500px",
         background:   isDragOver ? `${column.color}08` : "rgba(0,59,68,0.4)",
         border:       isDragOver ? `1px solid ${column.color}60` : "1px solid rgba(0,245,212,0.08)",
@@ -246,7 +248,7 @@ function KanbanColumn({ column, apps, onDragStart, onDrop, onDragOver, onEdit, o
         paddingBottom: "12px",
         borderBottom:  `1px solid ${column.color}25`,
       }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+        <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "8px" }}>
           <span style={{ fontSize: "16px" }}>{column.emoji}</span>
           <span style={{
             color:       column.color,
@@ -440,7 +442,7 @@ function AppModal({ initial, onSave, onClose }) {
           )}
 
           {/* Row: Company + Role */}
-          <div style={{ display: "flex", gap: "14px", marginBottom: "16px" }}>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "14px", marginBottom: "16px" }}>
             <div style={{ flex: 1 }}>
               <label style={labelStyle}>Company</label>
               <input
@@ -462,7 +464,7 @@ function AppModal({ initial, onSave, onClose }) {
           </div>
 
           {/* Row: Status + Salary */}
-          <div style={{ display: "flex", gap: "14px", marginBottom: "16px" }}>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "14px", marginBottom: "16px" }}>
             <div style={{ flex: 1 }}>
               <label style={labelStyle}>Status</label>
               <select
@@ -690,7 +692,7 @@ export default function Tracker() {
   // ── RENDER ────────────────────────────────────────────────────────────────
   return (
     <DashboardLayout>
-      <div style={{ paddingBottom: "60px" }}>
+      <div style={{ paddingBottom: "clamp(40px, 6vw, 80px)" }}>
 
         {/* ── PAGE HEADER ──────────────────────────────────────────────────── */}
         <div style={{
@@ -704,7 +706,7 @@ export default function Tracker() {
           <div>
             <h1 style={{
               fontFamily:    "'Train One', cursive",
-              fontSize:      "32px",
+              fontSize: "clamp(20px, 4vw, 32px)",
               color:         "#00F5D4",
               letterSpacing: "2px",
               marginBottom:  "6px",
@@ -762,7 +764,7 @@ export default function Tracker() {
                 <p style={{
                   color:      stat.color,
                   fontFamily: "'Train One', cursive",
-                  fontSize:   "28px",
+                  fontSize: "clamp(18px, 3vw, 28px)",
                   lineHeight: 1,
                 }}>
                   {stat.value}
@@ -781,10 +783,10 @@ export default function Tracker() {
 
         {/* ── LOADING ──────────────────────────────────────────────────────── */}
         {loading && (
-          <div style={{ display: "flex", gap: "16px" }}>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "16px" }}>
             {COLUMNS.map(col => (
               <div key={col.id} style={{
-                flex:         "0 0 240px",
+                flex:         "0 0 clamp(220px, 75vw, 260px)",
                 height:       "400px",
                 background:   "#003B44",
                 borderRadius: "14px",
@@ -831,7 +833,7 @@ export default function Tracker() {
             textAlign:  "center",
             pointerEvents: "none",
           }}>
-            <p style={{ fontSize: "40px", marginBottom: "12px" }}>📋</p>
+            <p style={{ fontSize: "clamp(22px, 4vw, 40px)", marginBottom: "12px" }}>📋</p>
             <p style={{
               color:      "#E0FFFF",
               fontFamily: "'Bodoni MT Black', serif",
@@ -861,3 +863,4 @@ export default function Tracker() {
     </DashboardLayout>
   );
 }
+

@@ -1,3 +1,4 @@
+
 // =============================================================================
 // FILE: frontend/src/pages/Jobs.jsx
 // =============================================================================
@@ -178,7 +179,7 @@ function FeaturedCard({ job, onClick }) {
       </div>
 
       {/* Header row */}
-      <div style={{ display: "flex", alignItems: "flex-start", gap: "16px", marginBottom: "16px" }}>
+      <div style={{ display: "flex", flexWrap: "wrap", alignItems: "flex-start", gap: "16px", marginBottom: "16px" }}>
         {/* Company initial avatar */}
         <div style={{
           width:        "52px",
@@ -256,7 +257,7 @@ function FeaturedCard({ job, onClick }) {
       </p>
 
       {/* CTA */}
-      <div style={{ marginTop: "20px", display: "flex", gap: "12px" }}>
+      <div style={{ marginTop: "20px", display: "flex", flexWrap: "wrap", gap: "12px" }}>
         <span style={{
           color:       "#00F5D4",
           fontSize:    "13px",
@@ -344,7 +345,7 @@ function JobRow({ job, onClick }) {
             {job.salary}
           </span>
         )}
-        <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", alignItems: "center" }}>
           {job.posted && (
             <span style={{ color: "#E0FFFF", fontSize: "11px", opacity: 0.4 }}>
               {job.posted}
@@ -665,13 +666,13 @@ export default function Jobs() {
 
   return (
     <DashboardLayout>
-      <div style={{ maxWidth: "860px", margin: "0 auto", paddingBottom: "60px" }}>
+      <div style={{ maxWidth: "min(860px, 100%)", margin: "0 auto", paddingBottom: "clamp(40px, 6vw, 80px)" }}>
 
         {/* ── PAGE HEADER ──────────────────────────────────────────────────── */}
         <div style={{ marginBottom: "32px" }}>
           <h1 style={{
             fontFamily:   "'Train One', cursive",
-            fontSize:     "32px",
+            fontSize: "clamp(20px, 4vw, 32px)",
             color:        "#00F5D4",
             letterSpacing: "2px",
             marginBottom: "6px",
@@ -694,7 +695,7 @@ export default function Jobs() {
         }}>
 
           {/* Main search row */}
-          <div style={{ display: "flex", gap: "12px", marginBottom: "16px" }}>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "12px", marginBottom: "16px" }}>
             <div style={{ flex: 2, position: "relative" }}>
               <input
                 ref={queryInputRef}
@@ -864,7 +865,7 @@ export default function Jobs() {
         {!loading && searched && (
           <>
             {/* Results count */}
-            <div style={{ marginBottom: "20px", display: "flex", alignItems: "center", gap: "12px" }}>
+            <div style={{ marginBottom: "20px", display: "flex", flexWrap: "wrap", alignItems: "center", gap: "12px" }}>
               <p style={{
                 color:      "#E0FFFF",
                 fontSize:   "13px",
@@ -961,7 +962,7 @@ export default function Jobs() {
             borderRadius: "16px",
             border:       "1px solid rgba(0,245,212,0.08)",
           }}>
-            <p style={{ fontSize: "40px", marginBottom: "16px" }}>🌐</p>
+            <p style={{ fontSize: "clamp(22px, 4vw, 40px)", marginBottom: "16px" }}>🌐</p>
             <p style={{
               color:      "#E0FFFF",
               fontFamily: "'Bodoni MT Black', serif",
@@ -991,3 +992,4 @@ export default function Jobs() {
     </DashboardLayout>
   );
 }
+
