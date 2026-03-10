@@ -744,7 +744,7 @@ const handleCopyAll = (proj) => {
 
           {projects.map((proj, index) => (
           <div key={index} style={{
-            background: "rgba(0,245,212,0.1)", border: "1px solid rgba(0,245,212,0.3)",
+            background: "#0B1E2A", border: "1px solid rgba(0,245,212,0.3)",
             color: "#00F5D4",
             borderRadius: "16px",
             padding: "28px 32px",
