@@ -754,114 +754,122 @@ const handleCopyAll = (proj) => {
             boxShadow: "0 8px 40px rgba(0,0,0,0.35), inset 0 1px 0 rgba(0,245,212,0.06)",
           }}>
 
-            {/* Remove button */}
-            <button onClick={() => handleRemoveProject(index)} style={removeBtnStyle}>Remove</button>
-
-            {/* ── PREVIEW CARD (matches screenshot exactly) ── */}
-            <div style={{ marginBottom: "28px" }}>
-
-              {/* Header row: label + Copy All */}
-              <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: "20px", gap: "16px" }}>
-                <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                  <span style={{
-                    fontSize: "10px", letterSpacing: "3px", color: "#00F5D4",
-                    textTransform: "uppercase", opacity: 0.7,
-                    fontFamily: "'Bodoni MT Black', serif",
-                  }}>PROJECT EXPERIENCE</span>
-                  <h2 style={{
-                    color: "#E0FFFF", fontSize: "22px", fontWeight: 700,
-                    margin: 0, fontFamily: "'Bodoni MT Black', serif",
-                  }}>
-                    {proj.name || <span style={{ opacity: 0.25, fontStyle: "italic" }}>Project name...</span>}
-                  </h2>
-                  {proj.url && (
-                    <a href={proj.url} target="_blank" rel="noreferrer" style={{
-                      color: "#00B4FF", fontSize: "12px", opacity: 0.8, textDecoration: "none",
-                    }}>↗ {proj.url}</a>
-                  )}
-                </div>
+            {/* ── TOP ROW: title + Copy All + Remove ── */}
+            <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: "16px", gap: "12px" }}>
+              <h2 style={{
+                color: "#E0FFFF", fontSize: "20px", fontWeight: 700,
+                margin: 0, fontFamily: "'Bodoni MT Black', serif", flex: 1,
+              }}>
+                {proj.name || <span style={{ opacity: 0.25, fontStyle: "italic", fontWeight: 400 }}>Project name...</span>}
+              </h2>
+              <div style={{ display: "flex", gap: "8px", flexShrink: 0 }}>
                 <button
                   onClick={() => handleCopyAll(proj)}
                   style={{
                     background: "rgba(0,245,212,0.1)",
                     border: "1px solid rgba(0,245,212,0.3)",
-                    color: "#00F5D4", padding: "8px 16px", borderRadius: "6px",
+                    color: "#00F5D4", padding: "6px 14px", borderRadius: "6px",
                     cursor: "pointer", fontSize: "12px", letterSpacing: "1px",
-                    whiteSpace: "nowrap", fontFamily: "'Bodoni MT Black', serif",
+                    fontFamily: "'Bodoni MT Black', serif",
                   }}
                 >
                   {copied === `${proj.name}-all` ? "✓ Copied!" : "Copy All"}
                 </button>
+                <button onClick={() => handleRemoveProject(index)} style={{
+                  background: "transparent",
+                  border: "1px solid rgba(255,107,107,0.3)",
+                  color: "#FF6B6B", borderRadius: "6px",
+                  padding: "6px 12px", cursor: "pointer",
+                  fontSize: "12px", fontFamily: "'Bodoni MT Black', serif",
+                }}>Remove</button>
               </div>
-
-              {/* Stack tags */}
-              {proj.technologies && (
-                <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", marginBottom: "20px" }}>
-                  {proj.technologies.split(",").map((t, ti) => (
-                    <span key={ti} style={{
-                      background: "rgba(0,180,255,0.08)",
-                      border: "1px solid rgba(0,180,255,0.2)",
-                      color: "#00B4FF", fontSize: "11px",
-                      padding: "4px 10px", borderRadius: "4px", letterSpacing: "0.5px",
-                    }}>{t.trim()}</span>
-                  ))}
-                </div>
-              )}
-
-              {/* Divider */}
-              <div style={{
-                height: "1px",
-                background: "linear-gradient(90deg, rgba(0,245,212,0.3) 0%, transparent 100%)",
-                marginBottom: "20px",
-              }} />
-
-              {/* Bullets with individual copy buttons */}
-              <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: "12px" }}>
-                {proj.bullets.filter(b => b.trim()).map((bullet, bi) => (
-                  <li key={bi} style={{
-                    display: "flex", alignItems: "flex-start", gap: "14px",
-                    padding: "14px 16px",
-                    background: "rgba(0,0,0,0.15)",
-                    borderRadius: "8px",
-                    border: "1px solid rgba(0,245,212,0.05)",
-                  }}>
-                    <div style={{
-                      width: "6px", height: "6px", borderRadius: "50%",
-                      background: "#00F5D4", boxShadow: "0 0 6px #00F5D4",
-                      marginTop: "7px", flexShrink: 0,
-                    }} />
-                    <p style={{
-                      color: "rgba(224,255,255,0.85)", fontSize: "14px",
-                      lineHeight: "1.75", margin: 0, flex: 1,
-                    }}>{bullet}</p>
-                    <button
-                      onClick={() => handleCopy(bullet, `${index}-${bi}`)}
-                      title="Copy bullet"
-                      style={{
-                        background: "transparent", border: "none",
-                        color: copied === `${index}-${bi}` ? "#00F5D4" : "rgba(0,245,212,0.3)",
-                        cursor: "pointer", fontSize: "16px", padding: "0 4px",
-                        lineHeight: 1, marginTop: "2px", flexShrink: 0,
-                      }}
-                    >
-                      {copied === `${index}-${bi}` ? "✓" : "⧉"}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-
-              {/* Footer note */}
-              <p style={{
-                marginTop: "20px", fontSize: "11px",
-                color: "rgba(0,245,212,0.35)", letterSpacing: "2px", textAlign: "center",
-              }}>✦ ATS-optimised · keyword-dense · action-verb led</p>
             </div>
 
-            {/* ── DIVIDER between preview and edit fields ── */}
+            {/* Stack tags display */}
+            {proj.technologies && proj.technologies.length > 0 && (
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", marginBottom: "16px" }}>
+                {(Array.isArray(proj.technologies)
+                  ? proj.technologies
+                  : proj.technologies.split(",").map(t => t.trim()).filter(Boolean)
+                ).map((t, ti) => (
+                  <span key={ti} style={{
+                    background: "rgba(0,180,255,0.08)",
+                    border: "1px solid rgba(0,180,255,0.2)",
+                    color: "#00B4FF", fontSize: "11px",
+                    padding: "4px 10px", borderRadius: "4px",
+                    letterSpacing: "0.5px", display: "flex", alignItems: "center", gap: "6px",
+                  }}>
+                    {t}
+                    <span
+                      onClick={() => {
+                        const arr = Array.isArray(proj.technologies)
+                          ? proj.technologies
+                          : proj.technologies.split(",").map(s => s.trim()).filter(Boolean);
+                        handleProjectChange(index, "technologies", arr.filter((_, i) => i !== ti).join(", "));
+                      }}
+                      style={{ cursor: "pointer", opacity: 0.5, fontSize: "13px", lineHeight: 1 }}
+                    >×</span>
+                  </span>
+                ))}
+              </div>
+            )}
+
+            {/* Divider */}
+            <div style={{
+              height: "1px",
+              background: "linear-gradient(90deg, rgba(0,245,212,0.3) 0%, transparent 100%)",
+              marginBottom: "20px",
+            }} />
+
+            {/* Bullets with copy buttons */}
+            <ul style={{ listStyle: "none", padding: 0, margin: "0 0 20px 0", display: "flex", flexDirection: "column", gap: "10px" }}>
+              {proj.bullets.filter(b => b.trim()).map((bullet, bi) => (
+                <li key={bi} style={{
+                  display: "flex", alignItems: "flex-start", gap: "14px",
+                  padding: "12px 14px",
+                  background: "rgba(0,0,0,0.15)",
+                  borderRadius: "8px",
+                  border: "1px solid rgba(0,245,212,0.05)",
+                }}>
+                  <div style={{
+                    width: "6px", height: "6px", borderRadius: "50%",
+                    background: "#00F5D4", boxShadow: "0 0 6px #00F5D4",
+                    marginTop: "7px", flexShrink: 0,
+                  }} />
+                  <p style={{
+                    color: "rgba(224,255,255,0.85)", fontSize: "13px",
+                    lineHeight: "1.75", margin: 0, flex: 1,
+                  }}>{bullet}</p>
+                  <button
+                    onClick={() => handleCopy(bullet, `${index}-${bi}`)}
+                    title="Copy bullet"
+                    style={{
+                      background: "transparent", border: "none",
+                      color: copied === `${index}-${bi}` ? "#00F5D4" : "rgba(0,245,212,0.3)",
+                      cursor: "pointer", fontSize: "16px", padding: "0 4px",
+                      lineHeight: 1, marginTop: "2px", flexShrink: 0,
+                    }}
+                  >
+                    {copied === `${index}-${bi}` ? "✓" : "⧉"}
+                  </button>
+                </li>
+              ))}
+            </ul>
+
+            {/* URL link */}
+            {proj.url && (
+              <a href={proj.url} target="_blank" rel="noreferrer" style={{
+                display: "inline-flex", alignItems: "center", gap: "5px",
+                marginBottom: "20px", color: "#00B4FF", fontSize: "12px",
+                opacity: 0.8, textDecoration: "none",
+              }}>↗ {proj.url}</a>
+            )}
+
+            {/* ── DIVIDER before edit fields ── */}
             <div style={{
               height: "1px",
               background: "linear-gradient(90deg, rgba(0,245,212,0.15) 0%, transparent 100%)",
-              marginBottom: "24px",
+              marginBottom: "20px",
             }} />
 
             {/* Include in CV toggle */}
@@ -897,13 +905,27 @@ const handleCopyAll = (proj) => {
                 onChange={(e) => handleProjectChange(index, "name", e.target.value)} />
             </div>
 
-            {/* Technologies input */}
-            <div style={{ marginBottom: "12px" }}>
+            {/* Technologies — type + Enter to add tag */}
+            <div style={{ marginBottom: "16px" }}>
               <label style={labelStyle}>Technologies Used</label>
-              <input style={inputStyle} value={proj.technologies}
-                onChange={(e) => handleProjectChange(index, "technologies", e.target.value)} />
+              <input
+                style={inputStyle}
+                placeholder="Type a technology and press Enter (e.g. React)"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && e.target.value.trim()) {
+                    e.preventDefault();
+                    const existing = Array.isArray(proj.technologies)
+                      ? proj.technologies
+                      : proj.technologies ? proj.technologies.split(",").map(s => s.trim()).filter(Boolean) : [];
+                    if (!existing.includes(e.target.value.trim())) {
+                      handleProjectChange(index, "technologies", [...existing, e.target.value.trim()].join(", "));
+                    }
+                    e.target.value = "";
+                  }
+                }}
+              />
               <p style={{ color: "#E0FFFF", fontSize: "11px", opacity: 0.3, marginTop: "5px" }}>
-                Comma-separated — renders as tags above
+                Type and press Enter to add — click × on a tag to remove it
               </p>
             </div>
 
