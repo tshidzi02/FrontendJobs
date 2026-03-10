@@ -1040,6 +1040,13 @@ const handleCopyAll = (proj) => {
                 </div>
               </>
             )}
+              <button
+                onClick={handleAddProject}
+                style={addBtnStyle}
+                onMouseEnter={(e) => e.currentTarget.style.borderColor = "#00F5D4"}
+                onMouseLeave={(e) => e.currentTarget.style.borderColor = "rgba(0,245,212,0.3)"}
+              >+ Add Project</button>
+
           </div>
         ))}
 
