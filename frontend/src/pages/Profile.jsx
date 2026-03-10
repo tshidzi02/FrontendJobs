@@ -220,12 +220,15 @@ export default function Profile() {
 
   // ── PROJECTS ────────────────────────────────────────────────────────────────
   const handleAddProject = () => {
-    setProjects([...projects, {
-      name: "", technologies: "", bullets: [""], url:"",
-      includeInCV: true,
-      // includeInCV: true = show on generated CV | false = saved but excluded
-    }]);
-  };
+  const newIndex = projects.length;
+  setProjects([...projects, {
+    name: "", technologies: "", bullets: [""], url: "",
+    includeInCV: true,
+  }]);
+  setEditingProject(newIndex);
+};
+
+
   const handleProjectChange = (index, field, value) => {
     setProjects(projects.map((proj, i) => i === index ? { ...proj, [field]: value } : proj));
   };
