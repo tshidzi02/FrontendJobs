@@ -4,13 +4,13 @@ import os
 folders_to_scan = ["./backend", "./frontend"]
 
 # Folders to exclude
-excluded_folder_names = ["venv", "node_modules", "__pycache__", ".git"]
+excluded_folder_names = ["venv", "node_modules", ".git"]
 
 # Output file
 output_file = "project_export.txt"
 
 # File types to include (adjust if needed)
-allowed_extensions = [".py", ".js", ".html", ".css","jsx", ".json", ".md", ".txt","yml", ".yaml", ".csv", ".xml", ".sql", ".java", ".cpp", ".c", ".h", ".go", ".rb", ".php", ".ts", ".tsx", ".sh", ".bat", ".ps1", ".ini", ".conf", ".log", "" ]
+allowed_extensions = [".py", ".js", ".html", ".css","jsx", ".json", ".md", ".txt","yml", ".yaml", ".csv", ".xml", ".sql", ".java", ".cpp", ".c", ".h", ".go", ".rb", ".php", ".ts", ".tsx", ".sh", ".bat", ".ps1", ".ini", ".conf", ".log", "",".db" ,".sqlite", ".sqlite3", ".db3", ".db2", ".db1", ".db0",".pyc",".ini",".py.mako"]
 
 
 with open(output_file, "w", encoding="utf-8") as outfile:

@@ -47,6 +47,7 @@ function SectionHeader({ title }) {
   );
 }
 
+
 const PROFICIENCY_LEVELS = [
   { label: "Beginner (A1)",                value: 1 },
   { label: "Elementary (A2)",              value: 2 },
@@ -55,6 +56,7 @@ const PROFICIENCY_LEVELS = [
   { label: "Advanced (C1)",                value: 5 },
   { label: "Bilingual or Proficient (C2)", value: 6 },
 ];
+
 
 function ProficiencyBar({ level }) {
   return (
@@ -83,6 +85,8 @@ const YEARS = Array.from({ length: 20 }, (_, i) => currentYear - 5 + i);
 
 export default function Profile() {
   const navigate = useNavigate();
+  const [copied, setCopied] = useState(null);
+
 
   const [personalInfo, setPersonalInfo] = useState({
     firstName: "", lastName: "", jobTitle: "",
@@ -216,7 +220,7 @@ export default function Profile() {
   // ── PROJECTS ────────────────────────────────────────────────────────────────
   const handleAddProject = () => {
     setProjects([...projects, {
-      name: "", technologies: "", bullets: [""],
+      name: "", technologies: "", bullets: [""], url:"",
       includeInCV: true,
       // includeInCV: true = show on generated CV | false = saved but excluded
     }]);
@@ -243,6 +247,19 @@ export default function Profile() {
     ));
   };
   const handleRemoveProject = (index) => setProjects(projects.filter((_, i) => i !== index));
+
+  const handleCopy = (text, index) => {
+  navigator.clipboard.writeText(text);
+  setCopied(`${index}-bullet`);
+  setTimeout(() => setCopied(null), 1800);
+};
+
+const handleCopyAll = (proj) => {
+  const all = proj.bullets.filter(b => b.trim()).map((b, i) => `${i + 1}. ${b}`).join("\n\n");
+  navigator.clipboard.writeText(`${proj.name}\n${proj.technologies}\n\n${all}`);
+  setCopied(`${proj.name}-all`);
+  setTimeout(() => setCopied(null), 1800);
+};
 
 
   // ── LANGUAGES ───────────────────────────────────────────────────────────────
@@ -371,6 +388,8 @@ export default function Profile() {
         <p style={{ color: "#E0FFFF", opacity: 0.5, fontSize: "14px", marginBottom: "32px" }}>
           Your base CV data. The AI uses this to generate tailored CVs for each job.
         </p>
+
+        </div>
 
 
         {/* ══ SECTION 1 — PERSONAL INFO ═══════════════════ */}
@@ -721,94 +740,212 @@ export default function Profile() {
               No projects added yet.
             </p>
           )}
+
           {projects.map((proj, index) => (
-            <div key={index} style={{
-              ...cardInnerStyle,
-              // Dim the card slightly if the project is excluded
-              opacity: proj.includeInCV === false ? 0.55 : 1,
-              transition: "opacity 0.2s ease",
-            }}>
-              <button onClick={() => handleRemoveProject(index)} style={removeBtnStyle}>Remove</button>
+          <div key={index} style={{
+            background: "linear-gradient(145deg, #0f2a38 0%, #003B44 100%)",
+            border: "1px solid rgba(0,245,212,0.15)",
+            borderRadius: "16px",
+            padding: "28px 32px",
+            marginBottom: "20px",
+            position: "relative",
+            opacity: proj.includeInCV === false ? 0.55 : 1,
+            transition: "opacity 0.2s ease",
+            boxShadow: "0 8px 40px rgba(0,0,0,0.35), inset 0 1px 0 rgba(0,245,212,0.06)",
+          }}>
 
-              {/* ── Include in CV toggle ──────────────────────────── */}
-              <div style={{
-                display: "flex", flexWrap: "wrap", alignItems: "center", gap: "10px",
-                marginBottom: "16px",
-              }}>
-                <div
-                  onClick={() => handleProjectChange(index, "includeInCV", !proj.includeInCV)}
-                  style={{
-                    width: "42px", height: "24px", borderRadius: "12px",
-                    background: proj.includeInCV !== false ? "#00F5D4" : "rgba(255,255,255,0.15)",
-                    position: "relative", cursor: "pointer",
-                    transition: "background 0.25s ease", flexShrink: 0,
-                  }}
-                >
-                  <div style={{
-                    position: "absolute",
-                    top: "3px",
-                    left: proj.includeInCV !== false ? "21px" : "3px",
-                    // Toggle knob slides right when on, left when off.
-                    width: "18px", height: "18px", borderRadius: "50%",
-                    background: "#0B1E2A",
-                    transition: "left 0.25s ease",
-                  }} />
-                </div>
-                <span style={{
-                  color: proj.includeInCV !== false ? "#00F5D4" : "#E0FFFF",
-                  fontSize: "13px", fontFamily: "'Bodoni MT Black', serif",
-                  opacity: proj.includeInCV !== false ? 1 : 0.45,
-                }}>
-                  {proj.includeInCV !== false ? "Included in CV" : "Excluded from CV"}
-                </span>
-              </div>
+            {/* Remove button */}
+            <button onClick={() => handleRemoveProject(index)} style={removeBtnStyle}>Remove</button>
 
-              {/* Project Name */}
-              <div style={{ marginBottom: "12px" }}>
-                <label style={labelStyle}>Project Name</label>
-                <input style={inputStyle} value={proj.name}
-                  onChange={(e) => handleProjectChange(index, "name", e.target.value)} />
-              </div>
+            {/* ── PREVIEW CARD (matches screenshot exactly) ── */}
+            <div style={{ marginBottom: "28px" }}>
 
-              {/* Technologies */}
-              <div style={{ marginBottom: "16px" }}>
-                <label style={labelStyle}>Technologies Used</label>
-                <input style={inputStyle} value={proj.technologies}
-                  onChange={(e) => handleProjectChange(index, "technologies", e.target.value)} />
-                <p style={{ color: "#E0FFFF", fontSize: "11px", opacity: 0.3, marginTop: "5px" }}>
-                  Comma-separated — appears as italic text under the project name on your CV
-                </p>
-              </div>
-
-              {/* Bullets */}
-              <label style={{ ...labelStyle, marginBottom: "10px" }}>Project Descriptions</label>
-              {proj.bullets.map((bullet, bIndex) => (
-                <div key={bIndex} style={{ display: "flex", flexWrap: "wrap", gap: "8px", marginBottom: "8px", alignItems: "center" }}>
-                  <span style={{ color: "#00F5D4", fontSize: "12px", flexShrink: 0 }}>→</span>
-                  <input style={{ ...inputStyle, marginBottom: 0, flex: 1 }} value={bullet}
-                    onChange={(e) => handleProjectBulletChange(index, bIndex, e.target.value)} />
-                  {proj.bullets.length > 1 && (
-                    <button onClick={() => handleRemoveProjectBullet(index, bIndex)} style={{
-                      background: "transparent", border: "none", color: "#FF6B6B",
-                      cursor: "pointer", fontSize: "18px", lineHeight: 1, flexShrink: 0, opacity: 0.7,
-                    }}>×</button>
+              {/* Header row: label + Copy All */}
+              <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: "20px", gap: "16px" }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                  <span style={{
+                    fontSize: "10px", letterSpacing: "3px", color: "#00F5D4",
+                    textTransform: "uppercase", opacity: 0.7,
+                    fontFamily: "'Bodoni MT Black', serif",
+                  }}>PROJECT EXPERIENCE</span>
+                  <h2 style={{
+                    color: "#E0FFFF", fontSize: "22px", fontWeight: 700,
+                    margin: 0, fontFamily: "'Bodoni MT Black', serif",
+                  }}>
+                    {proj.name || <span style={{ opacity: 0.25, fontStyle: "italic" }}>Project name...</span>}
+                  </h2>
+                  {proj.url && (
+                    <a href={proj.url} target="_blank" rel="noreferrer" style={{
+                      color: "#00B4FF", fontSize: "12px", opacity: 0.8, textDecoration: "none",
+                    }}>↗ {proj.url}</a>
                   )}
                 </div>
-              ))}
-              <button onClick={() => handleAddProjectBullet(index)} style={{
-                background: "transparent", border: "1px dashed rgba(0,245,212,0.3)",
-                color: "#00F5D4", borderRadius: "6px", padding: "6px 14px",
-                cursor: "pointer", fontSize: "12px", fontFamily: "'Bodoni MT Black', serif",
-                marginTop: "4px", width: "100%",
-              }}>+ Add bullet point</button>
-            </div>
-          ))}
-          <button onClick={handleAddProject} style={addBtnStyle}
-            onMouseEnter={(e) => e.currentTarget.style.borderColor = "#00F5D4"}
-            onMouseLeave={(e) => e.currentTarget.style.borderColor = "rgba(0,245,212,0.3)"}
-          >+ Add Project</button>
-        </div>
+                <button
+                  onClick={() => handleCopyAll(proj)}
+                  style={{
+                    background: "rgba(0,245,212,0.1)",
+                    border: "1px solid rgba(0,245,212,0.3)",
+                    color: "#00F5D4", padding: "8px 16px", borderRadius: "6px",
+                    cursor: "pointer", fontSize: "12px", letterSpacing: "1px",
+                    whiteSpace: "nowrap", fontFamily: "'Bodoni MT Black', serif",
+                  }}
+                >
+                  {copied === `${proj.name}-all` ? "✓ Copied!" : "Copy All"}
+                </button>
+              </div>
 
+              {/* Stack tags */}
+              {proj.technologies && (
+                <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", marginBottom: "20px" }}>
+                  {proj.technologies.split(",").map((t, ti) => (
+                    <span key={ti} style={{
+                      background: "rgba(0,180,255,0.08)",
+                      border: "1px solid rgba(0,180,255,0.2)",
+                      color: "#00B4FF", fontSize: "11px",
+                      padding: "4px 10px", borderRadius: "4px", letterSpacing: "0.5px",
+                    }}>{t.trim()}</span>
+                  ))}
+                </div>
+              )}
+
+              {/* Divider */}
+              <div style={{
+                height: "1px",
+                background: "linear-gradient(90deg, rgba(0,245,212,0.3) 0%, transparent 100%)",
+                marginBottom: "20px",
+              }} />
+
+              {/* Bullets with individual copy buttons */}
+              <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: "12px" }}>
+                {proj.bullets.filter(b => b.trim()).map((bullet, bi) => (
+                  <li key={bi} style={{
+                    display: "flex", alignItems: "flex-start", gap: "14px",
+                    padding: "14px 16px",
+                    background: "rgba(0,0,0,0.15)",
+                    borderRadius: "8px",
+                    border: "1px solid rgba(0,245,212,0.05)",
+                  }}>
+                    <div style={{
+                      width: "6px", height: "6px", borderRadius: "50%",
+                      background: "#00F5D4", boxShadow: "0 0 6px #00F5D4",
+                      marginTop: "7px", flexShrink: 0,
+                    }} />
+                    <p style={{
+                      color: "rgba(224,255,255,0.85)", fontSize: "14px",
+                      lineHeight: "1.75", margin: 0, flex: 1,
+                    }}>{bullet}</p>
+                    <button
+                      onClick={() => handleCopy(bullet, `${index}-${bi}`)}
+                      title="Copy bullet"
+                      style={{
+                        background: "transparent", border: "none",
+                        color: copied === `${index}-${bi}` ? "#00F5D4" : "rgba(0,245,212,0.3)",
+                        cursor: "pointer", fontSize: "16px", padding: "0 4px",
+                        lineHeight: 1, marginTop: "2px", flexShrink: 0,
+                      }}
+                    >
+                      {copied === `${index}-${bi}` ? "✓" : "⧉"}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+
+              {/* Footer note */}
+              <p style={{
+                marginTop: "20px", fontSize: "11px",
+                color: "rgba(0,245,212,0.35)", letterSpacing: "2px", textAlign: "center",
+              }}>✦ ATS-optimised · keyword-dense · action-verb led</p>
+            </div>
+
+            {/* ── DIVIDER between preview and edit fields ── */}
+            <div style={{
+              height: "1px",
+              background: "linear-gradient(90deg, rgba(0,245,212,0.15) 0%, transparent 100%)",
+              marginBottom: "24px",
+            }} />
+
+            {/* Include in CV toggle */}
+            <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "20px" }}>
+              <div
+                onClick={() => handleProjectChange(index, "includeInCV", !proj.includeInCV)}
+                style={{
+                  width: "42px", height: "24px", borderRadius: "12px",
+                  background: proj.includeInCV !== false ? "#00F5D4" : "rgba(255,255,255,0.15)",
+                  position: "relative", cursor: "pointer", transition: "background 0.25s ease", flexShrink: 0,
+                }}
+              >
+                <div style={{
+                  position: "absolute", top: "3px",
+                  left: proj.includeInCV !== false ? "21px" : "3px",
+                  width: "18px", height: "18px", borderRadius: "50%",
+                  background: "#0B1E2A", transition: "left 0.25s ease",
+                }} />
+              </div>
+              <span style={{
+                color: proj.includeInCV !== false ? "#00F5D4" : "#E0FFFF",
+                fontSize: "13px", fontFamily: "'Bodoni MT Black', serif",
+                opacity: proj.includeInCV !== false ? 1 : 0.45,
+              }}>
+                {proj.includeInCV !== false ? "Included in CV" : "Excluded from CV"}
+              </span>
+            </div>
+
+            {/* Project Name input */}
+            <div style={{ marginBottom: "12px" }}>
+              <label style={labelStyle}>Project Name</label>
+              <input style={inputStyle} value={proj.name}
+                onChange={(e) => handleProjectChange(index, "name", e.target.value)} />
+            </div>
+
+            {/* Technologies input */}
+            <div style={{ marginBottom: "12px" }}>
+              <label style={labelStyle}>Technologies Used</label>
+              <input style={inputStyle} value={proj.technologies}
+                onChange={(e) => handleProjectChange(index, "technologies", e.target.value)} />
+              <p style={{ color: "#E0FFFF", fontSize: "11px", opacity: 0.3, marginTop: "5px" }}>
+                Comma-separated — renders as tags above
+              </p>
+            </div>
+
+            {/* GitHub / Project URL */}
+            <div style={{ marginBottom: "16px" }}>
+              <label style={labelStyle}>Project URL <span style={{ color: "#00F5D4", fontSize: "11px", fontWeight: 400 }}>(GitHub, live site, etc.)</span></label>
+              <input
+                style={inputStyle}
+                placeholder="https://github.com/yourusername/project"
+                value={proj.url || ""}
+                onChange={(e) => handleProjectChange(index, "url", e.target.value)}
+              />
+            </div>
+
+            {/* Bullet inputs */}
+            <label style={{ ...labelStyle, marginBottom: "10px", display: "block" }}>Project Descriptions</label>
+            {proj.bullets.map((bullet, bIndex) => (
+              <div key={bIndex} style={{ display: "flex", gap: "8px", marginBottom: "8px", alignItems: "center" }}>
+                <div style={{
+                  width: "6px", height: "6px", borderRadius: "50%",
+                  background: "#00F5D4", boxShadow: "0 0 4px #00F5D4",
+                  marginTop: "14px", flexShrink: 0,
+                }} />
+                <input style={{ ...inputStyle, marginBottom: 0, flex: 1 }} value={bullet}
+                  onChange={(e) => handleProjectBulletChange(index, bIndex, e.target.value)} />
+                {proj.bullets.length > 1 && (
+                  <button onClick={() => handleRemoveProjectBullet(index, bIndex)} style={{
+                    background: "transparent", border: "none", color: "#FF6B6B",
+                    cursor: "pointer", fontSize: "18px", lineHeight: 1, flexShrink: 0, opacity: 0.7,
+                  }}>×</button>
+                )}
+              </div>
+            ))}
+            <button onClick={() => handleAddProjectBullet(index)} style={{
+              background: "transparent", border: "1px dashed rgba(0,245,212,0.3)",
+              color: "#00F5D4", borderRadius: "6px", padding: "6px 14px",
+              cursor: "pointer", fontSize: "12px", fontFamily: "'Bodoni MT Black', serif",
+              marginTop: "8px", width: "100%",
+            }}>+ Add bullet point</button>
+
+          </div>
+        ))}
 
         {/* ══ SECTION 6 — LANGUAGES ═══════════════════════ */}
         <div className="card" style={{ maxWidth: "100%", marginBottom: "20px" }}>
