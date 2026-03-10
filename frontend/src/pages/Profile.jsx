@@ -1,6 +1,5 @@
-
 // =============================================================================
-// FILE: frontend/src/pages/Profile.jsx  (UPDATED — Education + Projects optional)
+// FILE: frontend/src/pages/Profile.jsx
 // =============================================================================
 
 import { useState, useEffect } from "react";
@@ -18,6 +17,7 @@ const inputStyle = {
   fontSize: "14px",
   fontFamily: "system-ui, sans-serif",
   outline: "none",
+  marginBottom: "0",
 };
 
 const labelStyle = {
@@ -28,6 +28,34 @@ const labelStyle = {
   display: "block",
   fontFamily: "'Bodoni MT Black', serif",
   letterSpacing: "0.5px",
+};
+
+const addBtnStyle = {
+  background: "transparent",
+  border: "2px dashed rgba(0,245,212,0.3)",
+  color: "#00F5D4",
+  borderRadius: "10px",
+  padding: "14px",
+  cursor: "pointer",
+  fontSize: "14px",
+  fontFamily: "'Bodoni MT Black', serif",
+  width: "100%",
+  transition: "border-color 0.2s ease",
+};
+
+const removeBtnStyle = {
+  position: "absolute", top: "14px", right: "14px",
+  background: "transparent",
+  border: "1px solid rgba(255,107,107,0.3)",
+  color: "#FF6B6B", borderRadius: "6px",
+  padding: "3px 8px", cursor: "pointer",
+  fontSize: "12px", fontFamily: "'Bodoni MT Black', serif",
+};
+
+const cardInnerStyle = {
+  background: "#0B1E2A", borderRadius: "10px", padding: "20px",
+  marginBottom: "16px", border: "1px solid rgba(0,245,212,0.1)",
+  position: "relative",
 };
 
 function SectionHeader({ title }) {
@@ -47,7 +75,6 @@ function SectionHeader({ title }) {
   );
 }
 
-
 const PROFICIENCY_LEVELS = [
   { label: "Beginner (A1)",                value: 1 },
   { label: "Elementary (A2)",              value: 2 },
@@ -56,7 +83,6 @@ const PROFICIENCY_LEVELS = [
   { label: "Advanced (C1)",                value: 5 },
   { label: "Bilingual or Proficient (C2)", value: 6 },
 ];
-
 
 function ProficiencyBar({ level }) {
   return (
@@ -71,23 +97,19 @@ function ProficiencyBar({ level }) {
   );
 }
 
-// Months for the date picker
 const MONTHS = [
   "January","February","March","April","May","June",
   "July","August","September","October","November","December"
 ];
 
-// Generate a range of years — from current year back 10, forward 10
 const currentYear = new Date().getFullYear();
 const YEARS = Array.from({ length: 20 }, (_, i) => currentYear - 5 + i);
-// e.g. 2021 to 2040 — covers past and future graduation years
 
 
 export default function Profile() {
   const navigate = useNavigate();
   const [copied, setCopied] = useState(null);
-  const [editingProject, setEditingProject] = useState(null); // stores index of project being edited
-
+  const [editingProject, setEditingProject] = useState(null);
 
   const [personalInfo, setPersonalInfo] = useState({
     firstName: "", lastName: "", jobTitle: "",
@@ -107,7 +129,7 @@ export default function Profile() {
   const [success, setSuccess]   = useState("");
 
 
-  // ── LOAD PROFILE ────────────────────────────────────────────────────────────
+  // ── LOAD PROFILE ──────────────────────────────────────────────────────────
   useEffect(() => {
     const loadProfile = async () => {
       try {
@@ -132,13 +154,13 @@ export default function Profile() {
   }, [navigate]);
 
 
-  // ── PERSONAL INFO ────────────────────────────────────────────────────────────
+  // ── PERSONAL INFO ─────────────────────────────────────────────────────────
   const handlePersonalChange = (field, value) => {
     setPersonalInfo((prev) => ({ ...prev, [field]: value }));
   };
 
 
-  // ── SKILLS ──────────────────────────────────────────────────────────────────
+  // ── SKILLS ────────────────────────────────────────────────────────────────
   const handleAddSkill = () => {
     const trimmed = skillInput.trim();
     if (!trimmed || skills.includes(trimmed)) return;
@@ -151,7 +173,7 @@ export default function Profile() {
   const handleRemoveSkill = (index) => setSkills(skills.filter((_, i) => i !== index));
 
 
-  // ── EXPERIENCE ──────────────────────────────────────────────────────────────
+  // ── EXPERIENCE ────────────────────────────────────────────────────────────
   const handleAddExperience = () => {
     setExperience([...experience, {
       title: "", company: "", city: "", country: "",
@@ -182,12 +204,11 @@ export default function Profile() {
   const handleRemoveExperience = (index) => setExperience(experience.filter((_, i) => i !== index));
 
 
-  // ── EDUCATION ───────────────────────────────────────────────────────────────
+  // ── EDUCATION ─────────────────────────────────────────────────────────────
   const handleAddEducation = () => {
     setEducation([...education, {
       degree: "", institution: "", city: "", country: "",
       graduationStatus: "graduated",
-      // "graduated" = already finished | "expected" = still studying
       graduationMonth: "",
       graduationYear: "",
       minimumAverage: "",
@@ -218,17 +239,14 @@ export default function Profile() {
   const handleRemoveEducation = (index) => setEducation(education.filter((_, i) => i !== index));
 
 
-  // ── PROJECTS ────────────────────────────────────────────────────────────────
+  // ── PROJECTS ──────────────────────────────────────────────────────────────
   const handleAddProject = () => {
-  const newIndex = projects.length;
-  setProjects([...projects, {
-    name: "", technologies: "", bullets: [""], url: "",
-    includeInCV: true,
-  }]);
-  setEditingProject(newIndex);
-};
-
-
+    setProjects(prev => {
+      const newIndex = prev.length;
+      setEditingProject(newIndex);
+      return [...prev, { name: "", technologies: "", bullets: [""], url: "", includeInCV: true }];
+    });
+  };
   const handleProjectChange = (index, field, value) => {
     setProjects(projects.map((proj, i) => i === index ? { ...proj, [field]: value } : proj));
   };
@@ -250,23 +268,25 @@ export default function Profile() {
         : proj
     ));
   };
-  const handleRemoveProject = (index) => setProjects(projects.filter((_, i) => i !== index));
+  const handleRemoveProject = (index) => {
+    setProjects(projects.filter((_, i) => i !== index));
+    setEditingProject(null);
+  };
 
-  const handleCopy = (text, index) => {
-  navigator.clipboard.writeText(text);
-  setCopied(`${index}-bullet`);
-  setTimeout(() => setCopied(null), 1800);
-};
+  const handleCopy = (text, key) => {
+    navigator.clipboard.writeText(text);
+    setCopied(key);
+    setTimeout(() => setCopied(null), 1800);
+  };
+  const handleCopyAll = (proj) => {
+    const all = proj.bullets.filter(b => b.trim()).map((b, i) => `${i + 1}. ${b}`).join("\n\n");
+    navigator.clipboard.writeText(`${proj.name}\n${proj.technologies}\n\n${all}`);
+    setCopied(`${proj.name}-all`);
+    setTimeout(() => setCopied(null), 1800);
+  };
 
-const handleCopyAll = (proj) => {
-  const all = proj.bullets.filter(b => b.trim()).map((b, i) => `${i + 1}. ${b}`).join("\n\n");
-  navigator.clipboard.writeText(`${proj.name}\n${proj.technologies}\n\n${all}`);
-  setCopied(`${proj.name}-all`);
-  setTimeout(() => setCopied(null), 1800);
-};
 
-
-  // ── LANGUAGES ───────────────────────────────────────────────────────────────
+  // ── LANGUAGES ─────────────────────────────────────────────────────────────
   const handleAddLanguage = () => setLanguages([...languages, { name: "", level: 3 }]);
   const handleLanguageChange = (index, field, value) => {
     setLanguages(languages.map((lang, i) => i === index ? { ...lang, [field]: value } : lang));
@@ -274,7 +294,7 @@ const handleCopyAll = (proj) => {
   const handleRemoveLanguage = (index) => setLanguages(languages.filter((_, i) => i !== index));
 
 
-  // ── SAVE ────────────────────────────────────────────────────────────────────
+  // ── SAVE ──────────────────────────────────────────────────────────────────
   const handleSave = async () => {
     setError(""); setSuccess(""); setSaving(true);
     try {
@@ -292,97 +312,32 @@ const handleCopyAll = (proj) => {
   };
 
 
-  
-  {/* ── LOADING SKELETON ─────────────────────────────────────────────────────
-      Shown while the GET /api/profile request is in flight.
-      Mirrors the section structure of the real profile page so there's
-      no layout jump when content loads in.
-  ────────────────────────────────────────────────────────────────────────── */}
-  {loading && (
-    <DashboardLayout>
-      <div style={{ maxWidth: "min(800px, 100%)", margin: "0 auto", paddingBottom: "clamp(40px, 6vw, 80px)" }}>
+  // ── LOADING SKELETON ──────────────────────────────────────────────────────
+  if (loading) {
+    return (
+      <DashboardLayout>
+        <div style={{ maxWidth: "min(800px, 100%)", margin: "0 auto", paddingBottom: "60px" }}>
+          <div style={{ width: "200px", height: "36px", background: "#003B44", borderRadius: "8px", marginBottom: "32px", opacity: 0.6 }} />
+          {[1, 2, 3].map(i => (
+            <div key={i} style={{ background: "#003B44", borderRadius: "12px", padding: "28px", marginBottom: "20px", border: "1px solid rgba(0,245,212,0.08)" }}>
+              <div style={{ width: "140px", height: "14px", background: "rgba(0,245,212,0.15)", borderRadius: "4px", marginBottom: "20px" }} />
+              {[1, 2, 3].map(j => (
+                <div key={j} style={{ width: `${70 + j * 8}%`, height: "40px", background: "#0B1E2A", borderRadius: "8px", marginBottom: "12px", opacity: 0.5 }} />
+              ))}
+            </div>
+          ))}
+        </div>
+      </DashboardLayout>
+    );
+  }
 
-        {/* Page title skeleton */}
-        <div style={{
-          width: "200px", height: "36px",
-          background: "#003B44", borderRadius: "8px",
-          marginBottom: "32px",
-          opacity: 0.6,
-        }} />
 
-        {/* Section blocks — mimics Personal Info + Skills + Experience */}
-        {[1, 2, 3].map(i => (
-          <div key={i} style={{
-            background:    "#003B44",
-            borderRadius:  "12px",
-            padding:       "28px",
-            marginBottom:  "20px",
-            border:        "1px solid rgba(0,245,212,0.08)",
-          }}>
-            {/* Section header */}
-            <div style={{
-              width: "140px", height: "14px",
-              background: "rgba(0,245,212,0.15)",
-              borderRadius: "4px",
-              marginBottom: "20px",
-            }} />
-            {/* Field rows */}
-            {[1, 2, 3].map(j => (
-              <div key={j} style={{
-                width: `${70 + j * 8}%`, height: "40px",
-                background: "#0B1E2A",
-                borderRadius: "8px",
-                marginBottom: "12px",
-                opacity: 0.5,
-              }} />
-            ))}
-          </div>
-        ))}
-
-      </div>
-    </DashboardLayout>
-  )}
-
-  {/* ── LOADED STATE — wrap your existing Profile JSX in this guard ────────── */}
-  {!loading && (
-    // ... existing Profile JSX goes here (the DashboardLayout wrapper + all sections)
-    null
-  )}
-
-  // ── DASHED ADD BUTTON — reusable style ──────────────────────────────────────
-  const addBtnStyle = {
-    background: "transparent",
-    border: "2px dashed rgba(0,245,212,0.3)",
-    color: "#00F5D4",
-    borderRadius: "10px",
-    padding: "14px",
-    cursor: "pointer",
-    fontSize: "14px",
-    fontFamily: "'Bodoni MT Black', serif",
-    width: "100%",
-    transition: "border-color 0.2s ease",
-  };
-
-  const removeBtnStyle = {
-    position: "absolute", top: "14px", right: "14px",
-    background: "transparent",
-    border: "1px solid rgba(255,107,107,0.3)",
-    color: "#FF6B6B", borderRadius: "6px",
-    padding: "3px 8px", cursor: "pointer",
-    fontSize: "12px", fontFamily: "'Bodoni MT Black', serif",
-  };
-
-  const cardInnerStyle = {
-    background: "#0B1E2A", borderRadius: "10px", padding: "20px",
-    marginBottom: "16px", border: "1px solid rgba(0,245,212,0.1)",
-    position: "relative",
-  };
-
+  // ── MAIN RENDER ───────────────────────────────────────────────────────────
   return (
     <DashboardLayout>
       <div style={{ maxWidth: "min(1000px, 100%)", margin: "0 auto" }}>
 
-        {/* ── Page Header ─────────────────────────────── */}
+        {/* Page Header */}
         <h1 style={{
           fontFamily: "'Train One', cursive", fontSize: "clamp(20px, 4vw, 32px)",
           color: "#00F5D4", letterSpacing: "2px", marginBottom: "6px",
@@ -393,10 +348,8 @@ const handleCopyAll = (proj) => {
           Your base CV data. The AI uses this to generate tailored CVs for each job.
         </p>
 
-        </div>
 
-
-        {/* ══ SECTION 1 — PERSONAL INFO ═══════════════════ */}
+        {/* ══ SECTION 1 — PERSONAL INFO ══════════════════════════════════════ */}
         <div className="card" style={{ maxWidth: "100%", marginBottom: "20px" }}>
           <SectionHeader title="👤 Personal Information" />
 
@@ -453,13 +406,14 @@ const handleCopyAll = (proj) => {
         </div>
 
 
-        {/* ══ SECTION 2 — SKILLS ══════════════════════════ */}
+        {/* ══ SECTION 2 — SKILLS ═════════════════════════════════════════════ */}
         <div className="card" style={{ maxWidth: "100%", marginBottom: "20px" }}>
           <SectionHeader title="🛠 Skills" />
           <div style={{ display: "flex", flexWrap: "wrap", gap: "10px", marginBottom: "16px" }}>
-            <input style={{ ...inputStyle, marginBottom: 0 }} value={skillInput}
+            <input style={{ ...inputStyle, marginBottom: 0, flex: 1 }} value={skillInput}
               onChange={(e) => setSkillInput(e.target.value)}
-              onKeyDown={handleSkillKeyDown} />
+              onKeyDown={handleSkillKeyDown}
+              placeholder="Type a skill and press Enter" />
             <button className="primary-btn" onClick={handleAddSkill}
               style={{ whiteSpace: "nowrap", padding: "11px 20px", fontSize: "14px" }}>
               + Add
@@ -472,7 +426,7 @@ const handleCopyAll = (proj) => {
                   background: "rgba(0,245,212,0.1)", border: "1px solid rgba(0,245,212,0.3)",
                   color: "#00F5D4", padding: "6px 12px", borderRadius: "20px",
                   fontSize: "13px", fontFamily: "'Bodoni MT Black', serif",
-                  display: "flex", flexWrap: "wrap", alignItems: "center", gap: "8px",
+                  display: "flex", alignItems: "center", gap: "8px",
                 }}>
                   {skill}
                   <button onClick={() => handleRemoveSkill(index)} style={{
@@ -490,7 +444,7 @@ const handleCopyAll = (proj) => {
         </div>
 
 
-        {/* ══ SECTION 3 — EXPERIENCE ══════════════════════ */}
+        {/* ══ SECTION 3 — EXPERIENCE ═════════════════════════════════════════ */}
         <div className="card" style={{ maxWidth: "100%", marginBottom: "20px" }}>
           <SectionHeader title="💼 Experience" />
           {experience.length === 0 && (
@@ -544,9 +498,9 @@ const handleCopyAll = (proj) => {
               </div>
               <label style={{ ...labelStyle, marginBottom: "10px" }}>Key Responsibilities / Achievements</label>
               {job.bullets.map((bullet, bIndex) => (
-                <div key={bIndex} style={{ display: "flex", flexWrap: "wrap", gap: "8px", marginBottom: "8px", alignItems: "center" }}>
+                <div key={bIndex} style={{ display: "flex", gap: "8px", marginBottom: "8px", alignItems: "center" }}>
                   <span style={{ color: "#00F5D4", fontSize: "12px", flexShrink: 0 }}>→</span>
-                  <input style={{ ...inputStyle, marginBottom: 0, flex: 1 }} value={bullet}
+                  <input style={{ ...inputStyle, flex: 1 }} value={bullet}
                     onChange={(e) => handleBulletChange(index, bIndex, e.target.value)} />
                   {job.bullets.length > 1 && (
                     <button onClick={() => handleRemoveBullet(index, bIndex)} style={{
@@ -571,7 +525,7 @@ const handleCopyAll = (proj) => {
         </div>
 
 
-        {/* ══ SECTION 4 — EDUCATION ═══════════════════════ */}
+        {/* ══ SECTION 4 — EDUCATION ══════════════════════════════════════════ */}
         <div className="card" style={{ maxWidth: "100%", marginBottom: "20px" }}>
           <SectionHeader title="🎓 Education" />
           {education.length === 0 && (
@@ -582,28 +536,21 @@ const handleCopyAll = (proj) => {
           {education.map((edu, index) => (
             <div key={index} style={cardInnerStyle}>
               <button onClick={() => handleRemoveEducation(index)} style={removeBtnStyle}>Remove</button>
-
               <p style={{ color: "#00F5D4", fontSize: "11px", letterSpacing: "1px",
                 textTransform: "uppercase", marginBottom: "14px",
                 fontFamily: "'Bodoni MT Black', serif", opacity: 0.6 }}>
                 Qualification {index + 1}
               </p>
-
-              {/* Degree */}
               <div style={{ marginBottom: "12px" }}>
                 <label style={labelStyle}>Degree / Qualification</label>
                 <input style={inputStyle} value={edu.degree}
                   onChange={(e) => handleEducationChange(index, "degree", e.target.value)} />
               </div>
-
-              {/* Institution */}
               <div style={{ marginBottom: "12px" }}>
                 <label style={labelStyle}>Institution</label>
                 <input style={inputStyle} value={edu.institution}
                   onChange={(e) => handleEducationChange(index, "institution", e.target.value)} />
               </div>
-
-              {/* City + Country */}
               <div style={{ display: "flex", flexWrap: "wrap", gap: "12px", marginBottom: "12px" }}>
                 <div style={{ flex: 1 }}>
                   <label style={labelStyle}>City</label>
@@ -616,99 +563,57 @@ const handleCopyAll = (proj) => {
                     onChange={(e) => handleEducationChange(index, "country", e.target.value)} />
                 </div>
               </div>
-
-              {/* ── Graduation Status Toggle ─────────────────────────
-                  Two buttons: "Graduated" and "Expected to Graduate"
-                  Selecting one sets edu.graduationStatus.
-              ──────────────────────────────────────────────────── */}
               <div style={{ marginBottom: "14px" }}>
                 <label style={labelStyle}>Graduation Status</label>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: "10px" }}>
                   {["graduated", "expected"].map((status) => (
-                    <button
-                      key={status}
+                    <button key={status}
                       onClick={() => handleEducationChange(index, "graduationStatus", status)}
                       style={{
-                        flex: 1,
-                        padding: "10px",
-                        borderRadius: "8px",
-                        border: edu.graduationStatus === status
-                          ? "2px solid #00F5D4"
-                          : "2px solid rgba(0,245,212,0.2)",
-                        background: edu.graduationStatus === status
-                          ? "rgba(0,245,212,0.15)"
-                          : "transparent",
+                        flex: 1, padding: "10px", borderRadius: "8px",
+                        border: edu.graduationStatus === status ? "2px solid #00F5D4" : "2px solid rgba(0,245,212,0.2)",
+                        background: edu.graduationStatus === status ? "rgba(0,245,212,0.15)" : "transparent",
                         color: edu.graduationStatus === status ? "#00F5D4" : "#E0FFFF",
-                        cursor: "pointer",
-                        fontFamily: "'Bodoni MT Black', serif",
-                        fontSize: "13px",
-                        opacity: edu.graduationStatus === status ? 1 : 0.5,
-                        transition: "all 0.2s ease",
-                      }}
-                    >
+                        cursor: "pointer", fontFamily: "'Bodoni MT Black', serif", fontSize: "13px",
+                        opacity: edu.graduationStatus === status ? 1 : 0.5, transition: "all 0.2s ease",
+                      }}>
                       {status === "graduated" ? "✓ Graduated" : "⏳ Expected to Graduate"}
                     </button>
                   ))}
                 </div>
               </div>
-
-              {/* ── Month + Year Picker ──────────────────────────────
-                  Two dropdowns: month and year.
-                  Label changes based on graduation status.
-              ──────────────────────────────────────────────────── */}
               <div style={{ marginBottom: "16px" }}>
                 <label style={labelStyle}>
-                  {edu.graduationStatus === "expected"
-                    ? "Expected Graduation Month & Year"
-                    : "Graduation Month & Year"}
+                  {edu.graduationStatus === "expected" ? "Expected Graduation Month & Year" : "Graduation Month & Year"}
                 </label>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: "12px" }}>
-                  <select
-                    value={edu.graduationMonth || ""}
+                  <select value={edu.graduationMonth || ""}
                     onChange={(e) => handleEducationChange(index, "graduationMonth", e.target.value)}
-                    style={{ ...inputStyle, flex: 2, cursor: "pointer" }}
-                  >
+                    style={{ ...inputStyle, flex: 2, cursor: "pointer" }}>
                     <option value="">Month</option>
-                    {MONTHS.map((month) => (
-                      <option key={month} value={month}>{month}</option>
-                    ))}
+                    {MONTHS.map((month) => (<option key={month} value={month}>{month}</option>))}
                   </select>
-                  <select
-                    value={edu.graduationYear || ""}
+                  <select value={edu.graduationYear || ""}
                     onChange={(e) => handleEducationChange(index, "graduationYear", e.target.value)}
-                    style={{ ...inputStyle, flex: 1, cursor: "pointer" }}
-                  >
+                    style={{ ...inputStyle, flex: 1, cursor: "pointer" }}>
                     <option value="">Year</option>
-                    {YEARS.map((year) => (
-                      <option key={year} value={year}>{year}</option>
-                    ))}
+                    {YEARS.map((year) => (<option key={year} value={year}>{year}</option>))}
                   </select>
                 </div>
               </div>
-
-              {/* ── Minimum Average ──────────────────────────────────
-                  e.g. "70%" — appears as a coursework bullet on your CV.
-              ──────────────────────────────────────────────────── */}
               <div style={{ marginBottom: "16px" }}>
                 <label style={labelStyle}>Minimum Average (optional)</label>
-                <input
-                  style={inputStyle}
-                  value={edu.minimumAverage || ""}
-                  onChange={(e) => handleEducationChange(index, "minimumAverage", e.target.value)}
-                />
+                <input style={inputStyle} value={edu.minimumAverage || ""}
+                  onChange={(e) => handleEducationChange(index, "minimumAverage", e.target.value)} />
                 <p style={{ color: "#E0FFFF", fontSize: "11px", opacity: 0.3, marginTop: "5px" }}>
                   e.g. 70% — will appear as an achievement bullet on your CV
                 </p>
               </div>
-
-              {/* Coursework */}
-              <label style={{ ...labelStyle, marginBottom: "10px" }}>
-                Relevant Coursework / Achievements
-              </label>
+              <label style={{ ...labelStyle, marginBottom: "10px" }}>Relevant Coursework / Achievements</label>
               {edu.coursework.map((item, cwIndex) => (
-                <div key={cwIndex} style={{ display: "flex", flexWrap: "wrap", gap: "8px", marginBottom: "8px", alignItems: "center" }}>
+                <div key={cwIndex} style={{ display: "flex", gap: "8px", marginBottom: "8px", alignItems: "center" }}>
                   <span style={{ color: "#00F5D4", fontSize: "12px", flexShrink: 0 }}>•</span>
-                  <input style={{ ...inputStyle, marginBottom: 0, flex: 1 }} value={item}
+                  <input style={{ ...inputStyle, flex: 1 }} value={item}
                     onChange={(e) => handleCourseworkChange(index, cwIndex, e.target.value)} />
                   {edu.coursework.length > 1 && (
                     <button onClick={() => handleRemoveCoursework(index, cwIndex)} style={{
@@ -733,12 +638,13 @@ const handleCopyAll = (proj) => {
         </div>
 
 
-        {/* ══ SECTION 5 — PROJECTS ════════════════════════ */}
+        {/* ══ SECTION 5 — PROJECTS ═══════════════════════════════════════════ */}
         <div className="card" style={{ maxWidth: "100%", marginBottom: "20px" }}>
           <SectionHeader title="🚀 Project Experience" />
           <p style={{ color: "#E0FFFF", opacity: 0.4, fontSize: "12px", marginBottom: "16px" }}>
             Each project can be toggled on/off — only projects marked "Include in CV" will appear on your generated CV.
           </p>
+
           {projects.length === 0 && (
             <p style={{ color: "#E0FFFF", opacity: 0.3, fontSize: "13px", marginBottom: "16px" }}>
               No projects added yet.
@@ -746,311 +652,267 @@ const handleCopyAll = (proj) => {
           )}
 
           {projects.map((proj, index) => (
-          <div key={index} style={{
-            background: "#0B1E2A", border: "1px solid rgba(0,245,212,0.3)",
-            color: "#00F5D4",
-            borderRadius: "16px",
-            padding: "28px 32px",
-            marginBottom: "20px",
-            position: "relative",
-            opacity: proj.includeInCV === false ? 0.55 : 1,
-            transition: "opacity 0.2s ease",
-            boxShadow: "0 8px 40px rgba(0,0,0,0.35), inset 0 1px 0 rgba(0,245,212,0.06)",
-          }}>
+            <div key={index} style={{
+              background: "linear-gradient(145deg, #0f2a38 0%, #003B44 100%)",
+              border: "1px solid rgba(0,245,212,0.15)",
+              borderRadius: "16px",
+              padding: "28px 32px",
+              marginBottom: "20px",
+              position: "relative",
+              opacity: proj.includeInCV === false ? 0.55 : 1,
+              transition: "opacity 0.2s ease",
+              boxShadow: "0 8px 40px rgba(0,0,0,0.35), inset 0 1px 0 rgba(0,245,212,0.06)",
+            }}>
 
-            {editingProject === index ? (
-              /* ── EDIT MODE ── */
-              <>
-                {/* Include in CV toggle */}
-                <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "20px" }}>
-                  <div
-                    onClick={() => handleProjectChange(index, "includeInCV", !proj.includeInCV)}
-                    style={{
-                      width: "42px", height: "24px", borderRadius: "12px",
-                      background: proj.includeInCV !== false ? "#00F5D4" : "rgba(255,255,255,0.15)",
-                      position: "relative", cursor: "pointer", transition: "background 0.25s ease", flexShrink: 0,
-                    }}
-                  >
-                    <div style={{
-                      position: "absolute", top: "3px",
-                      left: proj.includeInCV !== false ? "21px" : "3px",
-                      width: "18px", height: "18px", borderRadius: "50%",
-                      background: "#0B1E2A", transition: "left 0.25s ease",
-                    }} />
+              {editingProject === index ? (
+                /* ── EDIT MODE ── */
+                <>
+                  {/* Include in CV toggle */}
+                  <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "20px" }}>
+                    <div onClick={() => handleProjectChange(index, "includeInCV", !proj.includeInCV)}
+                      style={{
+                        width: "42px", height: "24px", borderRadius: "12px",
+                        background: proj.includeInCV !== false ? "#00F5D4" : "rgba(255,255,255,0.15)",
+                        position: "relative", cursor: "pointer", transition: "background 0.25s ease", flexShrink: 0,
+                      }}>
+                      <div style={{
+                        position: "absolute", top: "3px",
+                        left: proj.includeInCV !== false ? "21px" : "3px",
+                        width: "18px", height: "18px", borderRadius: "50%",
+                        background: "#0B1E2A", transition: "left 0.25s ease",
+                      }} />
+                    </div>
+                    <span style={{
+                      color: proj.includeInCV !== false ? "#00F5D4" : "#E0FFFF",
+                      fontSize: "13px", fontFamily: "'Bodoni MT Black', serif",
+                      opacity: proj.includeInCV !== false ? 1 : 0.45,
+                    }}>
+                      {proj.includeInCV !== false ? "Included in CV" : "Excluded from CV"}
+                    </span>
                   </div>
-                  <span style={{
-                    color: proj.includeInCV !== false ? "#00F5D4" : "#E0FFFF",
-                    fontSize: "13px", fontFamily: "'Bodoni MT Black', serif",
-                    opacity: proj.includeInCV !== false ? 1 : 0.45,
-                  }}>
-                    {proj.includeInCV !== false ? "Included in CV" : "Excluded from CV"}
-                  </span>
-                </div>
 
-                {/* Project Name */}
-                <div style={{ marginBottom: "12px" }}>
-                  <label style={labelStyle}>Project Name</label>
-                  <input style={inputStyle} value={proj.name}
-                    onChange={(e) => handleProjectChange(index, "name", e.target.value)} />
-                </div>
+                  {/* Project Name */}
+                  <div style={{ marginBottom: "12px" }}>
+                    <label style={labelStyle}>Project Name</label>
+                    <input style={inputStyle} value={proj.name}
+                      onChange={(e) => handleProjectChange(index, "name", e.target.value)} />
+                  </div>
 
-                {/* Technologies — type + Enter to add tag */}
-                <div style={{ marginBottom: "12px" }}>
-                  <label style={labelStyle}>Technologies Used</label>
-                  {/* existing tags */}
+                  {/* Technologies */}
+                  <div style={{ marginBottom: "12px" }}>
+                    <label style={labelStyle}>Technologies Used</label>
+                    {proj.technologies && (
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", marginBottom: "8px" }}>
+                        {(Array.isArray(proj.technologies)
+                          ? proj.technologies
+                          : proj.technologies.split(",").map(t => t.trim()).filter(Boolean)
+                        ).map((t, ti) => (
+                          <span key={ti} style={{
+                            background: "rgba(0,180,255,0.08)", border: "1px solid rgba(0,180,255,0.2)",
+                            color: "#00B4FF", fontSize: "11px", padding: "4px 10px", borderRadius: "4px",
+                            display: "flex", alignItems: "center", gap: "6px",
+                          }}>
+                            {t}
+                            <span onClick={() => {
+                              const arr = Array.isArray(proj.technologies)
+                                ? proj.technologies
+                                : proj.technologies.split(",").map(s => s.trim()).filter(Boolean);
+                              handleProjectChange(index, "technologies", arr.filter((_, i) => i !== ti).join(", "));
+                            }} style={{ cursor: "pointer", opacity: 0.5, fontSize: "13px", lineHeight: 1 }}>×</span>
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    <input style={inputStyle}
+                      placeholder="Type a technology and press Enter (e.g. React)"
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && e.target.value.trim()) {
+                          e.preventDefault();
+                          const existing = Array.isArray(proj.technologies)
+                            ? proj.technologies
+                            : proj.technologies ? proj.technologies.split(",").map(s => s.trim()).filter(Boolean) : [];
+                          if (!existing.includes(e.target.value.trim())) {
+                            handleProjectChange(index, "technologies", [...existing, e.target.value.trim()].join(", "));
+                          }
+                          e.target.value = "";
+                        }
+                      }} />
+                    <p style={{ color: "#E0FFFF", fontSize: "11px", opacity: 0.3, marginTop: "5px" }}>
+                      Type and press Enter to add — click × on a tag to remove
+                    </p>
+                  </div>
+
+                  {/* Project URL */}
+                  <div style={{ marginBottom: "16px" }}>
+                    <label style={labelStyle}>Project URL <span style={{ color: "#00F5D4", fontSize: "11px", fontWeight: 400 }}>(GitHub, live site, etc.)</span></label>
+                    <input style={inputStyle}
+                      placeholder="https://github.com/yourusername/project"
+                      value={proj.url || ""}
+                      onChange={(e) => handleProjectChange(index, "url", e.target.value)} />
+                  </div>
+
+                  {/* Bullet inputs */}
+                  <label style={{ ...labelStyle, marginBottom: "10px", display: "block" }}>Project Descriptions</label>
+                  {proj.bullets.map((bullet, bIndex) => (
+                    <div key={bIndex} style={{ display: "flex", gap: "8px", marginBottom: "8px", alignItems: "center" }}>
+                      <div style={{
+                        width: "6px", height: "6px", borderRadius: "50%",
+                        background: "#00F5D4", boxShadow: "0 0 4px #00F5D4",
+                        marginTop: "14px", flexShrink: 0,
+                      }} />
+                      <input style={{ ...inputStyle, flex: 1 , fontFamily: "system-ui, sans-serif"}} value={bullet}
+                        onChange={(e) => handleProjectBulletChange(index, bIndex, e.target.value)} />
+                      {proj.bullets.length > 1 && (
+                        <button onClick={() => handleRemoveProjectBullet(index, bIndex)} style={{
+                          background: "transparent", border: "none", color: "#FF6B6B",
+                          cursor: "pointer", fontSize: "18px", lineHeight: 1, flexShrink: 0, opacity: 0.7,
+                        }}>×</button>
+                      )}
+                    </div>
+                  ))}
+                  <button onClick={() => handleAddProjectBullet(index)} style={{
+                    background: "transparent", border: "1px dashed rgba(0,245,212,0.3)",
+                    color: "#00F5D4", borderRadius: "6px", padding: "6px 14px",
+                    cursor: "pointer", fontSize: "12px", fontFamily: "'Bodoni MT Black', serif",
+                    marginTop: "8px", width: "100%", marginBottom: "16px",
+                  }}>+ Add bullet point</button>
+
+                  {/* Save / Cancel */}
+                  <div style={{ display: "flex", gap: "8px" }}>
+                    <button onClick={() => { handleSave(); setEditingProject(null); }} style={{
+                      background: "#00F5D4", color: "#0B1E2A", border: "none", borderRadius: "8px",
+                      padding: "10px 24px", cursor: "pointer", fontSize: "13px",
+                      fontFamily: "'Bodoni MT Black', serif", fontWeight: 900, flex: 1,
+                    }}>Save Project</button>
+                    <button onClick={() => setEditingProject(null)} style={{
+                      background: "transparent", border: "1px solid rgba(255,255,255,0.15)",
+                      color: "#E0FFFF", borderRadius: "8px", padding: "10px 20px",
+                      cursor: "pointer", fontSize: "13px", fontFamily: "'Bodoni MT Black', serif",
+                    }}>Cancel</button>
+                  </div>
+                </>
+
+              ) : (
+                /* ── PREVIEW MODE ── */
+                <>
+                  {/* Top row: title + buttons */}
+                  <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: "16px", gap: "12px" }}>
+                    <div style={{ flex: 1 }}>
+                      <h2 style={{
+                        color: "#E0FFFF", fontSize: "20px", fontWeight: 700,
+                        margin: "0 0 4px 0", fontFamily: "'Bodoni MT Black', serif",
+                      }}>
+                        {proj.name || <span style={{ opacity: 0.25, fontStyle: "italic", fontWeight: 400 }}>Project name...</span>}
+                      </h2>
+                      {proj.url && (
+                        <a href={proj.url} target="_blank" rel="noreferrer" style={{
+                          color: "#00B4FF", fontSize: "12px", opacity: 0.8, textDecoration: "none",
+                        }}>↗ {proj.url}</a>
+                      )}
+                    </div>
+                    <div style={{ display: "flex", gap: "8px", flexShrink: 0 }}>
+                      <button onClick={() => handleCopyAll(proj)} style={{
+                        background: "rgba(0,245,212,0.1)", border: "1px solid rgba(0,245,212,0.3)",
+                        color: "#00F5D4", padding: "6px 14px", borderRadius: "6px",
+                        cursor: "pointer", fontSize: "12px", letterSpacing: "1px",
+                        fontFamily: "'Bodoni MT Black', serif",
+                      }}>
+                        {copied === `${proj.name}-all` ? "✓ Copied!" : "Copy All"}
+                      </button>
+                      <button onClick={() => setEditingProject(index)} style={{
+                        background: "rgba(0,245,212,0.08)", border: "1px solid rgba(0,245,212,0.2)",
+                        color: "#00F5D4", borderRadius: "6px", padding: "6px 12px",
+                        cursor: "pointer", fontSize: "12px", fontFamily: "'Bodoni MT Black', serif",
+                      }}>Edit</button>
+                      <button onClick={() => handleRemoveProject(index)} style={{
+                        background: "transparent", border: "1px solid rgba(255,107,107,0.3)",
+                        color: "#FF6B6B", borderRadius: "6px", padding: "6px 12px",
+                        cursor: "pointer", fontSize: "12px", fontFamily: "'Bodoni MT Black', serif",
+                      }}>Remove</button>
+                    </div>
+                  </div>
+
+                  {/* Stack tags */}
                   {proj.technologies && (
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", marginBottom: "8px" }}>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", marginBottom: "16px" }}>
                       {(Array.isArray(proj.technologies)
                         ? proj.technologies
                         : proj.technologies.split(",").map(t => t.trim()).filter(Boolean)
                       ).map((t, ti) => (
                         <span key={ti} style={{
-                          background: "rgba(0,180,255,0.08)",
-                          border: "1px solid rgba(0,180,255,0.2)",
+                          background: "rgba(0,180,255,0.08)", border: "1px solid rgba(0,180,255,0.2)",
                           color: "#00B4FF", fontSize: "11px",
-                          padding: "4px 10px", borderRadius: "4px",
-                          display: "flex", alignItems: "center", gap: "6px",
-                        }}>
-                          {t}
-                          <span
-                            onClick={() => {
-                              const arr = Array.isArray(proj.technologies)
-                                ? proj.technologies
-                                : proj.technologies.split(",").map(s => s.trim()).filter(Boolean);
-                              handleProjectChange(index, "technologies", arr.filter((_, i) => i !== ti).join(", "));
-                            }}
-                            style={{ cursor: "pointer", opacity: 0.5, fontSize: "13px", lineHeight: 1 }}
-                          >×</span>
-                        </span>
+                          padding: "4px 10px", borderRadius: "4px", letterSpacing: "0.5px",
+                        }}>{t}</span>
                       ))}
                     </div>
                   )}
-                  <input
-                    style={inputStyle}
-                    placeholder="Type a technology and press Enter (e.g. React)"
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" && e.target.value.trim()) {
-                        e.preventDefault();
-                        const existing = Array.isArray(proj.technologies)
-                          ? proj.technologies
-                          : proj.technologies ? proj.technologies.split(",").map(s => s.trim()).filter(Boolean) : [];
-                        if (!existing.includes(e.target.value.trim())) {
-                          handleProjectChange(index, "technologies", [...existing, e.target.value.trim()].join(", "));
-                        }
-                        e.target.value = "";
-                      }
-                    }}
-                  />
-                  <p style={{ color: "#E0FFFF", fontSize: "11px", opacity: 0.3, marginTop: "5px" }}>
-                    Type and press Enter to add — click × on a tag to remove
-                  </p>
-                </div>
 
-                {/* Project URL */}
-                <div style={{ marginBottom: "16px" }}>
-                  <label style={labelStyle}>Project URL <span style={{ color: "#00F5D4", fontSize: "11px", fontWeight: 400 }}>(GitHub, live site, etc.)</span></label>
-                  <input
-                    style={inputStyle}
-                    placeholder="https://github.com/yourusername/project"
-                    value={proj.url || ""}
-                    onChange={(e) => handleProjectChange(index, "url", e.target.value)}
-                  />
-                </div>
-
-                {/* Bullet inputs */}
-                <label style={{ ...labelStyle, marginBottom: "10px", display: "block" }}>Project Descriptions</label>
-                {proj.bullets.map((bullet, bIndex) => (
-                  <div key={bIndex} style={{ display: "flex", gap: "8px", marginBottom: "8px", alignItems: "center" }}>
-                    <div style={{
-                      width: "6px", height: "6px", borderRadius: "50%",
-                      background: "#00F5D4", boxShadow: "0 0 4px #00F5D4",
-                      marginTop: "14px", flexShrink: 0,
-                    }} />
-                    <input style={{ ...inputStyle, marginBottom: 0, flex: 1 }} value={bullet}
-                      onChange={(e) => handleProjectBulletChange(index, bIndex, e.target.value)} />
-                    {proj.bullets.length > 1 && (
-                      <button onClick={() => handleRemoveProjectBullet(index, bIndex)} style={{
-                        background: "transparent", border: "none", color: "#FF6B6B",
-                        cursor: "pointer", fontSize: "18px", lineHeight: 1, flexShrink: 0, opacity: 0.7,
-                      }}>×</button>
-                    )}
-                  </div>
-                ))}
-                <button onClick={() => handleAddProjectBullet(index)} style={{
-                  background: "transparent", border: "1px dashed rgba(0,245,212,0.3)",
-                  color: "#00F5D4", borderRadius: "6px", padding: "6px 14px",
-                  cursor: "pointer", fontSize: "12px", fontFamily: "'Bodoni MT Black', serif",
-                  marginTop: "8px", width: "100%", marginBottom: "16px",
-                }}>+ Add bullet point</button>
-
-                {/* Save button */}
-                <div style={{ display: "flex", gap: "8px" }}>
-                  <button
-                    onClick={() => {
-                      handleSave(); // your existing save function
-                      setEditingProject(null);
-                    }}
-                    style={{
-                      background: "#00F5D4", color: "#0B1E2A",
-                      border: "none", borderRadius: "8px",
-                      padding: "10px 24px", cursor: "pointer",
-                      fontSize: "13px", fontFamily: "'Bodoni MT Black', serif",
-                      fontWeight: 900, flex: 1,
-                    }}
-                  >Save Project</button>
-                  <button
-                    onClick={() => setEditingProject(null)}
-                    style={{
-                      background: "transparent",
-                      border: "1px solid rgba(255,255,255,0.15)",
-                      color: "#E0FFFF", borderRadius: "8px",
-                      padding: "10px 20px", cursor: "pointer",
-                      fontSize: "13px", fontFamily: "'Bodoni MT Black', serif",
-                    }}
-                  >Cancel</button>
-                </div>
-              </>
-
-            ) : (
-              /* ── PREVIEW MODE ── */
-              <>
-                {/* Top row: title + Copy All + Edit + Remove */}
-                <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: "16px", gap: "12px" }}>
-                  <div style={{ flex: 1 }}>
-                    <h2 style={{
-                      color: "#E0FFFF", fontSize: "20px", fontWeight: 700,
-                      margin: "0 0 4px 0", fontFamily: "'Bodoni MT Black', serif",
-                    }}>
-                      {proj.name || <span style={{ opacity: 0.25, fontStyle: "italic", fontWeight: 400 }}>Project name...</span>}
-                    </h2>
-                    {proj.url && (
-                      <a href={proj.url} target="_blank" rel="noreferrer" style={{
-                        color: "#00B4FF", fontSize: "12px", opacity: 0.8, textDecoration: "none",
-                      }}>↗ {proj.url}</a>
-                    )}
-                  </div>
-                  <div style={{ display: "flex", gap: "8px", flexShrink: 0 }}>
-                    <button
-                      onClick={() => handleCopyAll(proj)}
-                      style={{
-                        background: "rgba(0,245,212,0.1)",
-                        border: "1px solid rgba(0,245,212,0.3)",
-                        color: "#00F5D4", padding: "6px 14px", borderRadius: "6px",
-                        cursor: "pointer", fontSize: "12px", letterSpacing: "1px",
-                        fontFamily: "'Bodoni MT Black', serif",
-                      }}
-                    >
-                      {copied === `${proj.name}-all` ? "✓ Copied!" : "Copy All"}
-                    </button>
-                    <button
-                      onClick={() => setEditingProject(index)}
-                      style={{
-                        background: "rgba(0,245,212,0.08)",
-                        border: "1px solid rgba(0,245,212,0.2)",
-                        color: "#00F5D4", borderRadius: "6px",
-                        padding: "6px 12px", cursor: "pointer",
-                        fontSize: "12px", fontFamily: "'Bodoni MT Black', serif",
-                      }}
-                    >Edit</button>
-                    <button
-                      onClick={() => handleRemoveProject(index)}
-                      style={{
-                        background: "transparent",
-                        border: "1px solid rgba(255,107,107,0.3)",
-                        color: "#FF6B6B", borderRadius: "6px",
-                        padding: "6px 12px", cursor: "pointer",
-                        fontSize: "12px", fontFamily: "'Bodoni MT Black', serif",
-                      }}
-                    >Remove</button>
-                  </div>
-                </div>
-
-                {/* Stack tags */}
-                {proj.technologies && (
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", marginBottom: "16px" }}>
-                    {(Array.isArray(proj.technologies)
-                      ? proj.technologies
-                      : proj.technologies.split(",").map(t => t.trim()).filter(Boolean)
-                    ).map((t, ti) => (
-                      <span key={ti} style={{
-                        background: "rgba(0,180,255,0.08)",
-                        border: "1px solid rgba(0,180,255,0.2)",
-                        color: "#00B4FF", fontSize: "11px",
-                        padding: "4px 10px", borderRadius: "4px", letterSpacing: "0.5px",
-                      }}>{t}</span>
-                    ))}
-                  </div>
-                )}
-
-                {/* Divider */}
-                <div style={{
-                  height: "1px",
-                  background: "linear-gradient(90deg, rgba(0,245,212,0.3) 0%, transparent 100%)",
-                  marginBottom: "16px",
-                }} />
-
-                {/* Bullets with copy buttons */}
-                <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: "10px" }}>
-                  {proj.bullets.filter(b => b.trim()).map((bullet, bi) => (
-                    <li key={bi} style={{
-                      display: "flex", alignItems: "flex-start", gap: "14px",
-                      padding: "12px 14px",
-                      background: "rgba(0,0,0,0.15)",
-                      borderRadius: "8px",
-                      border: "1px solid rgba(0,245,212,0.05)",
-                    }}>
-                      <div style={{
-                        width: "6px", height: "6px", borderRadius: "50%",
-                        background: "#00F5D4", boxShadow: "0 0 6px #00F5D4",
-                        marginTop: "7px", flexShrink: 0,
-                      }} />
-                      <p style={{
-                        color: "rgba(224,255,255,0.85)", fontSize: "13px",
-                        lineHeight: "1.75", margin: 0, flex: 1,
-                      }}>{bullet}</p>
-                      <button
-                        onClick={() => handleCopy(bullet, `${index}-${bi}`)}
-                        title="Copy bullet"
-                        style={{
-                          background: "transparent", border: "none",
-                          color: copied === `${index}-${bi}` ? "#00F5D4" : "rgba(0,245,212,0.3)",
-                          cursor: "pointer", fontSize: "16px", padding: "0 4px",
-                          lineHeight: 1, marginTop: "2px", flexShrink: 0,
-                        }}
-                      >
-                        {copied === `${index}-${bi}` ? "✓" : "⧉"}
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-
-                {/* Include in CV indicator */}
-                <div style={{ display: "flex", alignItems: "center", gap: "8px", marginTop: "16px" }}>
+                  {/* Divider */}
                   <div style={{
-                    width: "8px", height: "8px", borderRadius: "50%",
-                    background: proj.includeInCV !== false ? "#00F5D4" : "rgba(255,255,255,0.2)",
-                    boxShadow: proj.includeInCV !== false ? "0 0 6px #00F5D4" : "none",
+                    height: "1px",
+                    background: "linear-gradient(90deg, rgba(0,245,212,0.3) 0%, transparent 100%)",
+                    marginBottom: "16px",
                   }} />
-                  <span style={{
-                    fontSize: "11px", fontFamily: "'Bodoni MT Black', serif",
-                    color: proj.includeInCV !== false ? "#00F5D4" : "rgba(255,255,255,0.3)",
-                  }}>
-                    {proj.includeInCV !== false ? "Included in CV" : "Excluded from CV"}
-                  </span>
-                </div>
-              </>
-            )}
-              <button
-                onClick={handleAddProject}
-                style={addBtnStyle}
-                onMouseEnter={(e) => e.currentTarget.style.borderColor = "#00F5D4"}
-                onMouseLeave={(e) => e.currentTarget.style.borderColor = "rgba(0,245,212,0.3)"}
-              >+ Add Project</button>
 
-          </div>
-        ))}
+                  {/* Bullets */}
+                  <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: "10px" }}>
+                    {proj.bullets.filter(b => b.trim()).map((bullet, bi) => (
+                      <li key={bi} style={{
+                        display: "flex", alignItems: "flex-start", gap: "14px",
+                        padding: "12px 14px", background: "rgba(0,0,0,0.15)",
+                        borderRadius: "8px", border: "1px solid rgba(0,245,212,0.05)",
+                      }}>
+                        <div style={{
+                          width: "6px", height: "6px", borderRadius: "50%",
+                          background: "#00F5D4", boxShadow: "0 0 6px #00F5D4",
+                          marginTop: "7px", flexShrink: 0,
+                        }} />
+                        <p style={{ color: "rgba(224,255,255,0.85)", fontSize: "13px", lineHeight: "1.75", margin: 0, flex: 1 }}>
+                          {bullet}
+                        </p>
+                        <button onClick={() => handleCopy(bullet, `${index}-${bi}`)} title="Copy bullet"
+                          style={{
+                            background: "transparent", border: "none",
+                            color: copied === `${index}-${bi}` ? "#00F5D4" : "rgba(0,245,212,0.3)",
+                            cursor: "pointer", fontSize: "16px", padding: "0 4px",
+                            lineHeight: 1, marginTop: "2px", flexShrink: 0,
+                          }}>
+                          {copied === `${index}-${bi}` ? "✓" : "⧉"}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
 
-        {/* ══ SECTION 6 — LANGUAGES ═══════════════════════ */}
+                  {/* Include in CV indicator */}
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px", marginTop: "16px" }}>
+                    <div style={{
+                      width: "8px", height: "8px", borderRadius: "50%",
+                      background: proj.includeInCV !== false ? "#00F5D4" : "rgba(255,255,255,0.2)",
+                      boxShadow: proj.includeInCV !== false ? "0 0 6px #00F5D4" : "none",
+                    }} />
+                    <span style={{
+                      fontSize: "11px", fontFamily: "'Bodoni MT Black', serif",
+                      color: proj.includeInCV !== false ? "#00F5D4" : "rgba(255,255,255,0.3)",
+                    }}>
+                      {proj.includeInCV !== false ? "Included in CV" : "Excluded from CV"}
+                    </span>
+                  </div>
+                </>
+              )}
+
+            </div>
+          ))}
+
+          {/* + Add Project button — outside the map, inside the card */}
+          <button onClick={handleAddProject} style={addBtnStyle}
+            onMouseEnter={(e) => e.currentTarget.style.borderColor = "#00F5D4"}
+            onMouseLeave={(e) => e.currentTarget.style.borderColor = "rgba(0,245,212,0.3)"}
+          >+ Add Project</button>
+        </div>
+
+
+        {/* ══ SECTION 6 — LANGUAGES ══════════════════════════════════════════ */}
         <div className="card" style={{ maxWidth: "100%", marginBottom: "20px" }}>
           <SectionHeader title="🌐 Languages" />
           {languages.length === 0 && (
@@ -1072,7 +934,7 @@ const handleCopyAll = (proj) => {
                 }}>×</button>
                 <div style={{ marginBottom: "10px" }}>
                   <label style={labelStyle}>Language</label>
-                  <input style={{ ...inputStyle, marginBottom: 0 }} value={lang.name}
+                  <input style={inputStyle} value={lang.name}
                     onChange={(e) => handleLanguageChange(index, "name", e.target.value)} />
                 </div>
                 <div>
@@ -1096,7 +958,7 @@ const handleCopyAll = (proj) => {
         </div>
 
 
-        {/* ══ SECTION 7 — REFERENCES ══════════════════════ */}
+        {/* ══ SECTION 7 — REFERENCES ═════════════════════════════════════════ */}
         <div className="card" style={{ maxWidth: "100%", marginBottom: "20px" }}>
           <SectionHeader title="📋 References" />
           <p style={{ color: "#E0FFFF", fontSize: "13px", opacity: 0.55, marginBottom: "12px" }}>
@@ -1116,11 +978,11 @@ const handleCopyAll = (proj) => {
         </div>
 
 
-        {/* ── Feedback ──── */}
+        {/* Feedback */}
         {error && <p style={{ color: "#FF6B6B", fontSize: "14px", marginBottom: "12px" }}>⚠ {error}</p>}
         {success && <p style={{ color: "#00F5D4", fontSize: "14px", marginBottom: "12px" }}>✓ {success}</p>}
 
-        {/* ── Save Button ── */}
+        {/* Save Button */}
         <div style={{ paddingBottom: "40px" }}>
           <button className="primary-btn" onClick={handleSave} disabled={saving}
             style={{ fontSize: "16px", padding: "14px 48px", opacity: saving ? 0.65 : 1, cursor: saving ? "not-allowed" : "pointer" }}>
@@ -1132,4 +994,3 @@ const handleCopyAll = (proj) => {
     </DashboardLayout>
   );
 }
-
