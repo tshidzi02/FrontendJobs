@@ -17,5 +17,7 @@ jobs:
           key: ${{ secrets.SERVER_SSH_KEY }}
           script: |
             cd /var/www/cvapp
+            git stash
             git pull origin main
-            sudo systemctl restart gunicorn
+            git stash pop
+            sudo systemctl restart cvapp
