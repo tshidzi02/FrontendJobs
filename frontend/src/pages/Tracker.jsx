@@ -27,10 +27,10 @@ import DashboardLayout from "../layouts/DashboardLayout";
 
 const COLUMNS = [
   { id: "Wishlist",  label: "Wishlist",  emoji: "⭐", color: "#60A5FA" },
-  { id: "Applied",   label: "Applied",   emoji: "📤", color: "#00F5D4" },
+  { id: "Applied",   label: "Applied",   emoji: "📤", color: "#2D5A3D" },
   { id: "Interview", label: "Interview", emoji: "🎙️", color: "#A78BFA" },
   { id: "Offer",     label: "Offer",     emoji: "🎉", color: "#4ADE80" },
-  { id: "Rejected",  label: "Rejected",  emoji: "❌", color: "#FF6B6B" },
+  { id: "Rejected",  label: "Rejected",  emoji: "❌", color: "#8B2020" },
 ];
 
 const EMPTY_FORM = {
@@ -51,7 +51,7 @@ function formatDate(iso) {
 }
 
 function getColumnColor(status) {
-  return COLUMNS.find(c => c.id === status)?.color || "#E0FFFF";
+  return COLUMNS.find(c => c.id === status)?.color || "#1E2018";
 }
 
 
@@ -68,9 +68,9 @@ function AppCard({ app, onDragStart, onEdit, onDelete }) {
       draggable
       onDragStart={(e) => onDragStart(e, app.id)}
       style={{
-        background:   "#0B1E2A",
-        border:       `1px solid ${col?.color || "#00F5D4"}30`,
-        borderLeft:   `3px solid ${col?.color || "#00F5D4"}`,
+        background:   "#FFFFFF",
+        border:       `1px solid ${col?.color || "#2D5A3D"}30`,
+        borderLeft:   `3px solid ${col?.color || "#2D5A3D"}`,
         borderRadius: "10px",
         padding:      "14px 16px",
         marginBottom: "10px",
@@ -78,13 +78,13 @@ function AppCard({ app, onDragStart, onEdit, onDelete }) {
         userSelect:   "none",
         transition:   "box-shadow 0.15s ease",
       }}
-      onMouseEnter={e => e.currentTarget.style.boxShadow = `0 4px 20px ${col?.color || "#00F5D4"}20`}
+      onMouseEnter={e => e.currentTarget.style.boxShadow = `0 4px 20px ${col?.color || "#2D5A3D"}20`}
       onMouseLeave={e => e.currentTarget.style.boxShadow = "none"}
     >
       {/* Company + Role */}
       <p style={{
-        color:      "#E0FFFF",
-        fontFamily: "'Bodoni MT Black', serif",
+        color:      "#1E2018",
+        fontFamily: "'Libre Baskerville', serif",
         fontWeight: 900,
         fontSize:   "14px",
         marginBottom: "2px",
@@ -93,9 +93,9 @@ function AppCard({ app, onDragStart, onEdit, onDelete }) {
         {app.role || "Untitled Role"}
       </p>
       <p style={{
-        color:      col?.color || "#00F5D4",
+        color:      col?.color || "#2D5A3D",
         fontSize:   "12px",
-        fontFamily: "'Bodoni MT Black', serif",
+        fontFamily: "'Libre Baskerville', serif",
         fontWeight: 900,
         marginBottom: "8px",
       }}>
@@ -117,7 +117,7 @@ function AppCard({ app, onDragStart, onEdit, onDelete }) {
       {/* Notes preview */}
       {app.notes && (
         <p style={{
-          color:        "#E0FFFF",
+          color:        "#1E2018",
           fontSize:     "11px",
           opacity:      0.5,
           fontFamily:   "system-ui, sans-serif",
@@ -139,9 +139,9 @@ function AppCard({ app, onDragStart, onEdit, onDelete }) {
         alignItems:     "center",
         marginTop:      "8px",
         paddingTop:     "8px",
-        borderTop:      "1px solid rgba(255,255,255,0.06)",
+        borderTop:      "1px solid rgba(0,0,0,0.06)",
       }}>
-        <span style={{ color: "#E0FFFF", fontSize: "10px", opacity: 0.35 }}>
+        <span style={{ color: "#1E2018", fontSize: "10px", opacity: 0.35 }}>
           {formatDate(app.created_at)}
         </span>
 
@@ -154,7 +154,7 @@ function AppCard({ app, onDragStart, onEdit, onDelete }) {
               rel="noopener noreferrer"
               onClick={e => e.stopPropagation()}
               style={{
-                color:      col?.color || "#00F5D4",
+                color:      col?.color || "#2D5A3D",
                 fontSize:   "11px",
                 textDecoration: "none",
                 opacity:    0.7,
@@ -169,7 +169,7 @@ function AppCard({ app, onDragStart, onEdit, onDelete }) {
             onClick={(e) => { e.stopPropagation(); onEdit(app); }}
             style={{
               background: "transparent", border: "none",
-              color: "#E0FFFF", cursor: "pointer",
+              color: "#1E2018", cursor: "pointer",
               fontSize: "12px", opacity: 0.5, padding: "0 2px",
             }}
             title="Edit"
@@ -183,13 +183,13 @@ function AppCard({ app, onDragStart, onEdit, onDelete }) {
               onClick={(e) => { e.stopPropagation(); onDelete(app.id); }}
               style={{
                 background:   "rgba(255,107,107,0.2)",
-                border:       "1px solid #FF6B6B",
+                border:       "1px solid #8B2020",
                 borderRadius: "4px",
-                color:        "#FF6B6B",
+                color:        "#8B2020",
                 cursor:       "pointer",
                 fontSize:     "10px",
                 padding:      "2px 6px",
-                fontFamily:   "'Bodoni MT Black', serif",
+                fontFamily:   "'Libre Baskerville', serif",
               }}
             >
               Confirm
@@ -199,7 +199,7 @@ function AppCard({ app, onDragStart, onEdit, onDelete }) {
               onClick={(e) => { e.stopPropagation(); setConfirmDelete(true); setTimeout(() => setConfirmDelete(false), 3000); }}
               style={{
                 background: "transparent", border: "none",
-                color: "#FF6B6B", cursor: "pointer",
+                color: "#8B2020", cursor: "pointer",
                 fontSize: "12px", opacity: 0.5, padding: "0 2px",
               }}
               title="Delete"
@@ -230,8 +230,8 @@ function KanbanColumn({ column, apps, onDragStart, onDrop, onDragOver, onEdit, o
         flex:         "0 0 clamp(220px, 75vw, 260px)",
         scrollSnapAlign: "start",
         minHeight:    "500px",
-        background:   isDragOver ? `${column.color}08` : "rgba(0,59,68,0.4)",
-        border:       isDragOver ? `1px solid ${column.color}60` : "1px solid rgba(0,245,212,0.08)",
+        background:   isDragOver ? `${column.color}08` : "rgba(220,210,192,0.4)",
+        border:       isDragOver ? `1px solid ${column.color}60` : "1px solid rgba(45,90,61,0.08)",
         borderRadius: "14px",
         padding:      "16px",
         transition:   "all 0.15s ease",
@@ -252,7 +252,7 @@ function KanbanColumn({ column, apps, onDragStart, onDrop, onDragOver, onEdit, o
           <span style={{ fontSize: "16px" }}>{column.emoji}</span>
           <span style={{
             color:       column.color,
-            fontFamily:  "'Bodoni MT Black', serif",
+            fontFamily:  "'Libre Baskerville', serif",
             fontWeight:  900,
             fontSize:    "13px",
             letterSpacing: "0.5px",
@@ -267,7 +267,7 @@ function KanbanColumn({ column, apps, onDragStart, onDrop, onDragOver, onEdit, o
           padding:      "2px 8px",
           fontSize:     "11px",
           color:        column.color,
-          fontFamily:   "'Bodoni MT Black', serif",
+          fontFamily:   "'Libre Baskerville', serif",
           fontWeight:   900,
         }}>
           {apps.length}
@@ -280,7 +280,7 @@ function KanbanColumn({ column, apps, onDragStart, onDrop, onDragOver, onEdit, o
           <div style={{
             textAlign:    "center",
             padding:      "30px 10px",
-            color:        "#E0FFFF",
+            color:        "#1E2018",
             opacity:      0.2,
             fontSize:     "12px",
             fontFamily:   "system-ui, sans-serif",
@@ -310,7 +310,7 @@ function KanbanColumn({ column, apps, onDragStart, onDrop, onDragOver, onEdit, o
           borderRadius: "8px",
           color:        column.color,
           fontSize:     "12px",
-          fontFamily:   "'Bodoni MT Black', serif",
+          fontFamily:   "'Libre Baskerville', serif",
           fontWeight:   900,
           cursor:       "pointer",
           marginTop:    "8px",
@@ -361,10 +361,10 @@ function AppModal({ initial, onSave, onClose }) {
   const inputStyle = {
     width:        "100%",
     padding:      "11px 14px",
-    background:   "#0B1E2A",
-    border:       "1px solid rgba(0,245,212,0.2)",
+    background:   "#FFFFFF",
+    border:       "1px solid rgba(45,90,61,0.2)",
     borderRadius: "8px",
-    color:        "#E0FFFF",
+    color:        "#1E2018",
     fontSize:     "13px",
     fontFamily:   "system-ui, sans-serif",
     outline:      "none",
@@ -372,12 +372,12 @@ function AppModal({ initial, onSave, onClose }) {
   };
 
   const labelStyle = {
-    color:         "#E0FFFF",
+    color:         "#1E2018",
     fontSize:      "11px",
     opacity:       0.5,
     letterSpacing: "1px",
     textTransform: "uppercase",
-    fontFamily:    "'Bodoni MT Black', serif",
+    fontFamily:    "'Libre Baskerville', serif",
     marginBottom:  "6px",
     display:       "block",
   };
@@ -401,8 +401,8 @@ function AppModal({ initial, onSave, onClose }) {
         transform:    "translate(-50%, -50%)",
         width:        "min(520px, 92vw)",
         maxHeight:    "90vh",
-        background:   "#003B44",
-        border:       "1px solid rgba(0,245,212,0.3)",
+        background:   "#F0EAD8",
+        border:       "1px solid rgba(45,90,61,0.3)",
         borderRadius: "16px",
         zIndex:       2001,
         display:      "flex",
@@ -413,15 +413,15 @@ function AppModal({ initial, onSave, onClose }) {
         {/* Header */}
         <div style={{
           padding:      "24px 28px 18px",
-          borderBottom: "1px solid rgba(0,245,212,0.1)",
+          borderBottom: "1px solid rgba(45,90,61,0.1)",
           display:      "flex",
           justifyContent: "space-between",
           alignItems:   "center",
           flexShrink:   0,
         }}>
           <h2 style={{
-            color:      "#00F5D4",
-            fontFamily: "'Bodoni MT Black', serif",
+            color:      "#2D5A3D",
+            fontFamily: "'Libre Baskerville', serif",
             fontWeight: 900,
             fontSize:   "16px",
           }}>
@@ -429,7 +429,7 @@ function AppModal({ initial, onSave, onClose }) {
           </h2>
           <button onClick={onClose} style={{
             background: "transparent", border: "none",
-            color: "#E0FFFF", fontSize: "18px",
+            color: "#1E2018", fontSize: "18px",
             cursor: "pointer", opacity: 0.5,
           }}>✕</button>
         </div>
@@ -438,7 +438,7 @@ function AppModal({ initial, onSave, onClose }) {
         <div style={{ padding: "24px 28px", overflowY: "auto", flex: 1 }}>
 
           {error && (
-            <p style={{ color: "#FF6B6B", fontSize: "13px", marginBottom: "16px" }}>{error}</p>
+            <p style={{ color: "#8B2020", fontSize: "13px", marginBottom: "16px" }}>{error}</p>
           )}
 
           {/* Row: Company + Role */}
@@ -520,7 +520,7 @@ function AppModal({ initial, onSave, onClose }) {
         {/* Footer */}
         <div style={{
           padding:    "18px 28px",
-          borderTop:  "1px solid rgba(0,245,212,0.1)",
+          borderTop:  "1px solid rgba(45,90,61,0.1)",
           display:    "flex",
           gap:        "12px",
           flexShrink: 0,
@@ -538,11 +538,11 @@ function AppModal({ initial, onSave, onClose }) {
             style={{
               padding:      "12px 20px",
               background:   "transparent",
-              border:       "1px solid rgba(0,245,212,0.2)",
+              border:       "1px solid rgba(45,90,61,0.2)",
               borderRadius: "6px",
-              color:        "#E0FFFF",
+              color:        "#1E2018",
               cursor:       "pointer",
-              fontFamily:   "'Bodoni MT Black', serif",
+              fontFamily:   "'Libre Baskerville', serif",
               fontWeight:   900,
               fontSize:     "14px",
             }}
@@ -705,15 +705,15 @@ export default function Tracker() {
         }}>
           <div>
             <h1 style={{
-              fontFamily:    "'Train One', cursive",
+              fontFamily:    "'Libre Baskerville', serif",
               fontSize: "clamp(20px, 4vw, 32px)",
-              color:         "#00F5D4",
+              color:         "#2D5A3D",
               letterSpacing: "2px",
               marginBottom:  "6px",
             }}>
               APPLICATION TRACKER
             </h1>
-            <p style={{ color: "#E0FFFF", fontSize: "13px", opacity: 0.5 }}>
+            <p style={{ color: "#1E2018", fontSize: "13px", opacity: 0.5 }}>
               Drag cards between columns to update status
             </p>
           </div>
@@ -737,33 +737,33 @@ export default function Tracker() {
             flexWrap:     "wrap",
           }}>
             {[
-              { label: "Total Applied",   value: totalApps,    color: "#00F5D4" },
+              { label: "Total Applied",   value: totalApps,    color: "#2D5A3D" },
               { label: "Interviews",      value: interviews,   color: "#A78BFA" },
               { label: "Offers",          value: offers,       color: "#4ADE80" },
               { label: "Response Rate",   value: `${responseRate}%`, color: "#FFB347" },
             ].map(stat => (
               <div key={stat.label} style={{
-                background:   "rgba(0,59,68,0.6)",
-                border:       "1px solid rgba(0,245,212,0.1)",
+                background:   "rgba(220,210,192,0.6)",
+                border:       "1px solid rgba(45,90,61,0.1)",
                 borderRadius: "10px",
                 padding:      "14px 20px",
                 flex:         1,
                 minWidth:     "120px",
               }}>
                 <p style={{
-                  color:         "#E0FFFF",
+                  color:         "#1E2018",
                   fontSize:      "10px",
                   opacity:       0.4,
                   letterSpacing: "1px",
                   textTransform: "uppercase",
-                  fontFamily:    "'Bodoni MT Black', serif",
+                  fontFamily:    "'Libre Baskerville', serif",
                   marginBottom:  "6px",
                 }}>
                   {stat.label}
                 </p>
                 <p style={{
                   color:      stat.color,
-                  fontFamily: "'Train One', cursive",
+                  fontFamily: "'Libre Baskerville', serif",
                   fontSize: "clamp(18px, 3vw, 28px)",
                   lineHeight: 1,
                 }}>
@@ -777,7 +777,7 @@ export default function Tracker() {
 
         {/* ── ERROR ────────────────────────────────────────────────────────── */}
         {error && (
-          <p style={{ color: "#FF6B6B", fontSize: "13px", marginBottom: "16px" }}>{error}</p>
+          <p style={{ color: "#8B2020", fontSize: "13px", marginBottom: "16px" }}>{error}</p>
         )}
 
 
@@ -788,7 +788,7 @@ export default function Tracker() {
               <div key={col.id} style={{
                 flex:         "0 0 clamp(220px, 75vw, 260px)",
                 height:       "400px",
-                background:   "#003B44",
+                background:   "#F0EAD8",
                 borderRadius: "14px",
                 opacity:      0.4,
               }} />
@@ -835,14 +835,14 @@ export default function Tracker() {
           }}>
             <p style={{ fontSize: "clamp(22px, 4vw, 40px)", marginBottom: "12px" }}>📋</p>
             <p style={{
-              color:      "#E0FFFF",
-              fontFamily: "'Bodoni MT Black', serif",
+              color:      "#1E2018",
+              fontFamily: "'Libre Baskerville', serif",
               fontSize:   "16px",
               marginBottom: "8px",
             }}>
               No applications yet
             </p>
-            <p style={{ color: "#E0FFFF", fontSize: "13px", opacity: 0.45 }}>
+            <p style={{ color: "#1E2018", fontSize: "13px", opacity: 0.45 }}>
               Add your first application or find jobs in Job Search
             </p>
           </div>

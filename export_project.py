@@ -4,7 +4,7 @@ import os
 folders_to_scan = ["./backend", "./frontend"]
 
 # Folders to exclude
-excluded_folder_names = ["venv", "node_modules", ".git"]
+excluded_folder_names = ["venv", "node_modules", ".git",".env"]
 
 # Output file
 output_file = "project_export.txt"

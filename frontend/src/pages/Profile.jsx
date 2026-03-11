@@ -10,10 +10,10 @@ import DashboardLayout from "../layouts/DashboardLayout";
 const inputStyle = {
   width: "100%",
   padding: "11px 14px",
-  background: "#0B1E2A",
-  border: "1px solid rgba(0,245,212,0.2)",
+  background: "#FFFFFF",
+  border: "1px solid rgba(45,90,61,0.2)",
   borderRadius: "8px",
-  color: "#E0FFFF",
+  color: "#1E2018",
   fontSize: "14px",
   fontFamily: "system-ui, sans-serif",
   outline: "none",
@@ -21,24 +21,24 @@ const inputStyle = {
 };
 
 const labelStyle = {
-  color: "#E0FFFF",
+  color: "#1E2018",
   fontSize: "12px",
   opacity: 0.55,
   marginBottom: "6px",
   display: "block",
-  fontFamily: "'Bodoni MT Black', serif",
+  fontFamily: "'Libre Baskerville', serif",
   letterSpacing: "0.5px",
 };
 
 const addBtnStyle = {
   background: "transparent",
-  border: "2px dashed rgba(0,245,212,0.3)",
-  color: "#00F5D4",
+  border: "2px dashed rgba(45,90,61,0.3)",
+  color: "#2D5A3D",
   borderRadius: "10px",
   padding: "14px",
   cursor: "pointer",
   fontSize: "14px",
-  fontFamily: "'Bodoni MT Black', serif",
+  fontFamily: "'Libre Baskerville', serif",
   width: "100%",
   transition: "border-color 0.2s ease",
 };
@@ -47,28 +47,28 @@ const removeBtnStyle = {
   position: "absolute", top: "14px", right: "14px",
   background: "transparent",
   border: "1px solid rgba(255,107,107,0.3)",
-  color: "#FF6B6B", borderRadius: "6px",
+  color: "#8B2020", borderRadius: "6px",
   padding: "3px 8px", cursor: "pointer",
-  fontSize: "12px", fontFamily: "'Bodoni MT Black', serif",
+  fontSize: "12px", fontFamily: "'Libre Baskerville', serif",
 };
 
 const cardInnerStyle = {
-  background: "#0B1E2A", borderRadius: "10px", padding: "20px",
-  marginBottom: "16px", border: "1px solid rgba(0,245,212,0.1)",
+  background: "#FFFFFF", borderRadius: "10px", padding: "20px",
+  marginBottom: "16px", border: "1px solid rgba(45,90,61,0.1)",
   position: "relative",
 };
 
 function SectionHeader({ title }) {
   return (
     <h2 style={{
-      color: "#00F5D4",
-      fontFamily: "'Bodoni MT Black', serif",
+      color: "#2D5A3D",
+      fontFamily: "'Libre Baskerville', serif",
       fontSize: "13px",
       letterSpacing: "2px",
       textTransform: "uppercase",
       marginBottom: "20px",
       paddingBottom: "10px",
-      borderBottom: "1px solid rgba(0,245,212,0.15)",
+      borderBottom: "1px solid rgba(45,90,61,0.15)",
     }}>
       {title}
     </h2>
@@ -90,7 +90,7 @@ function ProficiencyBar({ level }) {
       {Array.from({ length: 6 }).map((_, i) => (
         <div key={i} style={{
           width: "28px", height: "8px", borderRadius: "2px",
-          background: i < level ? "#00F5D4" : "rgba(255,255,255,0.15)",
+          background: i < level ? "#2D5A3D" : "rgba(255,255,255,0.15)",
         }} />
       ))}
     </div>
@@ -317,12 +317,12 @@ export default function Profile() {
     return (
       <DashboardLayout>
         <div style={{ maxWidth: "min(800px, 100%)", margin: "0 auto", paddingBottom: "60px" }}>
-          <div style={{ width: "200px", height: "36px", background: "#003B44", borderRadius: "8px", marginBottom: "32px", opacity: 0.6 }} />
+          <div style={{ width: "200px", height: "36px", background: "#F0EAD8", borderRadius: "8px", marginBottom: "32px", opacity: 0.6 }} />
           {[1, 2, 3].map(i => (
-            <div key={i} style={{ background: "#003B44", borderRadius: "12px", padding: "28px", marginBottom: "20px", border: "1px solid rgba(0,245,212,0.08)" }}>
-              <div style={{ width: "140px", height: "14px", background: "rgba(0,245,212,0.15)", borderRadius: "4px", marginBottom: "20px" }} />
+            <div key={i} style={{ background: "#F0EAD8", borderRadius: "12px", padding: "28px", marginBottom: "20px", border: "1px solid rgba(45,90,61,0.08)" }}>
+              <div style={{ width: "140px", height: "14px", background: "rgba(45,90,61,0.15)", borderRadius: "4px", marginBottom: "20px" }} />
               {[1, 2, 3].map(j => (
-                <div key={j} style={{ width: `${70 + j * 8}%`, height: "40px", background: "#0B1E2A", borderRadius: "8px", marginBottom: "12px", opacity: 0.5 }} />
+                <div key={j} style={{ width: `${70 + j * 8}%`, height: "40px", background: "#FFFFFF", borderRadius: "8px", marginBottom: "12px", opacity: 0.5 }} />
               ))}
             </div>
           ))}
@@ -339,12 +339,12 @@ export default function Profile() {
 
         {/* Page Header */}
         <h1 style={{
-          fontFamily: "'Train One', cursive", fontSize: "clamp(20px, 4vw, 32px)",
-          color: "#00F5D4", letterSpacing: "2px", marginBottom: "6px",
+          fontFamily: "'Libre Baskerville', serif", fontSize: "clamp(20px, 4vw, 32px)",
+          color: "#2D5A3D", letterSpacing: "2px", marginBottom: "6px",
         }}>
           CV Profile
         </h1>
-        <p style={{ color: "#E0FFFF", opacity: 0.5, fontSize: "14px", marginBottom: "32px" }}>
+        <p style={{ color: "#1E2018", opacity: 0.5, fontSize: "14px", marginBottom: "32px" }}>
           Your base CV data. The AI uses this to generate tailored CVs for each job.
         </p>
 
@@ -423,21 +423,21 @@ export default function Profile() {
             <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
               {skills.map((skill, index) => (
                 <span key={index} style={{
-                  background: "rgba(0,245,212,0.1)", border: "1px solid rgba(0,245,212,0.3)",
-                  color: "#00F5D4", padding: "6px 12px", borderRadius: "20px",
-                  fontSize: "13px", fontFamily: "'Bodoni MT Black', serif",
+                  background: "rgba(45,90,61,0.1)", border: "1px solid rgba(45,90,61,0.3)",
+                  color: "#2D5A3D", padding: "6px 12px", borderRadius: "20px",
+                  fontSize: "13px", fontFamily: "'Libre Baskerville', serif",
                   display: "flex", alignItems: "center", gap: "8px",
                 }}>
                   {skill}
                   <button onClick={() => handleRemoveSkill(index)} style={{
-                    background: "transparent", border: "none", color: "#00F5D4",
+                    background: "transparent", border: "none", color: "#2D5A3D",
                     cursor: "pointer", fontSize: "16px", lineHeight: 1, padding: 0, opacity: 0.7,
                   }}>×</button>
                 </span>
               ))}
             </div>
           ) : (
-            <p style={{ color: "#E0FFFF", opacity: 0.3, fontSize: "13px" }}>
+            <p style={{ color: "#1E2018", opacity: 0.3, fontSize: "13px" }}>
               No skills added yet. Type above and press Enter.
             </p>
           )}
@@ -448,16 +448,16 @@ export default function Profile() {
         <div className="card" style={{ maxWidth: "100%", marginBottom: "20px" }}>
           <SectionHeader title="💼 Experience" />
           {experience.length === 0 && (
-            <p style={{ color: "#E0FFFF", opacity: 0.3, fontSize: "13px", marginBottom: "16px" }}>
+            <p style={{ color: "#1E2018", opacity: 0.3, fontSize: "13px", marginBottom: "16px" }}>
               No experience added yet.
             </p>
           )}
           {experience.map((job, index) => (
             <div key={index} style={cardInnerStyle}>
               <button onClick={() => handleRemoveExperience(index)} style={removeBtnStyle}>Remove</button>
-              <p style={{ color: "#00F5D4", fontSize: "11px", letterSpacing: "1px",
+              <p style={{ color: "#2D5A3D", fontSize: "11px", letterSpacing: "1px",
                 textTransform: "uppercase", marginBottom: "14px",
-                fontFamily: "'Bodoni MT Black', serif", opacity: 0.6 }}>
+                fontFamily: "'Libre Baskerville', serif", opacity: 0.6 }}>
                 Position {index + 1}
               </p>
               <div style={{ display: "flex", flexWrap: "wrap", gap: "12px", marginBottom: "12px" }}>
@@ -499,28 +499,28 @@ export default function Profile() {
               <label style={{ ...labelStyle, marginBottom: "10px" }}>Key Responsibilities / Achievements</label>
               {job.bullets.map((bullet, bIndex) => (
                 <div key={bIndex} style={{ display: "flex", gap: "8px", marginBottom: "8px", alignItems: "center" }}>
-                  <span style={{ color: "#00F5D4", fontSize: "12px", flexShrink: 0 }}>→</span>
+                  <span style={{ color: "#2D5A3D", fontSize: "12px", flexShrink: 0 }}>→</span>
                   <input style={{ ...inputStyle, flex: 1 }} value={bullet}
                     onChange={(e) => handleBulletChange(index, bIndex, e.target.value)} />
                   {job.bullets.length > 1 && (
                     <button onClick={() => handleRemoveBullet(index, bIndex)} style={{
-                      background: "transparent", border: "none", color: "#FF6B6B",
+                      background: "transparent", border: "none", color: "#8B2020",
                       cursor: "pointer", fontSize: "18px", lineHeight: 1, flexShrink: 0, opacity: 0.7,
                     }}>×</button>
                   )}
                 </div>
               ))}
               <button onClick={() => handleAddBullet(index)} style={{
-                background: "transparent", border: "1px dashed rgba(0,245,212,0.3)",
-                color: "#00F5D4", borderRadius: "6px", padding: "6px 14px",
-                cursor: "pointer", fontSize: "12px", fontFamily: "'Bodoni MT Black', serif",
+                background: "transparent", border: "1px dashed rgba(45,90,61,0.3)",
+                color: "#2D5A3D", borderRadius: "6px", padding: "6px 14px",
+                cursor: "pointer", fontSize: "12px", fontFamily: "'Libre Baskerville', serif",
                 marginTop: "4px", width: "100%",
               }}>+ Add bullet point</button>
             </div>
           ))}
           <button onClick={handleAddExperience} style={addBtnStyle}
-            onMouseEnter={(e) => e.currentTarget.style.borderColor = "#00F5D4"}
-            onMouseLeave={(e) => e.currentTarget.style.borderColor = "rgba(0,245,212,0.3)"}
+            onMouseEnter={(e) => e.currentTarget.style.borderColor = "#2D5A3D"}
+            onMouseLeave={(e) => e.currentTarget.style.borderColor = "rgba(45,90,61,0.3)"}
           >+ Add Experience</button>
         </div>
 
@@ -529,16 +529,16 @@ export default function Profile() {
         <div className="card" style={{ maxWidth: "100%", marginBottom: "20px" }}>
           <SectionHeader title="🎓 Education" />
           {education.length === 0 && (
-            <p style={{ color: "#E0FFFF", opacity: 0.3, fontSize: "13px", marginBottom: "16px" }}>
+            <p style={{ color: "#1E2018", opacity: 0.3, fontSize: "13px", marginBottom: "16px" }}>
               No education added yet.
             </p>
           )}
           {education.map((edu, index) => (
             <div key={index} style={cardInnerStyle}>
               <button onClick={() => handleRemoveEducation(index)} style={removeBtnStyle}>Remove</button>
-              <p style={{ color: "#00F5D4", fontSize: "11px", letterSpacing: "1px",
+              <p style={{ color: "#2D5A3D", fontSize: "11px", letterSpacing: "1px",
                 textTransform: "uppercase", marginBottom: "14px",
-                fontFamily: "'Bodoni MT Black', serif", opacity: 0.6 }}>
+                fontFamily: "'Libre Baskerville', serif", opacity: 0.6 }}>
                 Qualification {index + 1}
               </p>
               <div style={{ marginBottom: "12px" }}>
@@ -571,10 +571,10 @@ export default function Profile() {
                       onClick={() => handleEducationChange(index, "graduationStatus", status)}
                       style={{
                         flex: 1, padding: "10px", borderRadius: "8px",
-                        border: edu.graduationStatus === status ? "2px solid #00F5D4" : "2px solid rgba(0,245,212,0.2)",
-                        background: edu.graduationStatus === status ? "rgba(0,245,212,0.15)" : "transparent",
-                        color: edu.graduationStatus === status ? "#00F5D4" : "#E0FFFF",
-                        cursor: "pointer", fontFamily: "'Bodoni MT Black', serif", fontSize: "13px",
+                        border: edu.graduationStatus === status ? "2px solid #2D5A3D" : "2px solid rgba(45,90,61,0.2)",
+                        background: edu.graduationStatus === status ? "rgba(45,90,61,0.15)" : "transparent",
+                        color: edu.graduationStatus === status ? "#2D5A3D" : "#1E2018",
+                        cursor: "pointer", fontFamily: "'Libre Baskerville', serif", fontSize: "13px",
                         opacity: edu.graduationStatus === status ? 1 : 0.5, transition: "all 0.2s ease",
                       }}>
                       {status === "graduated" ? "✓ Graduated" : "⏳ Expected to Graduate"}
@@ -605,35 +605,35 @@ export default function Profile() {
                 <label style={labelStyle}>Minimum Average (optional)</label>
                 <input style={inputStyle} value={edu.minimumAverage || ""}
                   onChange={(e) => handleEducationChange(index, "minimumAverage", e.target.value)} />
-                <p style={{ color: "#E0FFFF", fontSize: "11px", opacity: 0.3, marginTop: "5px" }}>
+                <p style={{ color: "#1E2018", fontSize: "11px", opacity: 0.3, marginTop: "5px" }}>
                   e.g. 70% — will appear as an achievement bullet on your CV
                 </p>
               </div>
               <label style={{ ...labelStyle, marginBottom: "10px" }}>Relevant Coursework / Achievements</label>
               {edu.coursework.map((item, cwIndex) => (
                 <div key={cwIndex} style={{ display: "flex", gap: "8px", marginBottom: "8px", alignItems: "center" }}>
-                  <span style={{ color: "#00F5D4", fontSize: "12px", flexShrink: 0 }}>•</span>
+                  <span style={{ color: "#2D5A3D", fontSize: "12px", flexShrink: 0 }}>•</span>
                   <input style={{ ...inputStyle, flex: 1 }} value={item}
                     onChange={(e) => handleCourseworkChange(index, cwIndex, e.target.value)} />
                   {edu.coursework.length > 1 && (
                     <button onClick={() => handleRemoveCoursework(index, cwIndex)} style={{
-                      background: "transparent", border: "none", color: "#FF6B6B",
+                      background: "transparent", border: "none", color: "#8B2020",
                       cursor: "pointer", fontSize: "18px", lineHeight: 1, flexShrink: 0, opacity: 0.7,
                     }}>×</button>
                   )}
                 </div>
               ))}
               <button onClick={() => handleAddCoursework(index)} style={{
-                background: "transparent", border: "1px dashed rgba(0,245,212,0.3)",
-                color: "#00F5D4", borderRadius: "6px", padding: "6px 14px",
-                cursor: "pointer", fontSize: "12px", fontFamily: "'Bodoni MT Black', serif",
+                background: "transparent", border: "1px dashed rgba(45,90,61,0.3)",
+                color: "#2D5A3D", borderRadius: "6px", padding: "6px 14px",
+                cursor: "pointer", fontSize: "12px", fontFamily: "'Libre Baskerville', serif",
                 marginTop: "4px", width: "100%",
               }}>+ Add coursework item</button>
             </div>
           ))}
           <button onClick={handleAddEducation} style={addBtnStyle}
-            onMouseEnter={(e) => e.currentTarget.style.borderColor = "#00F5D4"}
-            onMouseLeave={(e) => e.currentTarget.style.borderColor = "rgba(0,245,212,0.3)"}
+            onMouseEnter={(e) => e.currentTarget.style.borderColor = "#2D5A3D"}
+            onMouseLeave={(e) => e.currentTarget.style.borderColor = "rgba(45,90,61,0.3)"}
           >+ Add Education</button>
         </div>
 
@@ -641,27 +641,27 @@ export default function Profile() {
         {/* ══ SECTION 5 — PROJECTS ═══════════════════════════════════════════ */}
         <div className="card" style={{ maxWidth: "100%", marginBottom: "20px" }}>
           <SectionHeader title="🚀 Project Experience" />
-          <p style={{ color: "#E0FFFF", opacity: 0.4, fontSize: "12px", marginBottom: "16px" }}>
+          <p style={{ color: "#1E2018", opacity: 0.4, fontSize: "12px", marginBottom: "16px" }}>
             Each project can be toggled on/off — only projects marked "Include in CV" will appear on your generated CV.
           </p>
 
           {projects.length === 0 && (
-            <p style={{ color: "#E0FFFF", opacity: 0.3, fontSize: "13px", marginBottom: "16px" }}>
+            <p style={{ color: "#1E2018", opacity: 0.3, fontSize: "13px", marginBottom: "16px" }}>
               No projects added yet.
             </p>
           )}
 
           {projects.map((proj, index) => (
             <div key={index} style={{
-              background: "linear-gradient(145deg, #0f2a38 0%, #003B44 100%)",
-              border: "1px solid rgba(0,245,212,0.15)",
+              background: "#FDFAF5",
+              border: "1px solid #D4C9B0",
               borderRadius: "16px",
               padding: "28px 32px",
               marginBottom: "20px",
               position: "relative",
               opacity: proj.includeInCV === false ? 0.55 : 1,
               transition: "opacity 0.2s ease",
-              boxShadow: "0 8px 40px rgba(0,0,0,0.35), inset 0 1px 0 rgba(0,245,212,0.06)",
+              boxShadow: "0 2px 12px rgba(0,0,0,0.06)",
             }}>
 
               {editingProject === index ? (
@@ -672,19 +672,19 @@ export default function Profile() {
                     <div onClick={() => handleProjectChange(index, "includeInCV", !proj.includeInCV)}
                       style={{
                         width: "42px", height: "24px", borderRadius: "12px",
-                        background: proj.includeInCV !== false ? "#00F5D4" : "rgba(255,255,255,0.15)",
+                        background: proj.includeInCV !== false ? "#2D5A3D" : "rgba(255,255,255,0.15)",
                         position: "relative", cursor: "pointer", transition: "background 0.25s ease", flexShrink: 0,
                       }}>
                       <div style={{
                         position: "absolute", top: "3px",
                         left: proj.includeInCV !== false ? "21px" : "3px",
                         width: "18px", height: "18px", borderRadius: "50%",
-                        background: "#0B1E2A", transition: "left 0.25s ease",
+                        background: "#FFFFFF", transition: "left 0.25s ease",
                       }} />
                     </div>
                     <span style={{
-                      color: proj.includeInCV !== false ? "#00F5D4" : "#E0FFFF",
-                      fontSize: "13px", fontFamily: "'Bodoni MT Black', serif",
+                      color: proj.includeInCV !== false ? "#2D5A3D" : "#1E2018",
+                      fontSize: "13px", fontFamily: "'Libre Baskerville', serif",
                       opacity: proj.includeInCV !== false ? 1 : 0.45,
                     }}>
                       {proj.includeInCV !== false ? "Included in CV" : "Excluded from CV"}
@@ -708,8 +708,8 @@ export default function Profile() {
                           : proj.technologies.split(",").map(t => t.trim()).filter(Boolean)
                         ).map((t, ti) => (
                           <span key={ti} style={{
-                            background: "rgba(0,180,255,0.08)", border: "1px solid rgba(0,180,255,0.2)",
-                            color: "#00B4FF", fontSize: "11px", padding: "4px 10px", borderRadius: "4px",
+                            background: "rgba(45,90,61,0.08)", border: "1px solid rgba(45,90,61,0.25)",
+                            color: "#2D5A3D", fontSize: "11px", padding: "4px 10px", borderRadius: "4px",
                             display: "flex", alignItems: "center", gap: "6px",
                           }}>
                             {t}
@@ -737,14 +737,14 @@ export default function Profile() {
                           e.target.value = "";
                         }
                       }} />
-                    <p style={{ color: "#E0FFFF", fontSize: "11px", opacity: 0.3, marginTop: "5px" }}>
+                    <p style={{ color: "#1E2018", fontSize: "11px", opacity: 0.3, marginTop: "5px" }}>
                       Type and press Enter to add — click × on a tag to remove
                     </p>
                   </div>
 
                   {/* Project URL */}
                   <div style={{ marginBottom: "16px" }}>
-                    <label style={labelStyle}>Project URL <span style={{ color: "#00F5D4", fontSize: "11px", fontWeight: 400 }}>(GitHub, live site, etc.)</span></label>
+                    <label style={labelStyle}>Project URL <span style={{ color: "#2D5A3D", fontSize: "11px", fontWeight: 400 }}>(GitHub, live site, etc.)</span></label>
                     <input style={inputStyle}
                       placeholder="https://github.com/yourusername/project"
                       value={proj.url || ""}
@@ -757,37 +757,37 @@ export default function Profile() {
                     <div key={bIndex} style={{ display: "flex", gap: "8px", marginBottom: "8px", alignItems: "center" }}>
                       <div style={{
                         width: "6px", height: "6px", borderRadius: "50%",
-                        background: "#00F5D4", boxShadow: "0 0 4px #00F5D4",
+                        background: "#2D5A3D", boxShadow: "0 0 4px #2D5A3D",
                         marginTop: "14px", flexShrink: 0,
                       }} />
                       <input style={{ ...inputStyle, flex: 1 , fontFamily: "system-ui, sans-serif"}} value={bullet}
                         onChange={(e) => handleProjectBulletChange(index, bIndex, e.target.value)} />
                       {proj.bullets.length > 1 && (
                         <button onClick={() => handleRemoveProjectBullet(index, bIndex)} style={{
-                          background: "transparent", border: "none", color: "#FF6B6B",
+                          background: "transparent", border: "none", color: "#8B2020",
                           cursor: "pointer", fontSize: "18px", lineHeight: 1, flexShrink: 0, opacity: 0.7,
                         }}>×</button>
                       )}
                     </div>
                   ))}
                   <button onClick={() => handleAddProjectBullet(index)} style={{
-                    background: "transparent", border: "1px dashed rgba(0,245,212,0.3)",
-                    color: "#00F5D4", borderRadius: "6px", padding: "6px 14px",
-                    cursor: "pointer", fontSize: "12px", fontFamily: "'Bodoni MT Black', serif",
+                    background: "transparent", border: "1px dashed rgba(45,90,61,0.3)",
+                    color: "#2D5A3D", borderRadius: "6px", padding: "6px 14px",
+                    cursor: "pointer", fontSize: "12px", fontFamily: "'Libre Baskerville', serif",
                     marginTop: "8px", width: "100%", marginBottom: "16px",
                   }}>+ Add bullet point</button>
 
                   {/* Save / Cancel */}
                   <div style={{ display: "flex", gap: "8px" }}>
                     <button onClick={() => { handleSave(); setEditingProject(null); }} style={{
-                      background: "#00F5D4", color: "#0B1E2A", border: "none", borderRadius: "8px",
+                      background: "#2D5A3D", color: "#EDE8DE", border: "none", borderRadius: "8px",
                       padding: "10px 24px", cursor: "pointer", fontSize: "13px",
-                      fontFamily: "'Bodoni MT Black', serif", fontWeight: 900, flex: 1,
+                      fontFamily: "'Libre Baskerville', serif", fontWeight: 900, flex: 1,
                     }}>Save Project</button>
                     <button onClick={() => setEditingProject(null)} style={{
                       background: "transparent", border: "1px solid rgba(255,255,255,0.15)",
-                      color: "#E0FFFF", borderRadius: "8px", padding: "10px 20px",
-                      cursor: "pointer", fontSize: "13px", fontFamily: "'Bodoni MT Black', serif",
+                      color: "#1E2018", borderRadius: "8px", padding: "10px 20px",
+                      cursor: "pointer", fontSize: "13px", fontFamily: "'Libre Baskerville', serif",
                     }}>Cancel</button>
                   </div>
                 </>
@@ -799,35 +799,35 @@ export default function Profile() {
                   <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: "16px", gap: "12px" }}>
                     <div style={{ flex: 1 }}>
                       <h2 style={{
-                        color: "#E0FFFF", fontSize: "20px", fontWeight: 700,
-                        margin: "0 0 4px 0", fontFamily: "'Bodoni MT Black', serif",
+                        color: "#1E2018", fontSize: "20px", fontWeight: 700,
+                        margin: "0 0 4px 0", fontFamily: "'Libre Baskerville', serif",
                       }}>
                         {proj.name || <span style={{ opacity: 0.25, fontStyle: "italic", fontWeight: 400 }}>Project name...</span>}
                       </h2>
                       {proj.url && (
                         <a href={proj.url} target="_blank" rel="noreferrer" style={{
-                          color: "#00B4FF", fontSize: "12px", opacity: 0.8, textDecoration: "none",
+                          color: "#2D5A3D", fontSize: "12px", opacity: 0.8, textDecoration: "none",
                         }}>↗ {proj.url}</a>
                       )}
                     </div>
                     <div style={{ display: "flex", gap: "8px", flexShrink: 0 }}>
                       <button onClick={() => handleCopyAll(proj)} style={{
-                        background: "rgba(0,245,212,0.1)", border: "1px solid rgba(0,245,212,0.3)",
-                        color: "#00F5D4", padding: "6px 14px", borderRadius: "6px",
+                        background: "rgba(45,90,61,0.1)", border: "1px solid rgba(45,90,61,0.3)",
+                        color: "#2D5A3D", padding: "6px 14px", borderRadius: "6px",
                         cursor: "pointer", fontSize: "12px", letterSpacing: "1px",
-                        fontFamily: "'Bodoni MT Black', serif",
+                        fontFamily: "'Libre Baskerville', serif",
                       }}>
                         {copied === `${proj.name}-all` ? "✓ Copied!" : "Copy All"}
                       </button>
                       <button onClick={() => setEditingProject(index)} style={{
-                        background: "rgba(0,245,212,0.08)", border: "1px solid rgba(0,245,212,0.2)",
-                        color: "#00F5D4", borderRadius: "6px", padding: "6px 12px",
-                        cursor: "pointer", fontSize: "12px", fontFamily: "'Bodoni MT Black', serif",
+                        background: "rgba(45,90,61,0.08)", border: "1px solid rgba(45,90,61,0.2)",
+                        color: "#2D5A3D", borderRadius: "6px", padding: "6px 12px",
+                        cursor: "pointer", fontSize: "12px", fontFamily: "'Libre Baskerville', serif",
                       }}>Edit</button>
                       <button onClick={() => handleRemoveProject(index)} style={{
                         background: "transparent", border: "1px solid rgba(255,107,107,0.3)",
-                        color: "#FF6B6B", borderRadius: "6px", padding: "6px 12px",
-                        cursor: "pointer", fontSize: "12px", fontFamily: "'Bodoni MT Black', serif",
+                        color: "#8B2020", borderRadius: "6px", padding: "6px 12px",
+                        cursor: "pointer", fontSize: "12px", fontFamily: "'Libre Baskerville', serif",
                       }}>Remove</button>
                     </div>
                   </div>
@@ -840,8 +840,8 @@ export default function Profile() {
                         : proj.technologies.split(",").map(t => t.trim()).filter(Boolean)
                       ).map((t, ti) => (
                         <span key={ti} style={{
-                          background: "rgba(0,180,255,0.08)", border: "1px solid rgba(0,180,255,0.2)",
-                          color: "#00B4FF", fontSize: "11px",
+                          background: "rgba(45,90,61,0.08)", border: "1px solid rgba(45,90,61,0.25)",
+                          color: "#2D5A3D", fontSize: "11px",
                           padding: "4px 10px", borderRadius: "4px", letterSpacing: "0.5px",
                         }}>{t}</span>
                       ))}
@@ -851,7 +851,7 @@ export default function Profile() {
                   {/* Divider */}
                   <div style={{
                     height: "1px",
-                    background: "linear-gradient(90deg, rgba(0,245,212,0.3) 0%, transparent 100%)",
+                    background: "linear-gradient(90deg, rgba(45,90,61,0.2) 0%, transparent 100%)",
                     marginBottom: "16px",
                   }} />
 
@@ -860,21 +860,22 @@ export default function Profile() {
                     {proj.bullets.filter(b => b.trim()).map((bullet, bi) => (
                       <li key={bi} style={{
                         display: "flex", alignItems: "flex-start", gap: "14px",
-                        padding: "12px 14px", background: "rgba(0,0,0,0.15)",
-                        borderRadius: "8px", border: "1px solid rgba(0,245,212,0.05)",
+                        padding: "12px 14px", background: "rgba(45,90,61,0.05)",
+                        borderRadius: "8px", border: "1px solid rgba(45,90,61,0.1)",
                       }}>
                         <div style={{
                           width: "6px", height: "6px", borderRadius: "50%",
-                          background: "#00F5D4", boxShadow: "0 0 6px #00F5D4",
+                          background: "#2D5A3D", boxShadow: "0 0 6px #2D5A3D",
                           marginTop: "7px", flexShrink: 0,
                         }} />
-                        <p style={{ color: "rgba(224,255,255,0.85)", fontSize: "13px", lineHeight: "1.75", margin: 0, flex: 1 }}>
+                        <p style={{ color: "rgba(30,32,24,0.85)", fontSize: "13px", lineHeight: "1.75", margin: 0, flex: 1 ,
+                          fontFamily: "'Arial', sans-serif"}}>
                           {bullet}
                         </p>
                         <button onClick={() => handleCopy(bullet, `${index}-${bi}`)} title="Copy bullet"
                           style={{
                             background: "transparent", border: "none",
-                            color: copied === `${index}-${bi}` ? "#00F5D4" : "rgba(0,245,212,0.3)",
+                            color: copied === `${index}-${bi}` ? "#2D5A3D" : "rgba(45,90,61,0.3)",
                             cursor: "pointer", fontSize: "16px", padding: "0 4px",
                             lineHeight: 1, marginTop: "2px", flexShrink: 0,
                           }}>
@@ -883,17 +884,18 @@ export default function Profile() {
                       </li>
                     ))}
                   </ul>
+                  
 
                   {/* Include in CV indicator */}
                   <div style={{ display: "flex", alignItems: "center", gap: "8px", marginTop: "16px" }}>
                     <div style={{
                       width: "8px", height: "8px", borderRadius: "50%",
-                      background: proj.includeInCV !== false ? "#00F5D4" : "rgba(255,255,255,0.2)",
-                      boxShadow: proj.includeInCV !== false ? "0 0 6px #00F5D4" : "none",
+                      background: proj.includeInCV !== false ? "#2D5A3D" : "rgba(255,255,255,0.2)",
+                      boxShadow: proj.includeInCV !== false ? "0 0 6px #2D5A3D" : "none",
                     }} />
                     <span style={{
-                      fontSize: "11px", fontFamily: "'Bodoni MT Black', serif",
-                      color: proj.includeInCV !== false ? "#00F5D4" : "rgba(255,255,255,0.3)",
+                      fontSize: "11px", fontFamily: "'Libre Baskerville', serif",
+                      color: proj.includeInCV !== false ? "#2D5A3D" : "rgba(255,255,255,0.3)",
                     }}>
                       {proj.includeInCV !== false ? "Included in CV" : "Excluded from CV"}
                     </span>
@@ -906,8 +908,8 @@ export default function Profile() {
 
           {/* + Add Project button — outside the map, inside the card */}
           <button onClick={handleAddProject} style={addBtnStyle}
-            onMouseEnter={(e) => e.currentTarget.style.borderColor = "#00F5D4"}
-            onMouseLeave={(e) => e.currentTarget.style.borderColor = "rgba(0,245,212,0.3)"}
+            onMouseEnter={(e) => e.currentTarget.style.borderColor = "#2D5A3D"}
+            onMouseLeave={(e) => e.currentTarget.style.borderColor = "rgba(45,90,61,0.3)"}
           >+ Add Project</button>
         </div>
 
@@ -916,7 +918,7 @@ export default function Profile() {
         <div className="card" style={{ maxWidth: "100%", marginBottom: "20px" }}>
           <SectionHeader title="🌐 Languages" />
           {languages.length === 0 && (
-            <p style={{ color: "#E0FFFF", opacity: 0.3, fontSize: "13px", marginBottom: "16px" }}>
+            <p style={{ color: "#1E2018", opacity: 0.3, fontSize: "13px", marginBottom: "16px" }}>
               No languages added yet.
             </p>
           )}
@@ -929,7 +931,7 @@ export default function Profile() {
               <div key={index} style={{ ...cardInnerStyle, marginBottom: 0 }}>
                 <button onClick={() => handleRemoveLanguage(index)} style={{
                   position: "absolute", top: "10px", right: "10px",
-                  background: "transparent", border: "none", color: "#FF6B6B",
+                  background: "transparent", border: "none", color: "#8B2020",
                   cursor: "pointer", fontSize: "16px", lineHeight: 1, opacity: 0.7,
                 }}>×</button>
                 <div style={{ marginBottom: "10px" }}>
@@ -952,8 +954,8 @@ export default function Profile() {
             ))}
           </div>
           <button onClick={handleAddLanguage} style={addBtnStyle}
-            onMouseEnter={(e) => e.currentTarget.style.borderColor = "#00F5D4"}
-            onMouseLeave={(e) => e.currentTarget.style.borderColor = "rgba(0,245,212,0.3)"}
+            onMouseEnter={(e) => e.currentTarget.style.borderColor = "#2D5A3D"}
+            onMouseLeave={(e) => e.currentTarget.style.borderColor = "rgba(45,90,61,0.3)"}
           >+ Add Language</button>
         </div>
 
@@ -961,15 +963,15 @@ export default function Profile() {
         {/* ══ SECTION 7 — REFERENCES ═════════════════════════════════════════ */}
         <div className="card" style={{ maxWidth: "100%", marginBottom: "20px" }}>
           <SectionHeader title="📋 References" />
-          <p style={{ color: "#E0FFFF", fontSize: "13px", opacity: 0.55, marginBottom: "12px" }}>
+          <p style={{ color: "#1E2018", fontSize: "13px", opacity: 0.55, marginBottom: "12px" }}>
             This appears at the bottom of your CV.
           </p>
           <textarea value={references} onChange={(e) => setReferences(e.target.value)} rows={3}
             style={{ ...inputStyle, resize: "vertical", lineHeight: "1.6", fontFamily: "system-ui, sans-serif" }} />
           {references !== "Available upon Request" && (
             <button onClick={() => setReferences("Available upon Request")} style={{
-              background: "transparent", border: "none", color: "#00F5D4",
-              cursor: "pointer", fontSize: "12px", fontFamily: "'Bodoni MT Black', serif",
+              background: "transparent", border: "none", color: "#2D5A3D",
+              cursor: "pointer", fontSize: "12px", fontFamily: "'Libre Baskerville', serif",
               marginTop: "6px", opacity: 0.6, textDecoration: "underline",
             }}>
               Reset to "Available upon Request"
@@ -979,8 +981,8 @@ export default function Profile() {
 
 
         {/* Feedback */}
-        {error && <p style={{ color: "#FF6B6B", fontSize: "14px", marginBottom: "12px" }}>⚠ {error}</p>}
-        {success && <p style={{ color: "#00F5D4", fontSize: "14px", marginBottom: "12px" }}>✓ {success}</p>}
+        {error && <p style={{ color: "#8B2020", fontSize: "14px", marginBottom: "12px" }}>⚠ {error}</p>}
+        {success && <p style={{ color: "#2D5A3D", fontSize: "14px", marginBottom: "12px" }}>✓ {success}</p>}
 
         {/* Save Button */}
         <div style={{ paddingBottom: "40px" }}>

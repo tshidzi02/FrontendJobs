@@ -24,13 +24,13 @@ function formatDate(isoString) {
 
 
 // ── STAT CARD ─────────────────────────────────────────────────────────────────
-function StatCard({ label, value, subtext, color = "#00F5D4", isEmpty = false, onClick }) {
+function StatCard({ label, value, subtext, color = "#2D5A3D", isEmpty = false, onClick }) {
   return (
     <div
       onClick={onClick}
       style={{
-        background:   "#003B44",
-        border:       "1px solid rgba(0,245,212,0.15)",
+        background:   "#F0EAD8",
+        border:       "1px solid rgba(45,90,61,0.15)",
         borderRadius: "12px",
         padding:      "24px 28px",
         flex:         1,
@@ -39,18 +39,18 @@ function StatCard({ label, value, subtext, color = "#00F5D4", isEmpty = false, o
         transition:   "border-color 0.2s ease",
       }}
       onMouseEnter={e => { if (onClick) e.currentTarget.style.borderColor = color; }}
-      onMouseLeave={e => { if (onClick) e.currentTarget.style.borderColor = "rgba(0,245,212,0.15)"; }}
+      onMouseLeave={e => { if (onClick) e.currentTarget.style.borderColor = "rgba(45,90,61,0.15)"; }}
     >
       <p style={{
-        color: "#E0FFFF", fontSize: "11px", opacity: 0.4,
+        color: "#1E2018", fontSize: "11px", opacity: 0.4,
         letterSpacing: "1.5px", textTransform: "uppercase",
-        fontFamily: "'Bodoni MT Black', serif", marginBottom: "10px",
+        fontFamily: "'Libre Baskerville', serif", marginBottom: "10px",
       }}>
         {label}
       </p>
       <p style={{
-        color:      isEmpty ? "rgba(224,255,255,0.2)" : color,
-        fontFamily: "'Train One', cursive",
+        color:      isEmpty ? "rgba(30,32,24,0.2)" : color,
+        fontFamily: "'Libre Baskerville', serif",
         fontSize: "clamp(20px, 3.5vw, 36px)", lineHeight: 1,
         marginBottom: subtext ? "8px" : "0",
         transition: "color 0.3s ease",
@@ -59,8 +59,8 @@ function StatCard({ label, value, subtext, color = "#00F5D4", isEmpty = false, o
       </p>
       {subtext && !isEmpty && (
         <p style={{
-          color: "#E0FFFF", fontSize: "12px", opacity: 0.45,
-          fontFamily: "'Bodoni MT Black', serif", marginTop: "4px",
+          color: "#1E2018", fontSize: "12px", opacity: 0.45,
+          fontFamily: "'Libre Baskerville', serif", marginTop: "4px",
           whiteSpace: "nowrap", overflow: "hidden",
           textOverflow: "ellipsis", maxWidth: "180px",
         }}>
@@ -76,12 +76,12 @@ function StatCard({ label, value, subtext, color = "#00F5D4", isEmpty = false, o
 function SectionLabel({ children }) {
   return (
     <p style={{
-      color:         "#E0FFFF",
+      color:         "#1E2018",
       fontSize:      "10px",
       opacity:       0.35,
       letterSpacing: "2px",
       textTransform: "uppercase",
-      fontFamily:    "'Bodoni MT Black', serif",
+      fontFamily:    "'Libre Baskerville', serif",
       marginBottom:  "12px",
     }}>
       {children}
@@ -96,8 +96,8 @@ function ActionCard({ emoji, title, description, badge, onClick, muted }) {
     <div
       onClick={onClick}
       style={{
-        background:   "#003B44",
-        border:       muted ? "1px dashed rgba(0,245,212,0.1)" : "1px solid rgba(0,245,212,0.15)",
+        background:   "#F0EAD8",
+        border:       muted ? "1px dashed rgba(45,90,61,0.1)" : "1px solid rgba(45,90,61,0.15)",
         borderRadius: "12px",
         padding:      "24px",
         cursor:       onClick ? "pointer" : "default",
@@ -106,33 +106,33 @@ function ActionCard({ emoji, title, description, badge, onClick, muted }) {
       }}
       onMouseEnter={e => {
         if (!muted && onClick) {
-          e.currentTarget.style.borderColor = "#00F5D4";
+          e.currentTarget.style.borderColor = "#2D5A3D";
           e.currentTarget.style.transform   = "translateY(-2px)";
         }
       }}
       onMouseLeave={e => {
-        e.currentTarget.style.borderColor = muted ? "rgba(0,245,212,0.1)" : "rgba(0,245,212,0.15)";
+        e.currentTarget.style.borderColor = muted ? "rgba(45,90,61,0.1)" : "rgba(45,90,61,0.15)";
         e.currentTarget.style.transform   = "translateY(0)";
       }}
     >
       <div style={{ fontSize: "28px", marginBottom: "12px" }}>{emoji}</div>
       <h3 style={{
-        color: "#00F5D4", fontFamily: "'Bodoni MT Black', serif",
+        color: "#2D5A3D", fontFamily: "'Libre Baskerville', serif",
         fontSize: "15px", marginBottom: "8px",
       }}>
         {title}
         {badge != null && badge > 0 && (
           <span style={{
-            marginLeft: "8px", background: "rgba(0,245,212,0.15)",
-            border: "1px solid rgba(0,245,212,0.3)", color: "#00F5D4",
+            marginLeft: "8px", background: "rgba(45,90,61,0.15)",
+            border: "1px solid rgba(45,90,61,0.3)", color: "#2D5A3D",
             fontSize: "11px", padding: "2px 8px", borderRadius: "10px",
-            fontFamily: "'Bodoni MT Black', serif", verticalAlign: "middle",
+            fontFamily: "'Libre Baskerville', serif", verticalAlign: "middle",
           }}>
             {badge}
           </span>
         )}
       </h3>
-      <p style={{ color: "#E0FFFF", fontSize: "13px", opacity: 0.6 }}>{description}</p>
+      <p style={{ color: "#1E2018", fontSize: "13px", opacity: 0.6 }}>{description}</p>
     </div>
   );
 }
@@ -168,10 +168,10 @@ export default function Dashboard() {
   }, [navigate]);
 
   const scoreColor = (score) => {
-    if (score === null || score === undefined) return "#00F5D4";
-    if (score >= 70) return "#00F5D4";
+    if (score === null || score === undefined) return "#2D5A3D";
+    if (score >= 70) return "#2D5A3D";
     if (score >= 40) return "#FFB347";
-    return "#FF6B6B";
+    return "#8B2020";
   };
 
   return (
@@ -184,12 +184,12 @@ export default function Dashboard() {
             {[1,2,3,4].map(i => (
               <div key={i} style={{
                 flex: 1, minWidth: "140px", height: "110px",
-                background: "#003B44", borderRadius: "12px",
-                border: "1px solid rgba(0,245,212,0.08)",
+                background: "#F0EAD8", borderRadius: "12px",
+                border: "1px solid rgba(45,90,61,0.08)",
               }} />
             ))}
           </div>
-          <div style={{ height: "200px", background: "#003B44", borderRadius: "12px" }} />
+          <div style={{ height: "200px", background: "#F0EAD8", borderRadius: "12px" }} />
           <style>{`@keyframes pulse { 0%,100%{opacity:0.4} 50%{opacity:0.85} }`}</style>
         </div>
       )}
@@ -197,7 +197,7 @@ export default function Dashboard() {
       {/* ── ERROR ─────────────────────────────────────────────────────────── */}
       {error && (
         <div style={{ textAlign: "center", paddingTop: "60px" }}>
-          <p style={{ color: "#FF6B6B", fontSize: "16px" }}>{error}</p>
+          <p style={{ color: "#8B2020", fontSize: "16px" }}>{error}</p>
         </div>
       )}
 
@@ -208,12 +208,12 @@ export default function Dashboard() {
           {/* Welcome header */}
           <div style={{ marginBottom: "32px" }}>
             <h1 style={{
-              fontFamily: "'Train One', cursive", fontSize: "clamp(20px, 4vw, 32px)",
-              color: "#00F5D4", letterSpacing: "2px", marginBottom: "6px",
+              fontFamily: "'Libre Baskerville', serif", fontSize: "clamp(20px, 4vw, 32px)",
+              color: "#2D5A3D", letterSpacing: "2px", marginBottom: "6px",
             }}>
               Welcome Back
             </h1>
-            <p style={{ color: "#E0FFFF", fontSize: "14px", opacity: 0.5 }}>
+            <p style={{ color: "#1E2018", fontSize: "14px", opacity: 0.5 }}>
               {userData.email}
             </p>
           </div>
@@ -226,7 +226,7 @@ export default function Dashboard() {
               label="CVs Generated"
               value={userData.cv_count}
               subtext={userData.cv_count === 1 ? "CV saved" : "CVs saved"}
-              color="#00F5D4"
+              color="#2D5A3D"
               isEmpty={userData.cv_count === 0}
               onClick={() => navigate("/cabinet")}
             />
@@ -262,7 +262,7 @@ export default function Dashboard() {
               label="Total Applied"
               value={userData.tracker_applied}
               subtext="applications sent"
-              color="#00F5D4"
+              color="#2D5A3D"
               isEmpty={userData.tracker_total === 0}
               onClick={() => navigate("/tracker")}
             />
@@ -296,8 +296,8 @@ export default function Dashboard() {
           {/* ── COLD START BANNER ─────────────────────────────────────────── */}
           {userData.cv_count === 0 && (
             <div style={{
-              background:    "rgba(0,245,212,0.04)",
-              border:        "1px solid rgba(0,245,212,0.2)",
+              background:    "rgba(45,90,61,0.04)",
+              border:        "1px solid rgba(45,90,61,0.2)",
               borderRadius:  "12px",
               padding:       "28px 32px",
               marginBottom:  "28px",
@@ -309,13 +309,13 @@ export default function Dashboard() {
             }}>
               <div>
                 <p style={{
-                  color: "#00F5D4", fontFamily: "'Bodoni MT Black', serif",
+                  color: "#2D5A3D", fontFamily: "'Libre Baskerville', serif",
                   fontSize: "15px", fontWeight: 900, marginBottom: "6px",
                 }}>
                   👋 Welcome! Let's get your profile set up.
                 </p>
                 <p style={{
-                  color: "#E0FFFF", fontSize: "13px", opacity: 0.6,
+                  color: "#1E2018", fontSize: "13px", opacity: 0.6,
                   fontFamily: "system-ui, sans-serif", lineHeight: 1.5,
                 }}>
                   Add your skills, experience and education — then paste a job
@@ -338,8 +338,8 @@ export default function Dashboard() {
             <div
               onClick={() => navigate("/cabinet")}
               style={{
-                background:    "rgba(0,245,212,0.04)",
-                border:        "1px solid rgba(0,245,212,0.2)",
+                background:    "rgba(45,90,61,0.04)",
+                border:        "1px solid rgba(45,90,61,0.2)",
                 borderRadius:  "12px",
                 padding:       "18px 24px",
                 marginBottom:  "28px",
@@ -352,35 +352,35 @@ export default function Dashboard() {
                 transition:    "background 0.2s ease, border-color 0.2s ease",
               }}
               onMouseEnter={e => {
-                e.currentTarget.style.background   = "rgba(0,245,212,0.08)";
-                e.currentTarget.style.borderColor  = "rgba(0,245,212,0.4)";
+                e.currentTarget.style.background   = "rgba(45,90,61,0.08)";
+                e.currentTarget.style.borderColor  = "rgba(45,90,61,0.4)";
               }}
               onMouseLeave={e => {
-                e.currentTarget.style.background   = "rgba(0,245,212,0.04)";
-                e.currentTarget.style.borderColor  = "rgba(0,245,212,0.2)";
+                e.currentTarget.style.background   = "rgba(45,90,61,0.04)";
+                e.currentTarget.style.borderColor  = "rgba(45,90,61,0.2)";
               }}
             >
               <div>
                 <p style={{
-                  color: "#E0FFFF", fontSize: "11px", opacity: 0.4,
+                  color: "#1E2018", fontSize: "11px", opacity: 0.4,
                   letterSpacing: "1.5px", textTransform: "uppercase",
-                  fontFamily: "'Bodoni MT Black', serif", marginBottom: "6px",
+                  fontFamily: "'Libre Baskerville', serif", marginBottom: "6px",
                 }}>
                   Last Generated
                 </p>
                 <p style={{
-                  color: "#E0FFFF", fontFamily: "'Bodoni MT Black', serif",
+                  color: "#1E2018", fontFamily: "'Libre Baskerville', serif",
                   fontSize: "15px", marginBottom: "3px",
                 }}>
                   {userData.last_job_title}
                 </p>
                 {userData.last_saved_at && (
-                  <p style={{ color: "#E0FFFF", fontSize: "12px", opacity: 0.35 }}>
+                  <p style={{ color: "#1E2018", fontSize: "12px", opacity: 0.35 }}>
                     {formatDate(userData.last_saved_at)}
                   </p>
                 )}
               </div>
-              <span style={{ color: "#00F5D4", fontSize: "20px", opacity: 0.5, flexShrink: 0 }}>→</span>
+              <span style={{ color: "#2D5A3D", fontSize: "20px", opacity: 0.5, flexShrink: 0 }}>→</span>
             </div>
           )}
 
@@ -424,13 +424,13 @@ export default function Dashboard() {
 
           {/* ── BUILD PROGRESS ────────────────────────────────────────────── */}
           <div style={{
-            background:   "#003B44",
+            background:   "#F0EAD8",
             borderRadius: "12px",
             padding:      "24px",
-            border:       "1px solid rgba(0,245,212,0.08)",
+            border:       "1px solid rgba(45,90,61,0.08)",
           }}>
             <h3 style={{
-              color: "#00F5D4", fontFamily: "'Bodoni MT Black', serif",
+              color: "#2D5A3D", fontFamily: "'Libre Baskerville', serif",
               fontSize: "14px", marginBottom: "16px", letterSpacing: "1px",
             }}>
               🗺️ Build Progress
@@ -450,15 +450,15 @@ export default function Dashboard() {
                 alignItems:  "center",
                 gap:         "12px",
                 padding:     "10px 0",
-                borderBottom: "1px solid rgba(0,245,212,0.05)",
+                borderBottom: "1px solid rgba(45,90,61,0.05)",
               }}>
                 <span style={{ fontSize: "16px", opacity: done ? 1 : 0.35 }}>
                   {done ? "✅" : "⏳"}
                 </span>
                 <span style={{
-                  color:      "#E0FFFF",
+                  color:      "#1E2018",
                   fontSize:   "13px",
-                  fontFamily: "'Bodoni MT Black', serif",
+                  fontFamily: "'Libre Baskerville', serif",
                   opacity:    done ? 0.9 : 0.4,
                 }}>
                   <strong>{phase}:</strong> {label}

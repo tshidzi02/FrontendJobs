@@ -66,9 +66,9 @@ useEffect(() => {
 
   // ── SCORE COLOUR HELPER ──────────────────────────────────────────────────
   const scoreColor = (score) => {
-    if (score >= 70) return "#00F5D4";
+    if (score >= 70) return "#2D5A3D";
     if (score >= 40) return "#FFB347";
-    return "#FF6B6B";
+    return "#8B2020";
   };
 
 
@@ -312,19 +312,19 @@ useEffect(() => {
 
         {/* ── Page Header ──────────────────────────────── */}
         <h1 style={{
-          fontFamily: "'Train One', cursive", fontSize: "clamp(20px, 4vw, 32px)",
-          color: "#00F5D4", letterSpacing: "2px", marginBottom: "6px",
+          fontFamily: "'Libre Baskerville', serif", fontSize: "clamp(20px, 4vw, 32px)",
+          color: "#2D5A3D", letterSpacing: "2px", marginBottom: "6px",
         }}>
           Generate CV
         </h1>
 
-        <p style={{ color: "#E0FFFF", opacity: 0.5, fontSize: "13px", marginBottom: "24px" }}>
+        <p style={{ color: "#1E2018", opacity: 0.5, fontSize: "13px", marginBottom: "24px" }}>
           {profile
             ? "✓ Profile loaded — AI will use your saved skills and experience."
             : "No profile saved yet. "}
           {!profile && (
             <span onClick={() => navigate("/profile")}
-              style={{ color: "#00F5D4", cursor: "pointer", textDecoration: "underline" }}>
+              style={{ color: "#2D5A3D", cursor: "pointer", textDecoration: "underline" }}>
               Set up your profile
             </span>
           )}
@@ -334,7 +334,7 @@ useEffect(() => {
         {/* ══ INPUT CARD ═══════════════════════════════════ */}
         <div className="card" style={{ maxWidth: "100%", marginBottom: "24px" }}>
           <h3 style={{
-            color: "#00F5D4", fontFamily: "'Bodoni MT Black', serif",
+            color: "#2D5A3D", fontFamily: "'Libre Baskerville', serif",
             fontSize: "13px", letterSpacing: "2px", textTransform: "uppercase",
             marginBottom: "16px", opacity: 0.8,
           }}>📋 Job Description</h3>
@@ -345,16 +345,16 @@ useEffect(() => {
             placeholder="Paste the full job description here..."
             rows={10}
             style={{
-              width: "100%", background: "#0B1E2A",
-              border: "1px solid rgba(0,245,212,0.2)", borderRadius: "8px",
-              color: "#E0FFFF", padding: "14px", fontSize: "13px",
+              width: "100%", background: "#FFFFFF",
+              border: "1px solid rgba(45,90,61,0.2)", borderRadius: "8px",
+              color: "#1E2018", padding: "14px", fontSize: "13px",
               lineHeight: "1.6", resize: "vertical",
               fontFamily: "system-ui, sans-serif", marginBottom: "16px",
             }}
           />
 
           {error && (
-            <p style={{ color: "#FF6B6B", fontSize: "13px", marginBottom: "12px" }}>{error}</p>
+            <p style={{ color: "#8B2020", fontSize: "13px", marginBottom: "12px" }}>{error}</p>
           )}
 
           <button
@@ -372,7 +372,7 @@ useEffect(() => {
               <>
                 <span style={{
                   display: "inline-block", width: "14px", height: "14px",
-                  border: "2px solid #0B1E2A", borderTopColor: "transparent",
+                  border: "2px solid #2D5A3D", borderTopColor: "transparent",
                   borderRadius: "50%", animation: "spin 0.7s linear infinite",
                 }} />
                 Generating...
@@ -392,12 +392,12 @@ useEffect(() => {
           <div>
             {[1, 2, 3].map((i) => (
               <div key={i} style={{
-                background: "#003B44", borderRadius: "12px", padding: "28px",
-                marginBottom: "16px", border: "1px solid rgba(0,245,212,0.08)",
+                background: "#F0EAD8", borderRadius: "12px", padding: "28px",
+                marginBottom: "16px", border: "1px solid rgba(45,90,61,0.08)",
               }}>
                 {[90, 100, 70].map((w, idx) => (
                   <div key={idx} style={{
-                    height: "13px", background: "rgba(0,245,212,0.07)",
+                    height: "13px", background: "rgba(45,90,61,0.07)",
                     borderRadius: "6px", marginBottom: "12px", width: `${w}%`,
                     animation: "pulse 1.5s ease-in-out infinite",
                     animationDelay: `${idx * 0.15}s`,
@@ -416,19 +416,19 @@ useEffect(() => {
             {/* ── ATS SCORE ─────────────────────────────── */}
             <div className="card" style={{ maxWidth: "100%", marginBottom: "20px" }}>
               <h3 style={{
-                color: "#00F5D4", fontFamily: "'Bodoni MT Black', serif",
+                color: "#2D5A3D", fontFamily: "'Libre Baskerville', serif",
                 fontSize: "13px", letterSpacing: "2px", textTransform: "uppercase",
                 marginBottom: "20px", opacity: 0.8,
               }}>📊 ATS Score</h3>
 
               <div style={{
-                fontSize: "clamp(28px, 5vw, 56px)", fontFamily: "'Train One', cursive",
+                fontSize: "clamp(28px, 5vw, 56px)", fontFamily: "'Libre Baskerville', serif",
                 color: scoreColor(result.ats.final_score), lineHeight: 1, marginBottom: "16px",
               }}>
                 {result.ats.final_score}%
               </div>
 
-              <p style={{ color: "#E0FFFF", fontSize: "13px", opacity: 0.6, marginBottom: "16px" }}>
+              <p style={{ color: "#1E2018", fontSize: "13px", opacity: 0.6, marginBottom: "16px" }}>
                 {result.ats.final_score >= 70
                   ? "Strong match — this CV is well-aligned to the job."
                   : result.ats.final_score >= 40
@@ -437,7 +437,7 @@ useEffect(() => {
               </p>
 
               <div style={{
-                background: "#0B1E2A", borderRadius: "20px",
+                background: "#FFFFFF", borderRadius: "20px",
                 height: "10px", marginBottom: "24px", overflow: "hidden",
               }}>
                 <div style={{
@@ -454,14 +454,14 @@ useEffect(() => {
                   { label: "Experience",     value: result.ats.experience_match },
                 ].map(({ label, value }) => (
                   <div key={label} style={{
-                    background: "#0B1E2A", padding: "12px 16px",
+                    background: "#FFFFFF", padding: "12px 16px",
                     borderRadius: "10px", flex: 1, minWidth: "110px",
                   }}>
                     <p style={{
-                      color: "#E0FFFF", fontSize: "11px", opacity: 0.45,
-                      marginBottom: "6px", fontFamily: "'Bodoni MT Black', serif",
+                      color: "#1E2018", fontSize: "11px", opacity: 0.45,
+                      marginBottom: "6px", fontFamily: "'Libre Baskerville', serif",
                     }}>{label}</p>
-                    <p style={{ color: scoreColor(value), fontFamily: "'Train One', cursive", fontSize: "22px" }}>
+                    <p style={{ color: scoreColor(value), fontFamily: "'Libre Baskerville', serif", fontSize: "22px" }}>
                       {value}%
                     </p>
                   </div>
@@ -471,8 +471,8 @@ useEffect(() => {
               {result.ats.missing_keywords?.length > 0 && (
                 <div>
                   <p style={{
-                    color: "#E0FFFF", fontSize: "11px", opacity: 0.5, marginBottom: "10px",
-                    fontFamily: "'Bodoni MT Black', serif", letterSpacing: "1px", textTransform: "uppercase",
+                    color: "#1E2018", fontSize: "11px", opacity: 0.5, marginBottom: "10px",
+                    fontFamily: "'Libre Baskerville', serif", letterSpacing: "1px", textTransform: "uppercase",
                   }}>
                     ⚠ Keywords to consider adding:
                   </p>
@@ -480,8 +480,8 @@ useEffect(() => {
                     {result.ats.missing_keywords.map((word, i) => (
                       <span key={i} style={{
                         background: "rgba(255,107,107,0.1)", border: "1px solid rgba(255,107,107,0.35)",
-                        color: "#FF6B6B", padding: "4px 12px", borderRadius: "20px",
-                        fontSize: "12px", fontFamily: "'Bodoni MT Black', serif",
+                        color: "#8B2020", padding: "4px 12px", borderRadius: "20px",
+                        fontSize: "12px", fontFamily: "'Libre Baskerville', serif",
                       }}>{word}</span>
                     ))}
                   </div>
@@ -493,11 +493,11 @@ useEffect(() => {
             {/* ── PROFESSIONAL SUMMARY ──────────────────── */}
             <div className="card" style={{ maxWidth: "100%", marginBottom: "20px" }}>
               <h3 style={{
-                color: "#00F5D4", fontFamily: "'Bodoni MT Black', serif",
+                color: "#2D5A3D", fontFamily: "'Libre Baskerville', serif",
                 fontSize: "13px", letterSpacing: "2px", textTransform: "uppercase",
                 marginBottom: "16px", opacity: 0.8,
               }}>📝 Professional Summary</h3>
-              <p style={{ color: "#E0FFFF", lineHeight: "1.85", fontSize: "14px", opacity: 0.9 }}>
+              <p style={{ color: "#1E2018", lineHeight: "1.85", fontSize: "14px", opacity: 0.9 }}>
                 {result.SUMMARY}
               </p>
             </div>
@@ -533,17 +533,17 @@ useEffect(() => {
                 const isNew = skillObj.is_new === true;
                 return (
                   <div key={skillIndex} style={{
-                    background: isNew ? "rgba(255,179,71,0.08)" : "rgba(0,245,212,0.07)",
+                    background: isNew ? "rgba(255,179,71,0.12)" : "rgba(45,90,61,0.08)",
                     border: isNew
                       ? "1px solid rgba(255,179,71,0.4)"
-                      : "1px solid rgba(0,245,212,0.25)",
+                      : "1px solid rgba(45,90,61,0.25)",
                     borderRadius: "10px",
                     padding: "12px 14px",
                   }}>
                     <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "8px", marginBottom: "6px" }}>
                       <span style={{
-                        color: isNew ? "#FFB347" : "#00F5D4",
-                        fontFamily: "'Bodoni MT Black', serif",
+                        color: isNew ? "#FFB347" : "#2D5A3D",
+                        fontFamily: "'Libre Baskerville', serif",
                         fontSize: "13px", fontWeight: "900",
                       }}>
                         {skillObj.skill}
@@ -554,14 +554,14 @@ useEffect(() => {
                           border: "1px solid rgba(255,179,71,0.5)",
                           color: "#FFB347", fontSize: "9px",
                           padding: "2px 6px", borderRadius: "10px",
-                          fontFamily: "'Bodoni MT Black', serif",
+                          fontFamily: "'Libre Baskerville', serif",
                           letterSpacing: "0.5px",
                         }}>NEW</span>
                       )}
                     </div>
                     {skillObj.description && (
                       <p style={{
-                        color: "#E0FFFF", fontSize: "11px", opacity: 0.55,
+                        color: "#1E2018", fontSize: "11px", opacity: 0.55,
                         lineHeight: "1.5", margin: 0, fontFamily: "system-ui, sans-serif",
                       }}>
                         {skillObj.description}
@@ -574,7 +574,7 @@ useEffect(() => {
               return (
                 <div className="card" style={{ maxWidth: "100%", marginBottom: "20px" }}>
                   <h3 style={{
-                    color: "#00F5D4", fontFamily: "'Bodoni MT Black', serif",
+                    color: "#2D5A3D", fontFamily: "'Libre Baskerville', serif",
                     fontSize: "13px", letterSpacing: "2px", textTransform: "uppercase",
                     marginBottom: "20px", opacity: 0.8,
                   }}>🛠 Skills</h3>
@@ -582,8 +582,8 @@ useEffect(() => {
                   {/* ── ZONE 1: YOUR OWN SKILLS (teal) ──────────────────── */}
                   {yourCategories.length > 0 && (
                     <div style={{
-                      background: "rgba(0,245,212,0.03)",
-                      border: "1px solid rgba(0,245,212,0.12)",
+                      background: "rgba(45,90,61,0.05)",
+                      border: "1px solid rgba(45,90,61,0.12)",
                       borderRadius: "12px",
                       padding: "16px 18px",
                       marginBottom: newCategories.length > 0 ? "20px" : "0",
@@ -592,10 +592,10 @@ useEffect(() => {
                       <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "10px", marginBottom: "16px" }}>
                         <div style={{
                           width: "10px", height: "10px", borderRadius: "50%",
-                          background: "#00F5D4", flexShrink: 0,
+                          background: "#2D5A3D", flexShrink: 0,
                         }} />
                         <p style={{
-                          color: "#00F5D4", fontFamily: "'Bodoni MT Black', serif",
+                          color: "#2D5A3D", fontFamily: "'Libre Baskerville', serif",
                           fontSize: "12px", letterSpacing: "1.5px",
                           textTransform: "uppercase", margin: 0,
                         }}>
@@ -603,11 +603,11 @@ useEffect(() => {
                         </p>
                         {/* Count badge */}
                         <span style={{
-                          background: "rgba(0,245,212,0.15)",
-                          border: "1px solid rgba(0,245,212,0.3)",
-                          color: "#00F5D4", fontSize: "11px",
+                          background: "rgba(45,90,61,0.15)",
+                          border: "1px solid rgba(45,90,61,0.3)",
+                          color: "#2D5A3D", fontSize: "11px",
                           padding: "2px 8px", borderRadius: "10px",
-                          fontFamily: "'Bodoni MT Black', serif",
+                          fontFamily: "'Libre Baskerville', serif",
                         }}>
                           {yourCategories.reduce((total, cat) => total + (cat.skills_list?.length || 0), 0)} skills
                         </span>
@@ -620,7 +620,7 @@ useEffect(() => {
                           {/* Sub-category label (only show if more than one category) */}
                           {yourCategories.length > 1 && (
                             <p style={{
-                              color: "#E0FFFF", fontFamily: "'Bodoni MT Black', serif",
+                              color: "#1E2018", fontFamily: "'Libre Baskerville', serif",
                               fontSize: "10px", opacity: 0.35, letterSpacing: "1.5px",
                               textTransform: "uppercase", marginBottom: "10px",
                             }}>
@@ -642,7 +642,7 @@ useEffect(() => {
                   {/* ── ZONE 2: NEW SKILLS FROM JOB DESCRIPTION (amber) ── */}
                   {newCategories.length > 0 && (
                     <div style={{
-                      background: "rgba(255,179,71,0.03)",
+                      background: "rgba(255,179,71,0.06)",
                       border: "1px solid rgba(255,179,71,0.15)",
                       borderRadius: "12px",
                       padding: "16px 18px",
@@ -654,7 +654,7 @@ useEffect(() => {
                           background: "#FFB347", flexShrink: 0,
                         }} />
                         <p style={{
-                          color: "#FFB347", fontFamily: "'Bodoni MT Black', serif",
+                          color: "#FFB347", fontFamily: "'Libre Baskerville', serif",
                           fontSize: "12px", letterSpacing: "1.5px",
                           textTransform: "uppercase", margin: 0,
                         }}>
@@ -665,7 +665,7 @@ useEffect(() => {
                           border: "1px solid rgba(255,179,71,0.3)",
                           color: "#FFB347", fontSize: "11px",
                           padding: "2px 8px", borderRadius: "10px",
-                          fontFamily: "'Bodoni MT Black', serif",
+                          fontFamily: "'Libre Baskerville', serif",
                         }}>
                           {newCategories.reduce((total, cat) => total + (cat.skills_list?.length || 0), 0)} new
                         </span>
@@ -673,7 +673,7 @@ useEffect(() => {
 
                       {/* Explanatory note */}
                       <p style={{
-                        color: "#E0FFFF", fontSize: "11px", opacity: 0.45,
+                        color: "#1E2018", fontSize: "11px", opacity: 0.45,
                         marginBottom: "14px", lineHeight: "1.5",
                         fontFamily: "system-ui, sans-serif",
                       }}>
@@ -687,7 +687,7 @@ useEffect(() => {
                         }}>
                           {newCategories.length > 1 && (
                             <p style={{
-                              color: "#E0FFFF", fontFamily: "'Bodoni MT Black', serif",
+                              color: "#1E2018", fontFamily: "'Libre Baskerville', serif",
                               fontSize: "10px", opacity: 0.35, letterSpacing: "1.5px",
                               textTransform: "uppercase", marginBottom: "10px",
                             }}>
@@ -715,7 +715,7 @@ useEffect(() => {
             {result.experience?.length > 0 && (
               <div className="card" style={{ maxWidth: "100%", marginBottom: "20px" }}>
                 <h3 style={{
-                  color: "#00F5D4", fontFamily: "'Bodoni MT Black', serif",
+                  color: "#2D5A3D", fontFamily: "'Libre Baskerville', serif",
                   fontSize: "13px", letterSpacing: "2px", textTransform: "uppercase",
                   marginBottom: "20px", opacity: 0.8,
                 }}>💼 Experience</h3>
@@ -725,7 +725,7 @@ useEffect(() => {
                     marginBottom: index < result.experience.length - 1 ? "28px" : "0",
                     paddingBottom: index < result.experience.length - 1 ? "28px" : "0",
                     borderBottom: index < result.experience.length - 1
-                      ? "1px solid rgba(0,245,212,0.08)" : "none",
+                      ? "1px solid rgba(45,90,61,0.08)" : "none",
                   }}>
                     <div style={{
                       display: "flex", justifyContent: "space-between",
@@ -733,16 +733,16 @@ useEffect(() => {
                     }}>
                       <div>
                         <p style={{
-                          color: "#E0FFFF", fontFamily: "'Bodoni MT Black', serif",
+                          color: "#1E2018", fontFamily: "'Libre Baskerville', serif",
                           fontSize: "15px", marginBottom: "3px",
                         }}>{job.role}</p>
-                        <p style={{ color: "#00F5D4", fontSize: "13px", opacity: 0.75 }}>{job.company}</p>
+                        <p style={{ color: "#2D5A3D", fontSize: "13px", opacity: 0.75 }}>{job.company}</p>
                       </div>
                       {job.dates && (
                         <span style={{
-                          background: "rgba(0,245,212,0.08)", border: "1px solid rgba(0,245,212,0.2)",
-                          color: "#E0FFFF", padding: "4px 12px", borderRadius: "20px",
-                          fontSize: "12px", opacity: 0.65, fontFamily: "'Bodoni MT Black', serif",
+                          background: "rgba(45,90,61,0.08)", border: "1px solid rgba(45,90,61,0.2)",
+                          color: "#1E2018", padding: "4px 12px", borderRadius: "20px",
+                          fontSize: "12px", opacity: 0.65, fontFamily: "'Libre Baskerville', serif",
                           whiteSpace: "nowrap",
                         }}>{job.dates}</span>
                       )}
@@ -751,8 +751,8 @@ useEffect(() => {
                       <div key={bi} style={{
                         display: "flex", flexWrap: "wrap", gap: "10px", marginBottom: "8px", alignItems: "flex-start",
                       }}>
-                        <span style={{ color: "#00F5D4", fontSize: "12px", marginTop: "3px", flexShrink: 0 }}>→</span>
-                        <p style={{ color: "#E0FFFF", fontSize: "13px", lineHeight: "1.65", opacity: 0.85, margin: 0 }}>
+                        <span style={{ color: "#2D5A3D", fontSize: "12px", marginTop: "3px", flexShrink: 0 }}>→</span>
+                        <p style={{ color: "#1E2018", fontSize: "13px", lineHeight: "1.65", opacity: 0.85, margin: 0 }}>
                           {bullet}
                         </p>
                       </div>
@@ -772,7 +772,7 @@ useEffect(() => {
             {result.education?.length > 0 && (
               <div className="card" style={{ maxWidth: "100%", marginBottom: "20px" }}>
                 <h3 style={{
-                  color: "#00F5D4", fontFamily: "'Bodoni MT Black', serif",
+                  color: "#2D5A3D", fontFamily: "'Libre Baskerville', serif",
                   fontSize: "13px", letterSpacing: "2px", textTransform: "uppercase",
                   marginBottom: "20px", opacity: 0.8,
                 }}>🎓 Education</h3>
@@ -782,7 +782,7 @@ useEffect(() => {
                     marginBottom: index < result.education.length - 1 ? "28px" : 0,
                     paddingBottom: index < result.education.length - 1 ? "28px" : 0,
                     borderBottom: index < result.education.length - 1
-                      ? "1px solid rgba(0,245,212,0.08)" : "none",
+                      ? "1px solid rgba(45,90,61,0.08)" : "none",
                   }}>
                     <div style={{
                       display: "flex", justifyContent: "space-between",
@@ -790,10 +790,10 @@ useEffect(() => {
                     }}>
                       <div>
                         <p style={{
-                          color: "#E0FFFF", fontFamily: "'Bodoni MT Black', serif",
+                          color: "#1E2018", fontFamily: "'Libre Baskerville', serif",
                           fontSize: "15px", marginBottom: "3px",
                         }}>{edu.degree}</p>
-                        <p style={{ color: "#00F5D4", fontSize: "13px", opacity: 0.75 }}>
+                        <p style={{ color: "#2D5A3D", fontSize: "13px", opacity: 0.75 }}>
                           {edu.institution}
                           {edu.city ? ` — ${edu.city}` : ""}
                           {edu.country ? `, ${edu.country}` : ""}
@@ -801,9 +801,9 @@ useEffect(() => {
                       </div>
                       {(edu.graduationMonth || edu.graduationYear) && (
                         <span style={{
-                          background: "rgba(0,245,212,0.08)", border: "1px solid rgba(0,245,212,0.2)",
-                          color: "#E0FFFF", padding: "4px 12px", borderRadius: "20px",
-                          fontSize: "12px", opacity: 0.65, fontFamily: "'Bodoni MT Black', serif",
+                          background: "rgba(45,90,61,0.08)", border: "1px solid rgba(45,90,61,0.2)",
+                          color: "#1E2018", padding: "4px 12px", borderRadius: "20px",
+                          fontSize: "12px", opacity: 0.65, fontFamily: "'Libre Baskerville', serif",
                           whiteSpace: "nowrap",
                         }}>
                           {edu.graduationStatus === "expected" ? "Expected: " : ""}
@@ -816,13 +816,13 @@ useEffect(() => {
                     {edu.minimumAverage && (
                       <div style={{
                         display: "inline-flex", alignItems: "center", gap: "8px",
-                        background: "rgba(0,245,212,0.08)", border: "1px solid rgba(0,245,212,0.2)",
+                        background: "rgba(45,90,61,0.08)", border: "1px solid rgba(45,90,61,0.2)",
                         borderRadius: "8px", padding: "6px 14px", marginBottom: "14px",
                       }}>
                         <span style={{ color: "#FFB347", fontSize: "14px" }}>★</span>
                         <span style={{
-                          color: "#E0FFFF", fontSize: "13px",
-                          fontFamily: "'Bodoni MT Black', serif", opacity: 0.9,
+                          color: "#1E2018", fontSize: "13px",
+                          fontFamily: "'Libre Baskerville', serif", opacity: 0.9,
                         }}>
                           Minimum Average: {edu.minimumAverage}
                         </span>
@@ -833,7 +833,7 @@ useEffect(() => {
                     {edu.coursework?.filter(c => c?.trim()).length > 0 && (
                       <div>
                         <p style={{
-                          color: "#E0FFFF", fontFamily: "'Bodoni MT Black', serif",
+                          color: "#1E2018", fontFamily: "'Libre Baskerville', serif",
                           fontSize: "11px", opacity: 0.4, letterSpacing: "1px",
                           textTransform: "uppercase", marginBottom: "10px",
                         }}>
@@ -848,27 +848,27 @@ useEffect(() => {
 
                           return (
                             <div key={i} style={{
-                              background: "#0B1E2A",
-                              border: "1px solid rgba(0,245,212,0.08)",
+                              background: "#FFFFFF",
+                              border: "1px solid rgba(45,90,61,0.08)",
                               borderRadius: "8px",
                               padding: "10px 14px",
                               marginBottom: "8px",
                             }}>
                               <div style={{ display: "flex", flexWrap: "wrap", gap: "10px", alignItems: "flex-start" }}>
                                 <span style={{
-                                  color: "#00F5D4", fontSize: "12px", marginTop: "2px", flexShrink: 0,
+                                  color: "#2D5A3D", fontSize: "12px", marginTop: "2px", flexShrink: 0,
                                 }}>•</span>
                                 <div>
                                   <p style={{
-                                    color: "#E0FFFF", fontSize: "13px",
-                                    fontFamily: "'Bodoni MT Black', serif",
+                                    color: "#1E2018", fontSize: "13px",
+                                    fontFamily: "'Libre Baskerville', serif",
                                     fontWeight: "900", marginBottom: courseDesc ? "4px" : 0,
                                   }}>
                                     {courseName}
                                   </p>
                                   {courseDesc && (
                                     <p style={{
-                                      color: "#E0FFFF", fontSize: "12px",
+                                      color: "#1E2018", fontSize: "12px",
                                       opacity: 0.55, lineHeight: "1.55",
                                       margin: 0, fontFamily: "system-ui, sans-serif",
                                     }}>
@@ -892,7 +892,7 @@ useEffect(() => {
             {result.project_experience?.length > 0 && (
               <div className="card" style={{ maxWidth: "100%", marginBottom: "20px" }}>
                 <h3 style={{
-                  color: "#00F5D4", fontFamily: "'Bodoni MT Black', serif",
+                  color: "#2D5A3D", fontFamily: "'Libre Baskerville', serif",
                   fontSize: "13px", letterSpacing: "2px", textTransform: "uppercase",
                   marginBottom: "20px", opacity: 0.8,
                 }}>🚀 Project Experience</h3>
@@ -902,14 +902,14 @@ useEffect(() => {
                     marginBottom: index < result.project_experience.length - 1 ? "28px" : "0",
                     paddingBottom: index < result.project_experience.length - 1 ? "28px" : "0",
                     borderBottom: index < result.project_experience.length - 1
-                      ? "1px solid rgba(0,245,212,0.08)" : "none",
+                      ? "1px solid rgba(45,90,61,0.08)" : "none",
                   }}>
                     <p style={{
-                      color: "#E0FFFF", fontFamily: "'Bodoni MT Black', serif",
+                      color: "#1E2018", fontFamily: "'Libre Baskerville', serif",
                       fontSize: "15px", marginBottom: "4px",
                     }}>{proj.title}</p>
                     {proj.tech_stack && (
-                      <p style={{ color: "#00F5D4", fontSize: "12px", opacity: 0.65, marginBottom: "12px" }}>
+                      <p style={{ color: "#2D5A3D", fontSize: "12px", opacity: 0.65, marginBottom: "12px" }}>
                         {proj.tech_stack}
                       </p>
                     )}
@@ -917,8 +917,8 @@ useEffect(() => {
                       <div key={bi} style={{
                         display: "flex", flexWrap: "wrap", gap: "10px", marginBottom: "8px", alignItems: "flex-start",
                       }}>
-                        <span style={{ color: "#00F5D4", fontSize: "12px", marginTop: "3px", flexShrink: 0 }}>→</span>
-                        <p style={{ color: "#E0FFFF", fontSize: "13px", lineHeight: "1.65", opacity: 0.85, margin: 0 }}>
+                        <span style={{ color: "#2D5A3D", fontSize: "12px", marginTop: "3px", flexShrink: 0 }}>→</span>
+                        <p style={{ color: "#1E2018", fontSize: "13px", lineHeight: "1.65", opacity: 0.85, margin: 0 }}>
                           {bullet}
                         </p>
                       </div>
@@ -938,7 +938,7 @@ useEffect(() => {
             {result.languages?.length > 0 && (
               <div className="card" style={{ maxWidth: "100%", marginBottom: "20px" }}>
                 <h3 style={{
-                  color: "#00F5D4", fontFamily: "'Bodoni MT Black', serif",
+                  color: "#2D5A3D", fontFamily: "'Libre Baskerville', serif",
                   fontSize: "13px", letterSpacing: "2px", textTransform: "uppercase",
                   marginBottom: "20px", opacity: 0.8,
                 }}>🌐 Languages</h3>
@@ -958,10 +958,10 @@ useEffect(() => {
 
                     return (
                       <div key={index} style={{
-                        background: "#0B1E2A",
+                        background: "#FFFFFF",
                         borderRadius: "10px",
                         padding: "18px 20px",
-                        border: "1px solid rgba(0,245,212,0.12)",
+                        border: "1px solid rgba(45,90,61,0.12)",
                       }}>
 
                         {/* Row 1: Language name + CEFR code badge side by side */}
@@ -970,8 +970,8 @@ useEffect(() => {
                           justifyContent: "space-between", marginBottom: "12px",
                         }}>
                           <p style={{
-                            color: "#E0FFFF",
-                            fontFamily: "'Bodoni MT Black', serif",
+                            color: "#1E2018",
+                            fontFamily: "'Libre Baskerville', serif",
                             fontSize: "16px", fontWeight: "900",
                             margin: 0, letterSpacing: "0.3px",
                           }}>
@@ -980,10 +980,10 @@ useEffect(() => {
                           {/* CEFR code badge — e.g. "C2" — bold and prominent */}
                           {cefrCode && (
                             <span style={{
-                              background: "rgba(0,245,212,0.15)",
-                              border: "1px solid rgba(0,245,212,0.4)",
-                              color: "#00F5D4",
-                              fontFamily: "'Bodoni MT Black', serif",
+                              background: "rgba(45,90,61,0.15)",
+                              border: "1px solid rgba(45,90,61,0.4)",
+                              color: "#2D5A3D",
+                              fontFamily: "'Libre Baskerville', serif",
                               fontSize: "13px", fontWeight: "900",
                               padding: "3px 10px", borderRadius: "6px",
                               letterSpacing: "1px",
@@ -995,7 +995,7 @@ useEffect(() => {
 
                         {/* Row 2: Block bars — dark filled, grey empty
                             Each block is a thick rounded rectangle.
-                            Filled = solid dark teal (#00B4D8), empty = faint */}
+                            Filled = solid dark teal (#2D5A3D), empty = faint */}
                         <div style={{
                           display: "flex", flexWrap: "wrap", gap: "5px", marginBottom: "10px",
                         }}>
@@ -1005,8 +1005,8 @@ useEffect(() => {
                               height: "12px",
                               borderRadius: "3px",
                               background: i < level
-                                ? "#00B4D8"                    // dark teal — filled
-                                : "rgba(224,255,255,0.10)",    // very faint — empty
+                                ? "#2D5A3D"                    // dark teal — filled
+                                : "rgba(30,32,24,0.10)",    // very faint — empty
                               transition: "background 0.2s ease",
                             }} />
                           ))}
@@ -1014,10 +1014,10 @@ useEffect(() => {
 
                         {/* Row 3: Full proficiency label text */}
                         <p style={{
-                          color: "#E0FFFF",
+                          color: "#1E2018",
                           fontSize: "11px",
                           opacity: 0.5,
-                          fontFamily: "'Bodoni MT Black', serif",
+                          fontFamily: "'Libre Baskerville', serif",
                           margin: 0, letterSpacing: "0.3px",
                         }}>
                           {cefrText}
@@ -1035,11 +1035,11 @@ useEffect(() => {
             {result.references && (
               <div className="card" style={{ maxWidth: "100%", marginBottom: "20px" }}>
                 <h3 style={{
-                  color: "#00F5D4", fontFamily: "'Bodoni MT Black', serif",
+                  color: "#2D5A3D", fontFamily: "'Libre Baskerville', serif",
                   fontSize: "13px", letterSpacing: "2px", textTransform: "uppercase",
                   marginBottom: "16px", opacity: 0.8,
                 }}>📋 References</h3>
-                <p style={{ color: "#E0FFFF", fontSize: "14px", opacity: 0.85, lineHeight: "1.7" }}>
+                <p style={{ color: "#1E2018", fontSize: "14px", opacity: 0.85, lineHeight: "1.7" }}>
                   {result.references}
                 </p>
               </div>
@@ -1062,7 +1062,7 @@ useEffect(() => {
                     fontSize: "15px", padding: "13px 36px",
                     opacity: downloading ? 0.65 : 1,
                     cursor: downloading ? "not-allowed" : "pointer",
-                    background: downloading ? "#1DE9B6" : "#00F5D4",
+                    background: downloading ? "#3D7A55" : "#2D5A3D",
                     display: "flex", flexWrap: "wrap", alignItems: "center", gap: "8px",
                   }}
                 >
@@ -1070,7 +1070,7 @@ useEffect(() => {
                     <>
                       <span style={{
                         display: "inline-block", width: "14px", height: "14px",
-                        border: "2px solid #0B1E2A", borderTopColor: "transparent",
+                        border: "2px solid #2D5A3D", borderTopColor: "transparent",
                         borderRadius: "50%", animation: "spin 0.7s linear infinite",
                       }} />
                       Preparing...
@@ -1078,7 +1078,7 @@ useEffect(() => {
                   ) : "⬇ Download CV"}
                 </button>
                 {downloadError && (
-                  <p style={{ color: "#FF6B6B", fontSize: "12px", marginTop: "8px", maxWidth: "260px" }}>
+                  <p style={{ color: "#8B2020", fontSize: "12px", marginTop: "8px", maxWidth: "260px" }}>
                     {downloadError}
                   </p>
                 )}
@@ -1094,9 +1094,9 @@ useEffect(() => {
                     fontSize: "15px", padding: "13px 36px",
                     display: "flex", alignItems: "center", gap: "8px",
                     // Teal when ready, green-teal when saved, faded when saving
-                    background: saved   ? "#1DE9B6"
-                              : saving  ? "#00B4D8"
-                              : "#00F5D4",
+                    background: saved   ? "#3D7A55"
+                              : saving  ? "#2D5A3D"
+                              : "#2D5A3D",
                     opacity: saving ? 0.75 : 1,
                     cursor: (saving || saved) ? "not-allowed" : "pointer",
                   }}
@@ -1105,7 +1105,7 @@ useEffect(() => {
                     <>
                       <span style={{
                         display: "inline-block", width: "14px", height: "14px",
-                        border: "2px solid #0B1E2A", borderTopColor: "transparent",
+                        border: "2px solid #2D5A3D", borderTopColor: "transparent",
                         borderRadius: "50%", animation: "spin 0.7s linear infinite",
                       }} />
                       Saving...
@@ -1118,7 +1118,7 @@ useEffect(() => {
                 </button>
                 {/* Error message if save failed */}
                 {saveError && (
-                  <p style={{ color: "#FF6B6B", fontSize: "12px", marginTop: "8px", maxWidth: "260px" }}>
+                  <p style={{ color: "#8B2020", fontSize: "12px", marginTop: "8px", maxWidth: "260px" }}>
                     {saveError}
                   </p>
                 )}
@@ -1127,7 +1127,7 @@ useEffect(() => {
                   <p
                     onClick={() => navigate("/cabinet")}
                     style={{
-                      color: "#00F5D4", fontSize: "12px", marginTop: "8px",
+                      color: "#2D5A3D", fontSize: "12px", marginTop: "8px",
                       cursor: "pointer", textDecoration: "underline", opacity: 0.8,
                     }}
                   >
@@ -1142,7 +1142,7 @@ useEffect(() => {
                 onClick={handleCopy}
                 style={{
                   fontSize: "15px", padding: "13px 36px",
-                  background: copied ? "#1DE9B6" : "#00F5D4",
+                  background: copied ? "#3D7A55" : "#2D5A3D",
                 }}
               >
                 {copied ? "✓ Copied!" : "⎘ Copy CV to Clipboard"}

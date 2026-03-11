@@ -36,7 +36,7 @@ function Navbar() {
       top: 0, left: 0,
       width:           "100%",
       height:          navbarHeight,
-      background:      "#0B1E2A",
+      background:      "#1E2A1A",
       display:         "flex",
       alignItems:      "center",
       justifyContent:  "space-between",
@@ -53,8 +53,8 @@ function Navbar() {
             aria-label="Toggle menu"
             style={{
               background:   "transparent",
-              border:       "2px solid #00F5D4",
-              color:        "#00F5D4",
+              border:       "2px solid #A8C5B0",
+              color:        "#A8C5B0",
               borderRadius: "6px",
               padding:      isMobile ? "4px 8px" : "6px 10px",
               cursor:       "pointer",
@@ -69,8 +69,8 @@ function Navbar() {
         <Link
           to="/"
           style={{
-            color:          "#E0FFFF",
-            fontFamily:     "'Train One', cursive",
+            color:          "#F4EFE6",
+            fontFamily:     "'Libre Baskerville', serif",
             letterSpacing:  isMobile ? "0px" : "3px",
             fontSize:       isMobile ? "14px" : "clamp(18px, 2.2vw, 32px)",
             fontWeight:     900,
@@ -97,8 +97,8 @@ function Navbar() {
           <Link
             to="/login"
             style={{
-              color: "#00F5D4", textDecoration: "none",
-              fontFamily: "'Bodoni MT Black', serif", fontWeight: 900,
+              color: "#A8C5B0", textDecoration: "none",
+              fontFamily: "'Libre Baskerville', serif", fontWeight: 900,
               fontSize: "13px", minHeight: "44px", display: "flex", alignItems: "center",
             }}
           >Login</Link>
@@ -108,13 +108,13 @@ function Navbar() {
           <button
             onClick={handleLogout}
             style={{
-              background:   "#00F5D4",
-              color:        "#0B1E2A",
+              background:   "#2D5A3D",
+              color:        "#EDE8DE",
               border:       "none",
               padding:      isMobile ? "7px 11px" : "10px 20px",
               borderRadius: "6px",
               cursor:       "pointer",
-              fontFamily:   "'Bodoni MT Black', serif",
+              fontFamily:   "'Libre Baskerville', serif",
               fontWeight:   900,
               fontSize:     isMobile ? "11px" : "clamp(12px, 1vw, 14px)",
               whiteSpace:   "nowrap",

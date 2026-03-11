@@ -44,7 +44,7 @@ const DATE_OPTIONS = [
 ];
 
 const SOURCE_COLORS = {
-  JSearch:   "#00F5D4",
+  JSearch:   "#2D5A3D",
   Adzuna:    "#FFB347",
   TheMuse:   "#A78BFA",
   RemoteOK:  "#4ADE80",
@@ -54,7 +54,7 @@ const TYPE_COLORS = {
   Remote:     "#4ADE80",
   Hybrid:     "#60A5FA",
   "On-site":  "#FFB347",
-  Unknown:    "rgba(224,255,255,0.3)",
+  Unknown:    "rgba(30,32,24,0.3)",
 };
 
 
@@ -67,13 +67,13 @@ function SourceBadge({ source }) {
   return (
     <span style={{
       fontSize:        "10px",
-      fontFamily:      "'Bodoni MT Black', serif",
+      fontFamily:      "'Libre Baskerville', serif",
       fontWeight:      900,
       letterSpacing:   "1px",
       textTransform:   "uppercase",
-      color:           SOURCE_COLORS[source] || "#E0FFFF",
-      background:      `${SOURCE_COLORS[source]}18` ?? "rgba(224,255,255,0.08)",
-      border:          `1px solid ${SOURCE_COLORS[source]}40` ?? "1px solid rgba(224,255,255,0.15)",
+      color:           SOURCE_COLORS[source] || "#1E2018",
+      background:      `${SOURCE_COLORS[source]}18` ?? "rgba(30,32,24,0.08)",
+      border:          `1px solid ${SOURCE_COLORS[source]}40` ?? "1px solid rgba(30,32,24,0.15)",
       borderRadius:    "4px",
       padding:         "2px 7px",
     }}>
@@ -88,10 +88,10 @@ function TypeBadge({ type }) {
   return (
     <span style={{
       fontSize:      "10px",
-      fontFamily:    "'Bodoni MT Black', serif",
+      fontFamily:    "'Libre Baskerville', serif",
       fontWeight:    900,
       letterSpacing: "0.5px",
-      color:         TYPE_COLORS[type] || "#E0FFFF",
+      color:         TYPE_COLORS[type] || "#1E2018",
       background:    `${TYPE_COLORS[type]}18`,
       border:        `1px solid ${TYPE_COLORS[type]}40`,
       borderRadius:  "4px",
@@ -107,12 +107,12 @@ function FilterSelect({ value, onChange, options, label }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "6px", flex: 1, minWidth: "130px" }}>
       <label style={{
-        color:       "#E0FFFF",
+        color:       "#1E2018",
         fontSize:    "10px",
         opacity:     0.5,
         letterSpacing: "1px",
         textTransform: "uppercase",
-        fontFamily:  "'Bodoni MT Black', serif",
+        fontFamily:  "'Libre Baskerville', serif",
       }}>
         {label}
       </label>
@@ -120,10 +120,10 @@ function FilterSelect({ value, onChange, options, label }) {
         value={value}
         onChange={(e) => onChange(e.target.value)}
         style={{
-          background:   "#0B1E2A",
-          border:       "1px solid rgba(0,245,212,0.2)",
+          background:   "#FFFFFF",
+          border:       "1px solid rgba(45,90,61,0.2)",
           borderRadius: "8px",
-          color:        "#E0FFFF",
+          color:        "#1E2018",
           padding:      "10px 12px",
           fontSize:     "13px",
           fontFamily:   "system-ui, sans-serif",
@@ -149,8 +149,8 @@ function FeaturedCard({ job, onClick }) {
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={{
-        background:    hovered ? "rgba(0,245,212,0.06)" : "rgba(0,59,68,0.8)",
-        border:        hovered ? "1px solid rgba(0,245,212,0.5)" : "1px solid rgba(0,245,212,0.25)",
+        background:    hovered ? "rgba(45,90,61,0.06)" : "rgba(220,210,192,0.8)",
+        border:        hovered ? "1px solid rgba(45,90,61,0.5)" : "1px solid rgba(45,90,61,0.25)",
         borderRadius:  "16px",
         padding:       "32px",
         marginBottom:  "24px",
@@ -165,15 +165,15 @@ function FeaturedCard({ job, onClick }) {
         position:      "absolute",
         top:           "20px",
         right:         "20px",
-        background:    "rgba(0,245,212,0.12)",
-        border:        "1px solid rgba(0,245,212,0.3)",
+        background:    "rgba(45,90,61,0.12)",
+        border:        "1px solid rgba(45,90,61,0.3)",
         borderRadius:  "6px",
         padding:       "4px 10px",
         fontSize:      "10px",
-        fontFamily:    "'Bodoni MT Black', serif",
+        fontFamily:    "'Libre Baskerville', serif",
         fontWeight:    900,
         letterSpacing: "2px",
-        color:         "#00F5D4",
+        color:         "#2D5A3D",
       }}>
         TOP MATCH
       </div>
@@ -184,15 +184,15 @@ function FeaturedCard({ job, onClick }) {
         <div style={{
           width:        "52px",
           height:       "52px",
-          background:   "rgba(0,245,212,0.1)",
-          border:       "1px solid rgba(0,245,212,0.2)",
+          background:   "rgba(45,90,61,0.1)",
+          border:       "1px solid rgba(45,90,61,0.2)",
           borderRadius: "12px",
           display:      "flex",
           alignItems:   "center",
           justifyContent: "center",
           fontSize:     "20px",
-          fontFamily:   "'Train One', cursive",
-          color:        "#00F5D4",
+          fontFamily:   "'Libre Baskerville', serif",
+          color:        "#2D5A3D",
           flexShrink:   0,
         }}>
           {job.company?.[0]?.toUpperCase() || "?"}
@@ -200,8 +200,8 @@ function FeaturedCard({ job, onClick }) {
 
         <div style={{ flex: 1 }}>
           <h2 style={{
-            color:       "#E0FFFF",
-            fontFamily:  "'Bodoni MT Black', serif",
+            color:       "#1E2018",
+            fontFamily:  "'Libre Baskerville', serif",
             fontWeight:  900,
             fontSize:    "20px",
             marginBottom: "4px",
@@ -210,9 +210,9 @@ function FeaturedCard({ job, onClick }) {
             {job.title}
           </h2>
           <p style={{
-            color:      "#00F5D4",
+            color:      "#2D5A3D",
             fontSize:   "14px",
-            fontFamily: "'Bodoni MT Black', serif",
+            fontFamily: "'Libre Baskerville', serif",
             fontWeight: 900,
           }}>
             {job.company}
@@ -223,17 +223,17 @@ function FeaturedCard({ job, onClick }) {
       {/* Meta row */}
       <div style={{ display: "flex", flexWrap: "wrap", gap: "12px", marginBottom: "16px", alignItems: "center" }}>
         {job.location && (
-          <span style={{ color: "#E0FFFF", fontSize: "13px", opacity: 0.6 }}>
+          <span style={{ color: "#1E2018", fontSize: "13px", opacity: 0.6 }}>
             📍 {job.location}
           </span>
         )}
         {job.salary && (
-          <span style={{ color: "#FFB347", fontSize: "13px", fontFamily: "'Bodoni MT Black', serif" }}>
+          <span style={{ color: "#FFB347", fontSize: "13px", fontFamily: "'Libre Baskerville', serif" }}>
             💰 {job.salary}
           </span>
         )}
         {job.posted && (
-          <span style={{ color: "#E0FFFF", fontSize: "12px", opacity: 0.45 }}>
+          <span style={{ color: "#1E2018", fontSize: "12px", opacity: 0.45 }}>
             🕐 {job.posted}
           </span>
         )}
@@ -243,7 +243,7 @@ function FeaturedCard({ job, onClick }) {
 
       {/* Description preview */}
       <p style={{
-        color:      "#E0FFFF",
+        color:      "#1E2018",
         fontSize:   "13px",
         opacity:    0.6,
         lineHeight: 1.6,
@@ -259,9 +259,9 @@ function FeaturedCard({ job, onClick }) {
       {/* CTA */}
       <div style={{ marginTop: "20px", display: "flex", flexWrap: "wrap", gap: "12px" }}>
         <span style={{
-          color:       "#00F5D4",
+          color:       "#2D5A3D",
           fontSize:    "13px",
-          fontFamily:  "'Bodoni MT Black', serif",
+          fontFamily:  "'Libre Baskerville', serif",
           fontWeight:  900,
           opacity:     hovered ? 1 : 0.6,
           transition:  "opacity 0.2s",
@@ -283,8 +283,8 @@ function JobRow({ job, onClick }) {
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={{
-        background:    hovered ? "rgba(0,245,212,0.04)" : "rgba(0,59,68,0.5)",
-        border:        hovered ? "1px solid rgba(0,245,212,0.3)" : "1px solid rgba(0,245,212,0.1)",
+        background:    hovered ? "rgba(45,90,61,0.04)" : "rgba(220,210,192,0.5)",
+        border:        hovered ? "1px solid rgba(45,90,61,0.3)" : "1px solid rgba(45,90,61,0.1)",
         borderRadius:  "12px",
         padding:       "20px 24px",
         marginBottom:  "10px",
@@ -299,15 +299,15 @@ function JobRow({ job, onClick }) {
       <div style={{
         width:          "40px",
         height:         "40px",
-        background:     "rgba(0,245,212,0.08)",
-        border:         "1px solid rgba(0,245,212,0.15)",
+        background:     "rgba(45,90,61,0.08)",
+        border:         "1px solid rgba(45,90,61,0.15)",
         borderRadius:   "10px",
         display:        "flex",
         alignItems:     "center",
         justifyContent: "center",
         fontSize:       "16px",
-        fontFamily:     "'Train One', cursive",
-        color:          "#00F5D4",
+        fontFamily:     "'Libre Baskerville', serif",
+        color:          "#2D5A3D",
         flexShrink:     0,
       }}>
         {job.company?.[0]?.toUpperCase() || "?"}
@@ -317,8 +317,8 @@ function JobRow({ job, onClick }) {
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "4px", flexWrap: "wrap" }}>
           <span style={{
-            color:      "#E0FFFF",
-            fontFamily: "'Bodoni MT Black', serif",
+            color:      "#1E2018",
+            fontFamily: "'Libre Baskerville', serif",
             fontWeight: 900,
             fontSize:   "14px",
           }}>
@@ -327,11 +327,11 @@ function JobRow({ job, onClick }) {
           <TypeBadge type={job.type} />
         </div>
         <div style={{ display: "flex", gap: "12px", flexWrap: "wrap", alignItems: "center" }}>
-          <span style={{ color: "#00F5D4", fontSize: "13px", fontFamily: "'Bodoni MT Black', serif" }}>
+          <span style={{ color: "#2D5A3D", fontSize: "13px", fontFamily: "'Libre Baskerville', serif" }}>
             {job.company}
           </span>
           {job.location && (
-            <span style={{ color: "#E0FFFF", fontSize: "12px", opacity: 0.5 }}>
+            <span style={{ color: "#1E2018", fontSize: "12px", opacity: 0.5 }}>
               {job.location}
             </span>
           )}
@@ -341,13 +341,13 @@ function JobRow({ job, onClick }) {
       {/* Right side */}
       <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "6px", flexShrink: 0 }}>
         {job.salary && (
-          <span style={{ color: "#FFB347", fontSize: "12px", fontFamily: "'Bodoni MT Black', serif" }}>
+          <span style={{ color: "#FFB347", fontSize: "12px", fontFamily: "'Libre Baskerville', serif" }}>
             {job.salary}
           </span>
         )}
         <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", alignItems: "center" }}>
           {job.posted && (
-            <span style={{ color: "#E0FFFF", fontSize: "11px", opacity: 0.4 }}>
+            <span style={{ color: "#1E2018", fontSize: "11px", opacity: 0.4 }}>
               {job.posted}
             </span>
           )}
@@ -392,8 +392,8 @@ function JobModal({ job, onClose, onGenerateCV }) {
         transform:    "translate(-50%, -50%)",
         width:        "min(680px, 92vw)",
         maxHeight:    "85vh",
-        background:   "#003B44",
-        border:       "1px solid rgba(0,245,212,0.3)",
+        background:   "#F0EAD8",
+        border:       "1px solid rgba(45,90,61,0.3)",
         borderRadius: "16px",
         zIndex:       2001,
         display:      "flex",
@@ -404,14 +404,14 @@ function JobModal({ job, onClose, onGenerateCV }) {
         {/* Modal header */}
         <div style={{
           padding:       "28px 32px 20px",
-          borderBottom:  "1px solid rgba(0,245,212,0.1)",
+          borderBottom:  "1px solid rgba(45,90,61,0.1)",
           flexShrink:    0,
         }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
             <div style={{ flex: 1, paddingRight: "16px" }}>
               <h2 style={{
-                color:       "#E0FFFF",
-                fontFamily:  "'Bodoni MT Black', serif",
+                color:       "#1E2018",
+                fontFamily:  "'Libre Baskerville', serif",
                 fontWeight:  900,
                 fontSize:    "20px",
                 marginBottom: "6px",
@@ -420,9 +420,9 @@ function JobModal({ job, onClose, onGenerateCV }) {
                 {job.title}
               </h2>
               <p style={{
-                color:      "#00F5D4",
+                color:      "#2D5A3D",
                 fontSize:   "14px",
-                fontFamily: "'Bodoni MT Black', serif",
+                fontFamily: "'Libre Baskerville', serif",
                 fontWeight: 900,
                 marginBottom: "10px",
               }}>
@@ -430,17 +430,17 @@ function JobModal({ job, onClose, onGenerateCV }) {
               </p>
               <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", alignItems: "center" }}>
                 {job.location && (
-                  <span style={{ color: "#E0FFFF", fontSize: "12px", opacity: 0.6 }}>
+                  <span style={{ color: "#1E2018", fontSize: "12px", opacity: 0.6 }}>
                     📍 {job.location}
                   </span>
                 )}
                 {job.salary && (
-                  <span style={{ color: "#FFB347", fontSize: "12px", fontFamily: "'Bodoni MT Black', serif" }}>
+                  <span style={{ color: "#FFB347", fontSize: "12px", fontFamily: "'Libre Baskerville', serif" }}>
                     💰 {job.salary}
                   </span>
                 )}
                 {job.posted && (
-                  <span style={{ color: "#E0FFFF", fontSize: "12px", opacity: 0.4 }}>
+                  <span style={{ color: "#1E2018", fontSize: "12px", opacity: 0.4 }}>
                     🕐 {job.posted}
                   </span>
                 )}
@@ -453,7 +453,7 @@ function JobModal({ job, onClose, onGenerateCV }) {
               style={{
                 background:   "transparent",
                 border:       "none",
-                color:        "#E0FFFF",
+                color:        "#1E2018",
                 fontSize:     "20px",
                 cursor:       "pointer",
                 padding:      "4px",
@@ -475,8 +475,8 @@ function JobModal({ job, onClose, onGenerateCV }) {
           padding:    "24px 32px",
         }}>
           <h3 style={{
-            color:       "#00F5D4",
-            fontFamily:  "'Bodoni MT Black', serif",
+            color:       "#2D5A3D",
+            fontFamily:  "'Libre Baskerville', serif",
             fontSize:    "11px",
             letterSpacing: "2px",
             textTransform: "uppercase",
@@ -486,7 +486,7 @@ function JobModal({ job, onClose, onGenerateCV }) {
             Job Description
           </h3>
           <p style={{
-            color:      "#E0FFFF",
+            color:      "#1E2018",
             fontSize:   "13px",
             lineHeight: 1.8,
             fontFamily: "system-ui, sans-serif",
@@ -500,7 +500,7 @@ function JobModal({ job, onClose, onGenerateCV }) {
         {/* Modal footer — action buttons */}
         <div style={{
           padding:      "20px 32px",
-          borderTop:    "1px solid rgba(0,245,212,0.1)",
+          borderTop:    "1px solid rgba(45,90,61,0.1)",
           display:      "flex",
           gap:          "12px",
           flexShrink:   0,
@@ -523,12 +523,12 @@ function JobModal({ job, onClose, onGenerateCV }) {
               rel="noopener noreferrer"
               style={{
                 background:   "transparent",
-                border:       "1px solid rgba(0,245,212,0.3)",
+                border:       "1px solid rgba(45,90,61,0.3)",
                 borderRadius: "6px",
-                color:        "#00F5D4",
+                color:        "#2D5A3D",
                 padding:      "12px 20px",
                 fontSize:     "14px",
-                fontFamily:   "'Bodoni MT Black', serif",
+                fontFamily:   "'Libre Baskerville', serif",
                 fontWeight:   900,
                 textDecoration: "none",
                 cursor:       "pointer",
@@ -550,8 +550,8 @@ function LoadingSkeleton() {
     <div>
       {/* Featured card skeleton */}
       <div style={{
-        background:   "#003B44",
-        border:       "1px solid rgba(0,245,212,0.08)",
+        background:   "#F0EAD8",
+        border:       "1px solid rgba(45,90,61,0.08)",
         borderRadius: "16px",
         padding:      "32px",
         marginBottom: "24px",
@@ -561,8 +561,8 @@ function LoadingSkeleton() {
       {/* List row skeletons */}
       {[1,2,3,4,5].map(i => (
         <div key={i} style={{
-          background:   "#003B44",
-          border:       "1px solid rgba(0,245,212,0.08)",
+          background:   "#F0EAD8",
+          border:       "1px solid rgba(45,90,61,0.08)",
           borderRadius: "12px",
           height:       "72px",
           marginBottom: "10px",
@@ -671,15 +671,15 @@ export default function Jobs() {
         {/* ── PAGE HEADER ──────────────────────────────────────────────────── */}
         <div style={{ marginBottom: "32px" }}>
           <h1 style={{
-            fontFamily:   "'Train One', cursive",
+            fontFamily:   "'Libre Baskerville', serif",
             fontSize: "clamp(20px, 4vw, 32px)",
-            color:        "#00F5D4",
+            color:        "#2D5A3D",
             letterSpacing: "2px",
             marginBottom: "6px",
           }}>
             JOB SEARCH
           </h1>
-          <p style={{ color: "#E0FFFF", fontSize: "13px", opacity: 0.5 }}>
+          <p style={{ color: "#1E2018", fontSize: "13px", opacity: 0.5 }}>
             Live results from Indeed, LinkedIn, Adzuna, The Muse & RemoteOK
           </p>
         </div>
@@ -687,8 +687,8 @@ export default function Jobs() {
 
         {/* ── SEARCH BAR ───────────────────────────────────────────────────── */}
         <div style={{
-          background:   "rgba(0,59,68,0.8)",
-          border:       "1px solid rgba(0,245,212,0.2)",
+          background:   "rgba(220,210,192,0.8)",
+          border:       "1px solid rgba(45,90,61,0.2)",
           borderRadius: "16px",
           padding:      "24px",
           marginBottom: "24px",
@@ -707,10 +707,10 @@ export default function Jobs() {
                 style={{
                   width:        "100%",
                   padding:      "13px 16px",
-                  background:   "#0B1E2A",
-                  border:       "1px solid rgba(0,245,212,0.25)",
+                  background:   "#FFFFFF",
+                  border:       "1px solid rgba(45,90,61,0.25)",
                   borderRadius: "10px",
-                  color:        "#E0FFFF",
+                  color:        "#1E2018",
                   fontSize:     "14px",
                   fontFamily:   "system-ui, sans-serif",
                   outline:      "none",
@@ -728,10 +728,10 @@ export default function Jobs() {
                 style={{
                   width:        "100%",
                   padding:      "13px 16px",
-                  background:   "#0B1E2A",
-                  border:       "1px solid rgba(0,245,212,0.25)",
+                  background:   "#FFFFFF",
+                  border:       "1px solid rgba(45,90,61,0.25)",
                   borderRadius: "10px",
-                  color:        "#E0FFFF",
+                  color:        "#1E2018",
                   fontSize:     "14px",
                   fontFamily:   "system-ui, sans-serif",
                   outline:      "none",
@@ -774,9 +774,9 @@ export default function Jobs() {
             {/* Salary min */}
             <div style={{ display: "flex", flexDirection: "column", gap: "6px", flex: 1, minWidth: "110px" }}>
               <label style={{
-                color: "#E0FFFF", fontSize: "10px", opacity: 0.5,
+                color: "#1E2018", fontSize: "10px", opacity: 0.5,
                 letterSpacing: "1px", textTransform: "uppercase",
-                fontFamily: "'Bodoni MT Black', serif",
+                fontFamily: "'Libre Baskerville', serif",
               }}>
                 Salary Min
               </label>
@@ -786,8 +786,8 @@ export default function Jobs() {
                 value={salaryMin}
                 onChange={(e) => setSalaryMin(e.target.value)}
                 style={{
-                  background: "#0B1E2A", border: "1px solid rgba(0,245,212,0.2)",
-                  borderRadius: "8px", color: "#E0FFFF",
+                  background: "#FFFFFF", border: "1px solid rgba(45,90,61,0.2)",
+                  borderRadius: "8px", color: "#1E2018",
                   padding: "10px 12px", fontSize: "13px",
                   fontFamily: "system-ui, sans-serif", outline: "none",
                   width: "100%", boxSizing: "border-box",
@@ -798,9 +798,9 @@ export default function Jobs() {
             {/* Salary max */}
             <div style={{ display: "flex", flexDirection: "column", gap: "6px", flex: 1, minWidth: "110px" }}>
               <label style={{
-                color: "#E0FFFF", fontSize: "10px", opacity: 0.5,
+                color: "#1E2018", fontSize: "10px", opacity: 0.5,
                 letterSpacing: "1px", textTransform: "uppercase",
-                fontFamily: "'Bodoni MT Black', serif",
+                fontFamily: "'Libre Baskerville', serif",
               }}>
                 Salary Max
               </label>
@@ -810,8 +810,8 @@ export default function Jobs() {
                 value={salaryMax}
                 onChange={(e) => setSalaryMax(e.target.value)}
                 style={{
-                  background: "#0B1E2A", border: "1px solid rgba(0,245,212,0.2)",
-                  borderRadius: "8px", color: "#E0FFFF",
+                  background: "#FFFFFF", border: "1px solid rgba(45,90,61,0.2)",
+                  borderRadius: "8px", color: "#1E2018",
                   padding: "10px 12px", fontSize: "13px",
                   fontFamily: "system-ui, sans-serif", outline: "none",
                   width: "100%", boxSizing: "border-box",
@@ -822,9 +822,9 @@ export default function Jobs() {
             {/* Remote only toggle */}
             <div style={{ display: "flex", flexDirection: "column", gap: "6px", flexShrink: 0 }}>
               <label style={{
-                color: "#E0FFFF", fontSize: "10px", opacity: 0.5,
+                color: "#1E2018", fontSize: "10px", opacity: 0.5,
                 letterSpacing: "1px", textTransform: "uppercase",
-                fontFamily: "'Bodoni MT Black', serif",
+                fontFamily: "'Libre Baskerville', serif",
               }}>
                 Remote Only
               </label>
@@ -832,12 +832,12 @@ export default function Jobs() {
                 onClick={() => setRemoteOnly(!remoteOnly)}
                 style={{
                   padding:      "10px 16px",
-                  background:   remoteOnly ? "rgba(74,222,128,0.15)" : "#0B1E2A",
-                  border:       remoteOnly ? "1px solid rgba(74,222,128,0.5)" : "1px solid rgba(0,245,212,0.2)",
+                  background:   remoteOnly ? "rgba(74,222,128,0.15)" : "#EDE8DE",
+                  border:       remoteOnly ? "1px solid rgba(74,222,128,0.5)" : "1px solid rgba(45,90,61,0.2)",
                   borderRadius: "8px",
-                  color:        remoteOnly ? "#4ADE80" : "#E0FFFF",
+                  color:        remoteOnly ? "#4ADE80" : "#1E2018",
                   fontSize:     "13px",
-                  fontFamily:   "'Bodoni MT Black', serif",
+                  fontFamily:   "'Libre Baskerville', serif",
                   fontWeight:   900,
                   cursor:       "pointer",
                   transition:   "all 0.15s ease",
@@ -853,7 +853,7 @@ export default function Jobs() {
 
         {/* ── ERROR ────────────────────────────────────────────────────────── */}
         {error && (
-          <p style={{ color: "#FF6B6B", fontSize: "14px", marginBottom: "20px" }}>{error}</p>
+          <p style={{ color: "#8B2020", fontSize: "14px", marginBottom: "20px" }}>{error}</p>
         )}
 
 
@@ -867,7 +867,7 @@ export default function Jobs() {
             {/* Results count */}
             <div style={{ marginBottom: "20px", display: "flex", flexWrap: "wrap", alignItems: "center", gap: "12px" }}>
               <p style={{
-                color:      "#E0FFFF",
+                color:      "#1E2018",
                 fontSize:   "13px",
                 opacity:    0.5,
                 fontFamily: "system-ui, sans-serif",
@@ -889,8 +889,8 @@ export default function Jobs() {
                   ).map(([src, count]) => (
                     <span key={src} style={{
                       fontSize:    "10px",
-                      fontFamily:  "'Bodoni MT Black', serif",
-                      color:       SOURCE_COLORS[src] || "#E0FFFF",
+                      fontFamily:  "'Libre Baskerville', serif",
+                      color:       SOURCE_COLORS[src] || "#1E2018",
                       background:  `${SOURCE_COLORS[src]}15`,
                       border:      `1px solid ${SOURCE_COLORS[src]}30`,
                       borderRadius: "4px",
@@ -908,18 +908,18 @@ export default function Jobs() {
               <div style={{
                 textAlign:    "center",
                 padding:      "60px 20px",
-                background:   "rgba(0,59,68,0.4)",
+                background:   "rgba(220,210,192,0.4)",
                 borderRadius: "16px",
-                border:       "1px solid rgba(0,245,212,0.1)",
+                border:       "1px solid rgba(45,90,61,0.1)",
               }}>
                 <p style={{ fontSize: "32px", marginBottom: "12px" }}>🔍</p>
                 <p style={{
-                  color: "#E0FFFF", fontFamily: "'Bodoni MT Black', serif",
+                  color: "#1E2018", fontFamily: "'Libre Baskerville', serif",
                   fontSize: "16px", marginBottom: "8px",
                 }}>
                   No jobs found
                 </p>
-                <p style={{ color: "#E0FFFF", fontSize: "13px", opacity: 0.5 }}>
+                <p style={{ color: "#1E2018", fontSize: "13px", opacity: 0.5 }}>
                   Try broader keywords or a different location
                 </p>
               </div>
@@ -934,12 +934,12 @@ export default function Jobs() {
             {listJobs.length > 0 && (
               <div>
                 <p style={{
-                  color:       "#E0FFFF",
+                  color:       "#1E2018",
                   fontSize:    "11px",
                   opacity:     0.35,
                   letterSpacing: "1.5px",
                   textTransform: "uppercase",
-                  fontFamily:  "'Bodoni MT Black', serif",
+                  fontFamily:  "'Libre Baskerville', serif",
                   marginBottom: "12px",
                 }}>
                   More Results
@@ -958,20 +958,20 @@ export default function Jobs() {
           <div style={{
             textAlign:    "center",
             padding:      "60px 20px",
-            background:   "rgba(0,59,68,0.3)",
+            background:   "rgba(220,210,192,0.3)",
             borderRadius: "16px",
-            border:       "1px solid rgba(0,245,212,0.08)",
+            border:       "1px solid rgba(45,90,61,0.08)",
           }}>
             <p style={{ fontSize: "clamp(22px, 4vw, 40px)", marginBottom: "16px" }}>🌐</p>
             <p style={{
-              color:      "#E0FFFF",
-              fontFamily: "'Bodoni MT Black', serif",
+              color:      "#1E2018",
+              fontFamily: "'Libre Baskerville', serif",
               fontSize:   "16px",
               marginBottom: "8px",
             }}>
               Search across multiple job boards at once
             </p>
-            <p style={{ color: "#E0FFFF", fontSize: "13px", opacity: 0.45, maxWidth: "400px", margin: "0 auto" }}>
+            <p style={{ color: "#1E2018", fontSize: "13px", opacity: 0.45, maxWidth: "400px", margin: "0 auto" }}>
               Enter a job title above to search Indeed, LinkedIn, Adzuna,
               The Muse and RemoteOK simultaneously
             </p>

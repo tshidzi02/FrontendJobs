@@ -30,23 +30,23 @@ export default function DashboardLayout({ children }) {
     borderRadius:   "8px",
     marginBottom:   "3px",
     textDecoration: "none",
-    fontFamily:     "'Bodoni MT Black', serif",
+    fontFamily:     "'Libre Baskerville', serif",
     fontWeight:     900,
     fontSize:       "13px",
     transition:     "all 0.15s ease",
-    background:     location.pathname === path ? "#00F5D4" : "transparent",
-    color:          location.pathname === path ? "#0B1E2A" : "#E0FFFF",
-    borderLeft:     location.pathname === path ? "4px solid #0B1E2A" : "4px solid transparent",
+    background:     location.pathname === path ? "#2D5A3D" : "transparent",
+    color:          location.pathname === path ? "#F4EFE6" : "#D4C9B0",
+    borderLeft:     location.pathname === path ? "4px solid #EDE8DE" : "4px solid transparent",
     minHeight:      "44px",
   });
 
   const sectionLabel = {
-    color:          "#E0FFFF",
+    color:          "#D4C9B0",
     fontSize:       "9px",
     opacity:        0.3,
     letterSpacing:  "2px",
     textTransform:  "uppercase",
-    fontFamily:     "'Bodoni MT Black', serif",
+    fontFamily:     "'Libre Baskerville', serif",
     padding:        "14px 16px 4px",
     display:        "block",
   };
@@ -75,8 +75,8 @@ export default function DashboardLayout({ children }) {
         top:           0, left: 0,
         width:         sidebarW,
         height:        "100vh",
-        background:    "#003B44",
-        borderRight:   "1px solid rgba(0,245,212,0.2)",
+        background:    "#1E2A1A",
+        borderRight:   "1px solid rgba(255,255,255,0.1)",
         padding:       "0 10px 20px",
         display:       "flex",
         flexDirection: "column",
@@ -86,7 +86,7 @@ export default function DashboardLayout({ children }) {
         overflowY:     "auto",
         boxShadow:     isSidebarOpen ? "6px 0 40px rgba(0,0,0,0.5)" : "none",
         scrollbarWidth: "thin",
-        scrollbarColor: "rgba(0,245,212,0.2) transparent",
+        scrollbarColor: "rgba(45,90,61,0.2) transparent",
       }}>
 
         {/* Sidebar header */}
@@ -95,15 +95,15 @@ export default function DashboardLayout({ children }) {
           justifyContent:  "space-between",
           alignItems:      "center",
           padding:         `calc(${navbarH} + 12px) 6px 14px`,
-          borderBottom:    "1px solid rgba(0,245,212,0.15)",
+          borderBottom:    "1px solid rgba(255,255,255,0.1)",
           marginBottom:    "8px",
           position:        "sticky",
           top:             0,
-          background:      "#003B44",
+          background:      "#1E2A1A",
           zIndex:          1,
         }}>
           <span style={{
-            color: "#00F5D4", fontFamily: "'Train One', cursive",
+            color: "#2D5A3D", fontFamily: "'Libre Baskerville', serif",
             fontSize: "15px", letterSpacing: "2px",
           }}>MENU</span>
           <button
@@ -111,7 +111,7 @@ export default function DashboardLayout({ children }) {
             aria-label="Close menu"
             style={{
               background: "transparent", border: "none",
-              color: "#E0FFFF", fontSize: "20px", cursor: "pointer",
+              color: "#D4C9B0", fontSize: "20px", cursor: "pointer",
               padding: "4px 8px", borderRadius: "4px", lineHeight: 1,
               minHeight: "36px",
             }}
@@ -141,15 +141,15 @@ export default function DashboardLayout({ children }) {
         </nav>
 
         {/* Logout */}
-        <div style={{ paddingTop: "16px", borderTop: "1px solid rgba(0,245,212,0.15)" }}>
+        <div style={{ paddingTop: "16px", borderTop: "1px solid rgba(255,255,255,0.1)" }}>
           <button
             onClick={handleLogout}
             style={{
               width: "100%", padding: "12px 14px",
               background: "transparent",
               border: "1px solid rgba(255,107,107,0.3)",
-              borderRadius: "8px", color: "#FF6B6B",
-              fontFamily: "'Bodoni MT Black', serif", fontWeight: 900,
+              borderRadius: "8px", color: "#F08080",
+              fontFamily: "'Libre Baskerville', serif", fontWeight: 900,
               fontSize: "13px", cursor: "pointer", minHeight: "44px",
             }}
           >🚪 Logout</button>

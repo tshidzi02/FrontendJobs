@@ -73,7 +73,7 @@ export default function Home() {
           alignItems: "center",
           justifyContent: "center",
           textAlign: "center",
-          color: "#E0FFFF",
+          color: "#F4EFE6",
           padding: "100px 20px 20px 20px",
           // top 100px = clears the fixed navbar (height: 100px)
           // left/right 20px = breathing room on small screens
@@ -83,11 +83,11 @@ export default function Home() {
 
         {/* ── Small label ───────────────────────────── */}
         <p style={{
-          color: "#00F5D4",
+          color: "#2D5A3D",
           fontSize: "12px",
           letterSpacing: "5px",
           textTransform: "uppercase",
-          fontFamily: "'Bodoni MT Black', serif",
+          fontFamily: "'Libre Baskerville', serif",
           marginBottom: "12px",
           opacity: 0.8,
         }}>
@@ -104,13 +104,13 @@ export default function Home() {
                   clamp(32px → 60px) — smaller, always fits on screen
         */}
         <h1 style={{
-          fontFamily: "'Train One', cursive",
+          fontFamily: "'Libre Baskerville', serif",
           fontSize: "clamp(32px, 5vw, 60px)",
-          color: "#00F5D4",
+          color: "#2D5A3D",
           letterSpacing: "4px",
           marginBottom: "12px",
           lineHeight: 1.1,
-          textShadow: "0 0 30px rgba(0,245,212,0.25)",
+          textShadow: "0 0 30px rgba(45,90,61,0.25)",
         }}>
           FRONTEND
         </h1>
@@ -131,7 +131,7 @@ export default function Home() {
           AFTER:  clamp scales between 13px and 16px — compact and readable
         */}
         <p style={{                
-          color: "#E0FFFF",
+          color: "#F4EFE6",
           fontSize: "clamp(13px, 1.5vw, 16px)",
           maxWidth: "480px",
           lineHeight: "1.6",
@@ -166,9 +166,9 @@ export default function Home() {
               onMouseEnter={() => setHoveredBtn("getStarted")}
                 onMouseLeave={() => setHoveredBtn(null)}
               style={{
-                background: hoveredBtn === "getStarted" ? "#003B44" : "#00F5D4",
-                color: hoveredBtn === "getStarted" ? "#00F5D4" : "#0B1E2A",
-                border: "2px solid #00F5D4",
+                background: hoveredBtn === "getStarted" ? "#1E3A2A" : "#2D5A3D",
+                color: hoveredBtn === "getStarted" ? "#2D5A3D" : "#EDE8DE",
+                border: "2px solid #2D5A3D",
                 fontSize: "18px",
                 padding: "16px 56px",
                 borderRadius: "8px",
@@ -184,9 +184,9 @@ export default function Home() {
               {/*
                 BEFORE: transparent background, teal outline only
 
-                AFTER:  solid teal (#00F5D4) background by default — same colour
+                AFTER:  solid teal (#2D5A3D) background by default — same colour
                         as Get Started Free so they match.
-                        On hover → dark teal (#003B44) background, teal text.
+                        On hover → dark teal (#F0EAD8) background, teal text.
                         Uses hoveredBtn state to track which button is hovered
                         because React inline styles can't use CSS :hover directly.
               */}
@@ -195,14 +195,14 @@ export default function Home() {
                 onMouseEnter={() => setHoveredBtn("login")}
                 onMouseLeave={() => setHoveredBtn(null)}
                 style={{
-                  background: hoveredBtn === "login" ? "#003B44" : "#00F5D4",
-                  color: hoveredBtn === "login" ? "#00F5D4" : "#0B1E2A",
-                  border: "2px solid #00F5D4",
+                  background: hoveredBtn === "login" ? "#1E3A2A" : "#2D5A3D",
+                  color: hoveredBtn === "login" ? "#2D5A3D" : "#EDE8DE",
+                  border: "2px solid #2D5A3D",
                   padding: "10px 28px",
                   borderRadius: "6px",
                   cursor: "pointer",
                   fontSize: "14px",
-                  fontFamily: "'Bodoni MT Black', serif",
+                  fontFamily: "'Libre Baskerville', serif",
                   fontWeight: "900",
                   transition: "all 0.2s ease",
                 }}
@@ -216,14 +216,14 @@ export default function Home() {
                 onMouseEnter={() => setHoveredBtn("register")}
                 onMouseLeave={() => setHoveredBtn(null)}
                 style={{
-                  background: hoveredBtn === "register" ? "#003B44" : "#00F5D4",
-                  color: hoveredBtn === "register" ? "#00F5D4" : "#0B1E2A",
-                  border: "2px solid #00F5D4",
+                  background: hoveredBtn === "register" ? "#1E3A2A" : "#2D5A3D",
+                  color: hoveredBtn === "register" ? "#2D5A3D" : "#EDE8DE",
+                  border: "2px solid #2D5A3D",
                   padding: "10px 28px",
                   borderRadius: "6px",
                   cursor: "pointer",
                   fontSize: "14px",
-                  fontFamily: "'Bodoni MT Black', serif",
+                  fontFamily: "'Libre Baskerville', serif",
                   fontWeight: "900",
                   transition: "all 0.2s ease",
                 }}
@@ -242,14 +242,14 @@ export default function Home() {
             onMouseEnter={() => setHoveredBtn("dashboard")}
             onMouseLeave={() => setHoveredBtn(null)}
             style={{
-              background: hoveredBtn === "dashboard" ? "#003B44" : "#00F5D4",
-              color: hoveredBtn === "dashboard" ? "#00F5D4" : "#0B1E2A",
-              border: "2px solid #00F5D4",
+              background: hoveredBtn === "dashboard" ? "#1E3A2A" : "#2D5A3D",
+              color: hoveredBtn === "dashboard" ? "#2D5A3D" : "#EDE8DE",
+              border: "2px solid #2D5A3D",
               padding: "16px 56px",
               borderRadius: "8px",
               cursor: "pointer",
               fontSize: "18px",
-              fontFamily: "'Bodoni MT Black', serif",
+              fontFamily: "'Libre Baskerville', serif",
               fontWeight: "900",
               transition: "all 0.2s ease",
             }}

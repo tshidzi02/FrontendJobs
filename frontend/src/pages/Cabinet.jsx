@@ -58,9 +58,9 @@ function countSkills(skills) {
 
 // ── SCORE COLOUR HELPER ───────────────────────────────────────────────────────
 function scoreColor(score) {
-  if (score >= 70) return "#00F5D4";
+  if (score >= 70) return "#2D5A3D";
   if (score >= 40) return "#FFB347";
-  return "#FF6B6B";
+  return "#8B2020";
 }
 
 
@@ -228,15 +228,15 @@ export default function Cabinet() {
         {/* ── PAGE HEADER ─────────────────────────────── */}
         <div style={{ marginBottom: "32px" }}>
           <h1 style={{
-            fontFamily: "'Train One', cursive",
+            fontFamily: "'Libre Baskerville', serif",
             fontSize: "clamp(20px, 4vw, 32px)",
-            color: "#00F5D4",
+            color: "#2D5A3D",
             letterSpacing: "2px",
             marginBottom: "8px",
           }}>
             CV Cabinet
           </h1>
-          <p style={{ color: "#E0FFFF", opacity: 0.5, fontSize: "13px" }}>
+          <p style={{ color: "#1E2018", opacity: 0.5, fontSize: "13px" }}>
             {cvs.length > 0
               ? `${cvs.length} saved CV${cvs.length === 1 ? "" : "s"} — newest first`
               : "Your generated CVs are saved here automatically."}
@@ -246,13 +246,13 @@ export default function Cabinet() {
 
         {/* ── ERROR STATE ─────────────────────────────── */}
         {error && (
-          <p style={{ color: "#FF6B6B", fontSize: "14px", marginBottom: "20px" }}>
+          <p style={{ color: "#8B2020", fontSize: "14px", marginBottom: "20px" }}>
             ⚠ {error}
           </p>
         )}
 
         {downloadError && (
-          <p style={{ color: "#FF6B6B", fontSize: "13px", marginBottom: "16px" }}>
+          <p style={{ color: "#8B2020", fontSize: "13px", marginBottom: "16px" }}>
             ⚠ {downloadError}
           </p>
         )}
@@ -263,16 +263,16 @@ export default function Cabinet() {
           <div>
             {[1, 2, 3].map((i) => (
               <div key={i} style={{
-                background: "#003B44",
+                background: "#F0EAD8",
                 borderRadius: "12px",
                 padding: "28px",
                 marginBottom: "16px",
-                border: "1px solid rgba(0,245,212,0.08)",
+                border: "1px solid rgba(45,90,61,0.08)",
               }}>
                 {[60, 90, 45].map((width, idx) => (
                   <div key={idx} style={{
                     height: "13px",
-                    background: "rgba(0,245,212,0.07)",
+                    background: "rgba(45,90,61,0.07)",
                     borderRadius: "6px",
                     marginBottom: "12px",
                     width: `${width}%`,
@@ -289,24 +289,24 @@ export default function Cabinet() {
         {/* ── EMPTY STATE ─────────────────────────────── */}
         {!loading && cvs.length === 0 && (
           <div style={{
-            background: "#003B44",
+            background: "#F0EAD8",
             borderRadius: "12px",
             padding: "60px 40px",
             textAlign: "center",
-            border: "1px dashed rgba(0,245,212,0.3)",
+            border: "1px dashed rgba(45,90,61,0.3)",
             marginBottom: "24px",
           }}>
             <div style={{ fontSize: "clamp(24px, 5vw, 48px)", marginBottom: "20px" }}>🗂️</div>
             <h3 style={{
-              color: "#00F5D4",
-              fontFamily: "'Bodoni MT Black', serif",
+              color: "#2D5A3D",
+              fontFamily: "'Libre Baskerville', serif",
               fontSize: "20px",
               marginBottom: "12px",
             }}>
               No CVs saved yet
             </h3>
             <p style={{
-              color: "#E0FFFF", opacity: 0.6, fontSize: "14px",
+              color: "#1E2018", opacity: 0.6, fontSize: "14px",
               maxWidth: "380px", margin: "0 auto 28px auto", lineHeight: "1.7",
             }}>
               Generate a tailored CV for a job and it will be automatically saved here.
@@ -337,15 +337,15 @@ export default function Cabinet() {
                 <div
                   key={cv.id}
                   style={{
-                    background: "#003B44",
+                    background: "#F0EAD8",
                     borderRadius: "12px",
                     padding: "28px",
                     marginBottom: "16px",
-                    border: "1px solid rgba(0,245,212,0.1)",
+                    border: "1px solid rgba(45,90,61,0.1)",
                     transition: "border-color 0.2s ease",
                   }}
-                  onMouseEnter={(e) => e.currentTarget.style.borderColor = "rgba(0,245,212,0.25)"}
-                  onMouseLeave={(e) => e.currentTarget.style.borderColor = "rgba(0,245,212,0.1)"}
+                  onMouseEnter={(e) => e.currentTarget.style.borderColor = "rgba(45,90,61,0.25)"}
+                  onMouseLeave={(e) => e.currentTarget.style.borderColor = "rgba(45,90,61,0.1)"}
                 >
 
                   {/* ── Card Header: title + ATS score ── */}
@@ -361,8 +361,8 @@ export default function Cabinet() {
                     <div style={{ flex: 1 }}>
                       {/* Job title */}
                       <h3 style={{
-                        color: "#E0FFFF",
-                        fontFamily: "'Bodoni MT Black', serif",
+                        color: "#1E2018",
+                        fontFamily: "'Libre Baskerville', serif",
                         fontSize: "16px",
                         marginBottom: "6px",
                       }}>
@@ -370,14 +370,14 @@ export default function Cabinet() {
                       </h3>
 
                       {/* Date saved */}
-                      <p style={{ color: "#E0FFFF", fontSize: "12px", opacity: 0.4 }}>
+                      <p style={{ color: "#1E2018", fontSize: "12px", opacity: 0.4 }}>
                         Saved {formatDate(cv.created_at)}
                       </p>
                     </div>
 
                     {/* ATS Score badge */}
                     <div style={{
-                      background: "#0B1E2A",
+                      background: "#FFFFFF",
                       borderRadius: "10px",
                       padding: "10px 16px",
                       textAlign: "center",
@@ -385,15 +385,15 @@ export default function Cabinet() {
                       flexShrink: 0,
                     }}>
                       <p style={{
-                        color: "#E0FFFF", fontSize: "10px", opacity: 0.4,
-                        marginBottom: "4px", fontFamily: "'Bodoni MT Black', serif",
+                        color: "#1E2018", fontSize: "10px", opacity: 0.4,
+                        marginBottom: "4px", fontFamily: "'Libre Baskerville', serif",
                         letterSpacing: "1px", textTransform: "uppercase",
                       }}>
                         ATS
                       </p>
                       <p style={{
                         color: scoreColor(cv.ats_score),
-                        fontFamily: "'Train One', cursive",
+                        fontFamily: "'Libre Baskerville', serif",
                         fontSize: "26px",
                         lineHeight: 1,
                       }}>
@@ -407,7 +407,7 @@ export default function Cabinet() {
                   {/* ── Summary Preview ──────────────────── */}
                   {summaryPreview && (
                     <p style={{
-                      color: "#E0FFFF",
+                      color: "#1E2018",
                       fontSize: "13px",
                       opacity: 0.6,
                       lineHeight: "1.65",
@@ -422,26 +422,26 @@ export default function Cabinet() {
                   <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginBottom: "20px" }}>
                     {skillCount > 0 && (
                       <span style={{
-                        background: "rgba(0,245,212,0.07)",
-                        border: "1px solid rgba(0,245,212,0.2)",
-                        color: "#00F5D4",
+                        background: "rgba(45,90,61,0.07)",
+                        border: "1px solid rgba(45,90,61,0.2)",
+                        color: "#2D5A3D",
                         padding: "3px 10px",
                         borderRadius: "20px",
                         fontSize: "11px",
-                        fontFamily: "'Bodoni MT Black', serif",
+                        fontFamily: "'Libre Baskerville', serif",
                       }}>
                         {skillCount} skills
                       </span>
                     )}
                     {cv.ai_result?.experience?.length > 0 && (
                       <span style={{
-                        background: "rgba(0,245,212,0.07)",
-                        border: "1px solid rgba(0,245,212,0.2)",
-                        color: "#00F5D4",
+                        background: "rgba(45,90,61,0.07)",
+                        border: "1px solid rgba(45,90,61,0.2)",
+                        color: "#2D5A3D",
                         padding: "3px 10px",
                         borderRadius: "20px",
                         fontSize: "11px",
-                        fontFamily: "'Bodoni MT Black', serif",
+                        fontFamily: "'Libre Baskerville', serif",
                       }}>
                         {cv.ai_result.experience.length} roles
                       </span>
@@ -463,13 +463,13 @@ export default function Cabinet() {
                       disabled={isDownloading}
                       style={{
                         background: "transparent",
-                        border: "1px solid rgba(0,245,212,0.4)",
-                        color: "#00F5D4",
+                        border: "1px solid rgba(45,90,61,0.4)",
+                        color: "#2D5A3D",
                         padding: "8px 18px",
                         borderRadius: "6px",
                         cursor: isDownloading ? "not-allowed" : "pointer",
                         fontSize: "13px",
-                        fontFamily: "'Bodoni MT Black', serif",
+                        fontFamily: "'Libre Baskerville', serif",
                         opacity: isDownloading ? 0.6 : 1,
                         display: "flex",
                         alignItems: "center",
@@ -477,7 +477,7 @@ export default function Cabinet() {
                         transition: "background 0.15s ease, border-color 0.15s ease",
                       }}
                       onMouseEnter={(e) => {
-                        if (!isDownloading) e.currentTarget.style.background = "rgba(0,245,212,0.1)";
+                        if (!isDownloading) e.currentTarget.style.background = "rgba(45,90,61,0.1)";
                       }}
                       onMouseLeave={(e) => {
                         e.currentTarget.style.background = "transparent";
@@ -487,7 +487,7 @@ export default function Cabinet() {
                         <>
                           <span style={{
                             display: "inline-block", width: "11px", height: "11px",
-                            border: "2px solid #00F5D4", borderTopColor: "transparent",
+                            border: "2px solid #2D5A3D", borderTopColor: "transparent",
                             borderRadius: "50%", animation: "spin 0.7s linear infinite",
                           }} />
                           Preparing...
@@ -504,12 +504,12 @@ export default function Cabinet() {
                         style={{
                           background: "transparent",
                           border: "1px solid rgba(255,107,107,0.3)",
-                          color: "#FF6B6B",
+                          color: "#8B2020",
                           padding: "8px 18px",
                           borderRadius: "6px",
                           cursor: "pointer",
                           fontSize: "13px",
-                          fontFamily: "'Bodoni MT Black', serif",
+                          fontFamily: "'Libre Baskerville', serif",
                           opacity: 0.7,
                           transition: "opacity 0.15s ease, background 0.15s ease",
                         }}
@@ -529,7 +529,7 @@ export default function Cabinet() {
                     {isConfirming && (
                       // Step 2: confirm delete
                       <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "8px" }}>
-                        <span style={{ color: "#E0FFFF", fontSize: "12px", opacity: 0.6 }}>
+                        <span style={{ color: "#1E2018", fontSize: "12px", opacity: 0.6 }}>
                           Are you sure?
                         </span>
                         <button
@@ -537,12 +537,12 @@ export default function Cabinet() {
                           style={{
                             background: "rgba(255,107,107,0.15)",
                             border: "1px solid rgba(255,107,107,0.5)",
-                            color: "#FF6B6B",
+                            color: "#8B2020",
                             padding: "6px 14px",
                             borderRadius: "6px",
                             cursor: "pointer",
                             fontSize: "12px",
-                            fontFamily: "'Bodoni MT Black', serif",
+                            fontFamily: "'Libre Baskerville', serif",
                           }}
                         >
                           Yes, delete
@@ -553,12 +553,12 @@ export default function Cabinet() {
                           style={{
                             background: "transparent",
                             border: "1px solid rgba(255,255,255,0.15)",
-                            color: "#E0FFFF",
+                            color: "#1E2018",
                             padding: "6px 14px",
                             borderRadius: "6px",
                             cursor: "pointer",
                             fontSize: "12px",
-                            fontFamily: "'Bodoni MT Black', serif",
+                            fontFamily: "'Libre Baskerville', serif",
                             opacity: 0.5,
                           }}
                         >
@@ -568,7 +568,7 @@ export default function Cabinet() {
                     )}
 
                     {isDeleting && (
-                      <span style={{ color: "#E0FFFF", fontSize: "12px", opacity: 0.5 }}>
+                      <span style={{ color: "#1E2018", fontSize: "12px", opacity: 0.5 }}>
                         Deleting...
                       </span>
                     )}

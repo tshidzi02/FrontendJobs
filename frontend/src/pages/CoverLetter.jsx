@@ -344,13 +344,13 @@ export default function CoverLetter() {
         {/* ── PAGE HEADER ──────────────────────────────── */}
         <div style={{ marginBottom: "28px" }}>
           <h1 style={{
-            fontFamily: "'Train One', cursive",
-            fontSize: "clamp(20px, 4vw, 32px)", color: "#00F5D4",
+            fontFamily: "'Libre Baskerville', serif",
+            fontSize: "clamp(20px, 4vw, 32px)", color: "#2D5A3D",
             letterSpacing: "2px", marginBottom: "6px",
           }}>
             Cover Letter
           </h1>
-          <p style={{ color: "#E0FFFF", opacity: 0.5, fontSize: "13px" }}>
+          <p style={{ color: "#1E2018", opacity: 0.5, fontSize: "13px" }}>
             Generate a tailored cover letter from your profile and a job description.
           </p>
         </div>
@@ -386,7 +386,7 @@ export default function CoverLetter() {
 
           {/* Job Description */}
           <h3 style={{
-            color: "#00F5D4", fontFamily: "'Bodoni MT Black', serif",
+            color: "#2D5A3D", fontFamily: "'Libre Baskerville', serif",
             fontSize: "13px", letterSpacing: "2px", textTransform: "uppercase",
             marginBottom: "14px", opacity: 0.8,
           }}>
@@ -399,9 +399,9 @@ export default function CoverLetter() {
             placeholder="Paste the full job description here..."
             rows={8}
             style={{
-              width: "100%", background: "#0B1E2A",
-              border: "1px solid rgba(0,245,212,0.2)", borderRadius: "8px",
-              color: "#E0FFFF", padding: "14px", fontSize: "13px",
+              width: "100%", background: "#FFFFFF",
+              border: "1px solid rgba(45,90,61,0.2)", borderRadius: "8px",
+              color: "#1E2018", padding: "14px", fontSize: "13px",
               lineHeight: "1.6", resize: "vertical",
               fontFamily: "system-ui, sans-serif", marginBottom: "20px",
             }}
@@ -409,7 +409,7 @@ export default function CoverLetter() {
 
           {/* Tone Selector */}
           <h3 style={{
-            color: "#00F5D4", fontFamily: "'Bodoni MT Black', serif",
+            color: "#2D5A3D", fontFamily: "'Libre Baskerville', serif",
             fontSize: "13px", letterSpacing: "2px", textTransform: "uppercase",
             marginBottom: "12px", opacity: 0.8,
           }}>
@@ -425,10 +425,10 @@ export default function CoverLetter() {
                   onClick={() => setTone(option.value)}
                   style={{
                     flex: 1, minWidth: "140px",
-                    background: isSelected ? "rgba(0,245,212,0.12)" : "rgba(0,0,0,0.2)",
+                    background: isSelected ? "rgba(45,90,61,0.12)" : "rgba(0,0,0,0.2)",
                     border: isSelected
-                      ? "1px solid rgba(0,245,212,0.6)"
-                      : "1px solid rgba(0,245,212,0.15)",
+                      ? "1px solid rgba(45,90,61,0.6)"
+                      : "1px solid rgba(45,90,61,0.15)",
                     borderRadius: "10px",
                     padding: "14px 16px",
                     cursor: "pointer",
@@ -436,15 +436,15 @@ export default function CoverLetter() {
                   }}
                 >
                   <p style={{
-                    color: isSelected ? "#00F5D4" : "#E0FFFF",
-                    fontFamily: "'Bodoni MT Black', serif",
+                    color: isSelected ? "#2D5A3D" : "#1E2018",
+                    fontFamily: "'Libre Baskerville', serif",
                     fontSize: "13px", marginBottom: "5px",
                     fontWeight: "900",
                   }}>
                     {isSelected ? "● " : "○ "}{option.label}
                   </p>
                   <p style={{
-                    color: "#E0FFFF", fontSize: "11px",
+                    color: "#1E2018", fontSize: "11px",
                     opacity: 0.45, lineHeight: "1.5", margin: 0,
                     fontFamily: "system-ui, sans-serif",
                   }}>
@@ -456,7 +456,7 @@ export default function CoverLetter() {
           </div>
 
           {error && (
-            <p style={{ color: "#FF6B6B", fontSize: "13px", marginBottom: "12px" }}>{error}</p>
+            <p style={{ color: "#8B2020", fontSize: "13px", marginBottom: "12px" }}>{error}</p>
           )}
 
           {/* Generate Button */}
@@ -475,7 +475,7 @@ export default function CoverLetter() {
               <>
                 <span style={{
                   display: "inline-block", width: "14px", height: "14px",
-                  border: "2px solid #0B1E2A", borderTopColor: "transparent",
+                  border: "2px solid #2D5A3D", borderTopColor: "transparent",
                   borderRadius: "50%", animation: "spin 0.7s linear infinite",
                 }} />
                 Writing...
@@ -493,12 +493,12 @@ export default function CoverLetter() {
         {/* ══ LOADING SKELETON ════════════════════════════ */}
         {loading && (
           <div style={{
-            background: "#003B44", borderRadius: "12px", padding: "32px",
-            marginBottom: "24px", border: "1px solid rgba(0,245,212,0.08)",
+            background: "#F0EAD8", borderRadius: "12px", padding: "32px",
+            marginBottom: "24px", border: "1px solid rgba(45,90,61,0.08)",
           }}>
             {[100, 95, 88, 92, 75, 85, 60].map((w, i) => (
               <div key={i} style={{
-                height: "13px", background: "rgba(0,245,212,0.07)",
+                height: "13px", background: "rgba(45,90,61,0.07)",
                 borderRadius: "6px", marginBottom: "14px", width: `${w}%`,
                 animation: "pulse 1.5s ease-in-out infinite",
                 animationDelay: `${i * 0.1}s`,
@@ -519,15 +519,15 @@ export default function CoverLetter() {
               marginBottom: "20px",
             }}>
               <h3 style={{
-                color: "#00F5D4", fontFamily: "'Bodoni MT Black', serif",
+                color: "#2D5A3D", fontFamily: "'Libre Baskerville', serif",
                 fontSize: "13px", letterSpacing: "2px", textTransform: "uppercase",
                 opacity: 0.8, margin: 0,
               }}>
                 ✉ Generated Cover Letter
               </h3>
               <span style={{
-                color: "#E0FFFF", fontSize: "11px", opacity: 0.35,
-                fontFamily: "'Bodoni MT Black', serif",
+                color: "#1E2018", fontSize: "11px", opacity: 0.35,
+                fontFamily: "'Libre Baskerville', serif",
               }}>
                 {result.length} characters · {result.split(/\n\n+/).filter(p => p.trim()).length} paragraphs
               </span>
@@ -535,15 +535,15 @@ export default function CoverLetter() {
 
             {/* Cover letter text — shown in a readable panel */}
             <div style={{
-              background: "#0B1E2A",
-              border: "1px solid rgba(0,245,212,0.1)",
+              background: "#FFFFFF",
+              border: "1px solid rgba(45,90,61,0.1)",
               borderRadius: "10px",
               padding: "28px 32px",
               marginBottom: "24px",
               whiteSpace: "pre-wrap",
               // pre-wrap: preserves newlines from the plain text response
               // while still wrapping long lines. Essential for cover letter prose.
-              color: "#E0FFFF",
+              color: "#1E2018",
               fontSize: "14px",
               lineHeight: "1.85",
               fontFamily: "system-ui, sans-serif",
@@ -562,7 +562,7 @@ export default function CoverLetter() {
                 onClick={() => handleCopy(result)}
                 style={{
                   fontSize: "14px", padding: "11px 24px",
-                  background: copied ? "#1DE9B6" : "#00F5D4",
+                  background: copied ? "#3D7A55" : "#2D5A3D",
                 }}
               >
                 {copied ? "✓ Copied!" : "⎘ Copy"}
@@ -573,20 +573,20 @@ export default function CoverLetter() {
                 onClick={() => handleDownload(result, jobDescription.split("\n")[0] || "Cover_Letter")}
                 style={{
                   background: "transparent",
-                  border: "1px solid rgba(0,245,212,0.4)",
-                  color: "#00F5D4", padding: "11px 24px",
+                  border: "1px solid rgba(45,90,61,0.4)",
+                  color: "#2D5A3D", padding: "11px 24px",
                   borderRadius: "6px", cursor: "pointer",
-                  fontSize: "14px", fontFamily: "'Bodoni MT Black', serif",
+                  fontSize: "14px", fontFamily: "'Libre Baskerville', serif",
                   transition: "background 0.15s ease",
                 }}
-                onMouseEnter={(e) => e.currentTarget.style.background = "rgba(0,245,212,0.08)"}
+                onMouseEnter={(e) => e.currentTarget.style.background = "rgba(45,90,61,0.08)"}
                 onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
               >
                 ⬇ Download .docx
               </button>
 
               {downloadError && (
-                <p style={{ color: "#FF6B6B", fontSize: "12px", marginTop: "6px", fontFamily: "system-ui, sans-serif" }}>
+                <p style={{ color: "#8B2020", fontSize: "12px", marginTop: "6px", fontFamily: "system-ui, sans-serif" }}>
                   ⚠ {downloadError}
                 </p>
               )}
@@ -599,7 +599,7 @@ export default function CoverLetter() {
                   disabled={saving || saved}
                   style={{
                     fontSize: "14px", padding: "11px 24px",
-                    background: saved ? "#1DE9B6" : saving ? "#00B4D8" : "#00F5D4",
+                    background: saved ? "#3D7A55" : saving ? "#2D5A3D" : "#2D5A3D",
                     opacity: saving ? 0.75 : 1,
                     cursor: (saving || saved) ? "not-allowed" : "pointer",
                     display: "flex", flexWrap: "wrap", alignItems: "center", gap: "8px",
@@ -609,7 +609,7 @@ export default function CoverLetter() {
                     <>
                       <span style={{
                         display: "inline-block", width: "12px", height: "12px",
-                        border: "2px solid #0B1E2A", borderTopColor: "transparent",
+                        border: "2px solid #2D5A3D", borderTopColor: "transparent",
                         borderRadius: "50%", animation: "spin 0.7s linear infinite",
                       }} />
                       Saving...
@@ -617,7 +617,7 @@ export default function CoverLetter() {
                   ) : saved ? "✓ Saved!" : "💾 Save"}
                 </button>
                 {saveError && (
-                  <p style={{ color: "#FF6B6B", fontSize: "12px", marginTop: "6px" }}>
+                  <p style={{ color: "#8B2020", fontSize: "12px", marginTop: "6px" }}>
                     {saveError}
                   </p>
                 )}
@@ -634,14 +634,14 @@ export default function CoverLetter() {
         ════════════════════════════════════════════════ */}
         <div className="card" style={{ maxWidth: "100%", marginBottom: "24px" }}>
           <h3 style={{
-            color: "#00F5D4", fontFamily: "'Bodoni MT Black', serif",
+            color: "#2D5A3D", fontFamily: "'Libre Baskerville', serif",
             fontSize: "13px", letterSpacing: "2px", textTransform: "uppercase",
             marginBottom: "6px", opacity: 0.8,
           }}>
             ✍ Signature
           </h3>
           <p style={{
-            color: "#E0FFFF", fontSize: "13px", opacity: 0.45,
+            color: "#1E2018", fontSize: "13px", opacity: 0.45,
             marginBottom: "20px", lineHeight: "1.6",
             fontFamily: "system-ui, sans-serif",
           }}>
@@ -663,28 +663,28 @@ export default function CoverLetter() {
             <div
               onClick={() => fileInputRef.current?.click()}
               style={{
-                border: "2px dashed rgba(0,245,212,0.3)",
+                border: "2px dashed rgba(45,90,61,0.3)",
                 borderRadius: "12px", padding: "36px 20px",
                 textAlign: "center", cursor: "pointer",
                 transition: "border-color 0.2s ease, background 0.2s ease",
               }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.borderColor = "#00F5D4";
-                e.currentTarget.style.background = "rgba(0,245,212,0.04)";
+                e.currentTarget.style.borderColor = "#2D5A3D";
+                e.currentTarget.style.background = "rgba(45,90,61,0.04)";
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.borderColor = "rgba(0,245,212,0.3)";
+                e.currentTarget.style.borderColor = "rgba(45,90,61,0.3)";
                 e.currentTarget.style.background = "transparent";
               }}
             >
               <div style={{ fontSize: "28px", marginBottom: "10px" }}>✍</div>
               <p style={{
-                color: "#00F5D4", fontFamily: "'Bodoni MT Black', serif",
+                color: "#2D5A3D", fontFamily: "'Libre Baskerville', serif",
                 fontSize: "14px", marginBottom: "4px",
               }}>
                 Click to upload signature
               </p>
-              <p style={{ color: "#E0FFFF", fontSize: "12px", opacity: 0.35, fontFamily: "system-ui, sans-serif" }}>
+              <p style={{ color: "#1E2018", fontSize: "12px", opacity: 0.35, fontFamily: "system-ui, sans-serif" }}>
                 PNG or JPEG · Max 2MB
               </p>
             </div>
@@ -698,7 +698,7 @@ export default function CoverLetter() {
                 background: "#ffffff", borderRadius: "10px",
                 padding: "20px", marginBottom: "16px",
                 display: "inline-block",
-                border: "1px solid rgba(0,245,212,0.2)",
+                border: "1px solid rgba(45,90,61,0.2)",
               }}>
                 <img
                   src={signature}
@@ -715,7 +715,7 @@ export default function CoverLetter() {
                   disabled={sigSaving || sigSaved}
                   style={{
                     fontSize: "13px", padding: "10px 22px",
-                    background: sigSaved ? "#1DE9B6" : "#00F5D4",
+                    background: sigSaved ? "#3D7A55" : "#2D5A3D",
                     opacity: sigSaving ? 0.7 : 1,
                     cursor: (sigSaving || sigSaved) ? "not-allowed" : "pointer",
                     display: "flex", flexWrap: "wrap", alignItems: "center", gap: "7px",
@@ -725,7 +725,7 @@ export default function CoverLetter() {
                     <>
                       <span style={{
                         display: "inline-block", width: "11px", height: "11px",
-                        border: "2px solid #0B1E2A", borderTopColor: "transparent",
+                        border: "2px solid #2D5A3D", borderTopColor: "transparent",
                         borderRadius: "50%", animation: "spin 0.7s linear infinite",
                       }} />
                       Saving...
@@ -738,13 +738,13 @@ export default function CoverLetter() {
                   onClick={() => fileInputRef.current?.click()}
                   style={{
                     background: "transparent",
-                    border: "1px solid rgba(0,245,212,0.35)",
-                    color: "#00F5D4", padding: "10px 20px",
+                    border: "1px solid rgba(45,90,61,0.35)",
+                    color: "#2D5A3D", padding: "10px 20px",
                     borderRadius: "6px", cursor: "pointer",
-                    fontSize: "13px", fontFamily: "'Bodoni MT Black', serif",
+                    fontSize: "13px", fontFamily: "'Libre Baskerville', serif",
                     transition: "background 0.15s ease",
                   }}
-                  onMouseEnter={(e) => e.currentTarget.style.background = "rgba(0,245,212,0.08)"}
+                  onMouseEnter={(e) => e.currentTarget.style.background = "rgba(45,90,61,0.08)"}
                   onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
                 >
                   Replace
@@ -756,9 +756,9 @@ export default function CoverLetter() {
                   style={{
                     background: "transparent",
                     border: "1px solid rgba(255,107,107,0.3)",
-                    color: "#FF6B6B", padding: "10px 20px",
+                    color: "#8B2020", padding: "10px 20px",
                     borderRadius: "6px", cursor: "pointer",
-                    fontSize: "13px", fontFamily: "'Bodoni MT Black', serif",
+                    fontSize: "13px", fontFamily: "'Libre Baskerville', serif",
                     opacity: 0.7, transition: "opacity 0.15s ease, background 0.15s ease",
                   }}
                   onMouseEnter={(e) => { e.currentTarget.style.opacity = "1"; e.currentTarget.style.background = "rgba(255,107,107,0.07)"; }}
@@ -771,7 +771,7 @@ export default function CoverLetter() {
           )}
 
           {signatureError && (
-            <p style={{ color: "#FF6B6B", fontSize: "13px", marginTop: "12px" }}>
+            <p style={{ color: "#8B2020", fontSize: "13px", marginTop: "12px" }}>
               ⚠ {signatureError}
             </p>
           )}
@@ -782,7 +782,7 @@ export default function CoverLetter() {
         <div style={{ marginBottom: "40px" }}>
 
           <h3 style={{
-            color: "#00F5D4", fontFamily: "'Bodoni MT Black', serif",
+            color: "#2D5A3D", fontFamily: "'Libre Baskerville', serif",
             fontSize: "13px", letterSpacing: "2px", textTransform: "uppercase",
             marginBottom: "16px", opacity: 0.8,
           }}>
@@ -790,11 +790,11 @@ export default function CoverLetter() {
             {history.length > 0 && (
               <span style={{
                 marginLeft: "10px",
-                background: "rgba(0,245,212,0.15)",
-                border: "1px solid rgba(0,245,212,0.3)",
-                color: "#00F5D4", fontSize: "11px",
+                background: "rgba(45,90,61,0.15)",
+                border: "1px solid rgba(45,90,61,0.3)",
+                color: "#2D5A3D", fontSize: "11px",
                 padding: "2px 8px", borderRadius: "10px",
-                fontFamily: "'Bodoni MT Black', serif",
+                fontFamily: "'Libre Baskerville', serif",
               }}>
                 {history.length}
               </span>
@@ -806,8 +806,8 @@ export default function CoverLetter() {
             <div>
               {[1, 2].map(i => (
                 <div key={i} style={{
-                  background: "#003B44", borderRadius: "12px", padding: "24px",
-                  marginBottom: "12px", border: "1px solid rgba(0,245,212,0.08)",
+                  background: "#F0EAD8", borderRadius: "12px", padding: "24px",
+                  marginBottom: "12px", border: "1px solid rgba(45,90,61,0.08)",
                   animation: "pulse 1.5s ease-in-out infinite",
                   animationDelay: `${i * 0.15}s`,
                   height: "80px",
@@ -819,12 +819,12 @@ export default function CoverLetter() {
           {/* Empty state */}
           {!historyLoading && history.length === 0 && (
             <div style={{
-              background: "#003B44",
-              border: "1px dashed rgba(0,245,212,0.2)",
+              background: "#F0EAD8",
+              border: "1px dashed rgba(45,90,61,0.2)",
               borderRadius: "12px", padding: "40px",
               textAlign: "center",
             }}>
-              <p style={{ color: "#E0FFFF", opacity: 0.4, fontSize: "14px" }}>
+              <p style={{ color: "#1E2018", opacity: 0.4, fontSize: "14px" }}>
                 No cover letters saved yet. Generate one above and click Save.
               </p>
             </div>
@@ -838,36 +838,36 @@ export default function CoverLetter() {
 
             // Tone badge colour
             const toneBadgeColor = {
-              professional: "rgba(0,245,212,0.15)",
+              professional: "rgba(45,90,61,0.15)",
               enthusiastic: "rgba(255,179,71,0.12)",
               concise:      "rgba(180,180,255,0.12)",
-            }[cl.tone] || "rgba(0,245,212,0.1)";
+            }[cl.tone] || "rgba(45,90,61,0.1)";
 
             const toneBorderColor = {
-              professional: "rgba(0,245,212,0.35)",
+              professional: "rgba(45,90,61,0.35)",
               enthusiastic: "rgba(255,179,71,0.35)",
               concise:      "rgba(180,180,255,0.35)",
-            }[cl.tone] || "rgba(0,245,212,0.2)";
+            }[cl.tone] || "rgba(45,90,61,0.2)";
 
             const toneTextColor = {
-              professional: "#00F5D4",
+              professional: "#2D5A3D",
               enthusiastic: "#FFB347",
               concise:      "#B4B4FF",
-            }[cl.tone] || "#00F5D4";
+            }[cl.tone] || "#2D5A3D";
 
             return (
               <div
                 key={cl.id}
                 style={{
-                  background: "#003B44",
+                  background: "#F0EAD8",
                   borderRadius: "12px",
                   padding: "20px 24px",
                   marginBottom: "12px",
-                  border: "1px solid rgba(0,245,212,0.1)",
+                  border: "1px solid rgba(45,90,61,0.1)",
                   transition: "border-color 0.2s ease",
                 }}
-                onMouseEnter={(e) => e.currentTarget.style.borderColor = "rgba(0,245,212,0.25)"}
-                onMouseLeave={(e) => e.currentTarget.style.borderColor = "rgba(0,245,212,0.1)"}
+                onMouseEnter={(e) => e.currentTarget.style.borderColor = "rgba(45,90,61,0.25)"}
+                onMouseLeave={(e) => e.currentTarget.style.borderColor = "rgba(45,90,61,0.1)"}
               >
 
                 {/* Card header row */}
@@ -878,14 +878,14 @@ export default function CoverLetter() {
                 }}>
                   <div>
                     <p style={{
-                      color: "#E0FFFF", fontFamily: "'Bodoni MT Black', serif",
+                      color: "#1E2018", fontFamily: "'Libre Baskerville', serif",
                       fontSize: "14px", marginBottom: "5px",
                     }}>
                       {cl.job_title}
                     </p>
                     <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
                       {/* Date */}
-                      <span style={{ color: "#E0FFFF", fontSize: "12px", opacity: 0.35 }}>
+                      <span style={{ color: "#1E2018", fontSize: "12px", opacity: 0.35 }}>
                         {formatDate(cl.created_at)}
                       </span>
                       {/* Tone badge */}
@@ -895,7 +895,7 @@ export default function CoverLetter() {
                         color: toneTextColor,
                         fontSize: "10px", padding: "2px 8px",
                         borderRadius: "10px",
-                        fontFamily: "'Bodoni MT Black', serif",
+                        fontFamily: "'Libre Baskerville', serif",
                         letterSpacing: "0.5px", textTransform: "capitalize",
                       }}>
                         {cl.tone}
@@ -911,13 +911,13 @@ export default function CoverLetter() {
                       onClick={() => setExpandedId(isExpanded ? null : cl.id)}
                       style={{
                         background: "transparent",
-                        border: "1px solid rgba(0,245,212,0.3)",
-                        color: "#00F5D4", padding: "6px 14px",
+                        border: "1px solid rgba(45,90,61,0.3)",
+                        color: "#2D5A3D", padding: "6px 14px",
                         borderRadius: "6px", cursor: "pointer",
-                        fontSize: "12px", fontFamily: "'Bodoni MT Black', serif",
+                        fontSize: "12px", fontFamily: "'Libre Baskerville', serif",
                         transition: "background 0.15s ease",
                       }}
-                      onMouseEnter={(e) => e.currentTarget.style.background = "rgba(0,245,212,0.08)"}
+                      onMouseEnter={(e) => e.currentTarget.style.background = "rgba(45,90,61,0.08)"}
                       onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
                     >
                       {isExpanded ? "▲ Collapse" : "▼ View"}
@@ -928,13 +928,13 @@ export default function CoverLetter() {
                       onClick={() => handleCopy(cl.cover_letter)}
                       style={{
                         background: "transparent",
-                        border: "1px solid rgba(0,245,212,0.3)",
-                        color: "#00F5D4", padding: "6px 14px",
+                        border: "1px solid rgba(45,90,61,0.3)",
+                        color: "#2D5A3D", padding: "6px 14px",
                         borderRadius: "6px", cursor: "pointer",
-                        fontSize: "12px", fontFamily: "'Bodoni MT Black', serif",
+                        fontSize: "12px", fontFamily: "'Libre Baskerville', serif",
                         transition: "background 0.15s ease",
                       }}
-                      onMouseEnter={(e) => e.currentTarget.style.background = "rgba(0,245,212,0.08)"}
+                      onMouseEnter={(e) => e.currentTarget.style.background = "rgba(45,90,61,0.08)"}
                       onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
                     >
                       ⎘ Copy
@@ -945,13 +945,13 @@ export default function CoverLetter() {
                       onClick={() => handleDownload(cl.cover_letter, cl.job_title)}
                       style={{
                         background: "transparent",
-                        border: "1px solid rgba(0,245,212,0.3)",
-                        color: "#00F5D4", padding: "6px 14px",
+                        border: "1px solid rgba(45,90,61,0.3)",
+                        color: "#2D5A3D", padding: "6px 14px",
                         borderRadius: "6px", cursor: "pointer",
-                        fontSize: "12px", fontFamily: "'Bodoni MT Black', serif",
+                        fontSize: "12px", fontFamily: "'Libre Baskerville', serif",
                         transition: "background 0.15s ease",
                       }}
-                      onMouseEnter={(e) => e.currentTarget.style.background = "rgba(0,245,212,0.08)"}
+                      onMouseEnter={(e) => e.currentTarget.style.background = "rgba(45,90,61,0.08)"}
                       onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
                     >
                       ⬇
@@ -964,9 +964,9 @@ export default function CoverLetter() {
                         style={{
                           background: "transparent",
                           border: "1px solid rgba(255,107,107,0.25)",
-                          color: "#FF6B6B", padding: "6px 14px",
+                          color: "#8B2020", padding: "6px 14px",
                           borderRadius: "6px", cursor: "pointer",
-                          fontSize: "12px", fontFamily: "'Bodoni MT Black', serif",
+                          fontSize: "12px", fontFamily: "'Libre Baskerville', serif",
                           opacity: 0.6, transition: "opacity 0.15s ease, background 0.15s ease",
                         }}
                         onMouseEnter={(e) => { e.currentTarget.style.opacity = "1"; e.currentTarget.style.background = "rgba(255,107,107,0.07)"; }}
@@ -978,15 +978,15 @@ export default function CoverLetter() {
 
                     {isConfirming && (
                       <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "6px" }}>
-                        <span style={{ color: "#E0FFFF", fontSize: "11px", opacity: 0.5 }}>Sure?</span>
+                        <span style={{ color: "#1E2018", fontSize: "11px", opacity: 0.5 }}>Sure?</span>
                         <button
                           onClick={() => handleDelete(cl.id)}
                           style={{
                             background: "rgba(255,107,107,0.15)",
                             border: "1px solid rgba(255,107,107,0.5)",
-                            color: "#FF6B6B", padding: "5px 12px",
+                            color: "#8B2020", padding: "5px 12px",
                             borderRadius: "6px", cursor: "pointer",
-                            fontSize: "11px", fontFamily: "'Bodoni MT Black', serif",
+                            fontSize: "11px", fontFamily: "'Libre Baskerville', serif",
                           }}
                         >
                           Yes
@@ -996,9 +996,9 @@ export default function CoverLetter() {
                           style={{
                             background: "transparent",
                             border: "1px solid rgba(255,255,255,0.15)",
-                            color: "#E0FFFF", padding: "5px 12px",
+                            color: "#1E2018", padding: "5px 12px",
                             borderRadius: "6px", cursor: "pointer",
-                            fontSize: "11px", fontFamily: "'Bodoni MT Black', serif",
+                            fontSize: "11px", fontFamily: "'Libre Baskerville', serif",
                             opacity: 0.5,
                           }}
                         >
@@ -1008,7 +1008,7 @@ export default function CoverLetter() {
                     )}
 
                     {isDeleting && (
-                      <span style={{ color: "#E0FFFF", fontSize: "12px", opacity: 0.4 }}>
+                      <span style={{ color: "#1E2018", fontSize: "12px", opacity: 0.4 }}>
                         Deleting...
                       </span>
                     )}
@@ -1019,12 +1019,12 @@ export default function CoverLetter() {
                 {/* Expanded full text */}
                 {isExpanded && (
                   <div style={{
-                    background: "#0B1E2A",
-                    border: "1px solid rgba(0,245,212,0.08)",
+                    background: "#FFFFFF",
+                    border: "1px solid rgba(45,90,61,0.08)",
                     borderRadius: "8px",
                     padding: "20px 24px",
                     whiteSpace: "pre-wrap",
-                    color: "#E0FFFF",
+                    color: "#1E2018",
                     fontSize: "13px",
                     lineHeight: "1.85",
                     fontFamily: "system-ui, sans-serif",

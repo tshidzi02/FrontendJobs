@@ -9,7 +9,7 @@ import api from "../services/api";
 import DashboardLayout from "../layouts/DashboardLayout";
 
 const TONE_COLORS = {
-  "Professional":  "#00F5D4",
+  "Professional":  "#2D5A3D",
   "Conversational":"#60A5FA",
   "Bold":          "#FFB347",
 };
@@ -32,9 +32,9 @@ function CopyButton({ text }) {
       onClick={handleCopy}
       style={{
         padding: "6px 14px", borderRadius: "6px", cursor: "pointer", fontSize: "11px",
-        fontFamily: "'Bodoni MT Black', serif", fontWeight: 900,
-        background: copied ? "rgba(0,245,212,0.15)" : "transparent",
-        border: "1px solid rgba(0,245,212,0.25)", color: copied ? "#00F5D4" : "#E0FFFF",
+        fontFamily: "'Libre Baskerville', serif", fontWeight: 900,
+        background: copied ? "rgba(45,90,61,0.15)" : "transparent",
+        border: "1px solid rgba(45,90,61,0.25)", color: copied ? "#2D5A3D" : "#1E2018",
         transition: "all 0.2s",
       }}
     >
@@ -82,19 +82,19 @@ export default function LinkedInOptimiser() {
 
         {/* Header */}
         <div style={{ marginBottom: "32px" }}>
-          <h1 style={{ fontFamily: "'Train One', cursive", fontSize: "clamp(20px, 4vw, 32px)", color: "#00F5D4", letterSpacing: "2px", marginBottom: "6px" }}>
+          <h1 style={{ fontFamily: "'Libre Baskerville', serif", fontSize: "clamp(20px, 4vw, 32px)", color: "#2D5A3D", letterSpacing: "2px", marginBottom: "6px" }}>
             LINKEDIN OPTIMISER
           </h1>
-          <p style={{ color: "#E0FFFF", fontSize: "13px", opacity: 0.5 }}>
+          <p style={{ color: "#1E2018", fontSize: "13px", opacity: 0.5 }}>
             3 tailored LinkedIn summaries and headlines — pick your tone
           </p>
         </div>
 
         {/* Inputs */}
-        <div style={{ background: "#003B44", borderRadius: "16px", padding: "28px", marginBottom: "28px", border: "1px solid rgba(0,245,212,0.1)" }}>
+        <div style={{ background: "#F0EAD8", borderRadius: "16px", padding: "28px", marginBottom: "28px", border: "1px solid rgba(45,90,61,0.1)" }}>
           <div style={{ display: "flex", gap: "20px", flexWrap: "wrap" }}>
             <div style={{ flex: 2, minWidth: "280px" }}>
-              <label style={{ color: "#E0FFFF", fontSize: "11px", opacity: 0.5, letterSpacing: "2px", textTransform: "uppercase", fontFamily: "'Bodoni MT Black', serif", display: "block", marginBottom: "10px" }}>
+              <label style={{ color: "#1E2018", fontSize: "11px", opacity: 0.5, letterSpacing: "2px", textTransform: "uppercase", fontFamily: "'Libre Baskerville', serif", display: "block", marginBottom: "10px" }}>
                 Target Job Description *
               </label>
               <textarea
@@ -103,15 +103,15 @@ export default function LinkedInOptimiser() {
                 placeholder="Paste the job description you're targeting..."
                 style={{
                   width: "100%", minHeight: "130px", padding: "14px",
-                  background: "#0B1E2A", border: "1px solid rgba(0,245,212,0.2)",
-                  borderRadius: "10px", color: "#E0FFFF", fontSize: "13px",
+                  background: "#FFFFFF", border: "1px solid rgba(45,90,61,0.2)",
+                  borderRadius: "10px", color: "#1E2018", fontSize: "13px",
                   fontFamily: "system-ui, sans-serif", lineHeight: 1.6,
                   resize: "vertical", outline: "none", boxSizing: "border-box",
                 }}
               />
             </div>
             <div style={{ flex: 1, minWidth: "220px" }}>
-              <label style={{ color: "#E0FFFF", fontSize: "11px", opacity: 0.5, letterSpacing: "2px", textTransform: "uppercase", fontFamily: "'Bodoni MT Black', serif", display: "block", marginBottom: "10px" }}>
+              <label style={{ color: "#1E2018", fontSize: "11px", opacity: 0.5, letterSpacing: "2px", textTransform: "uppercase", fontFamily: "'Libre Baskerville', serif", display: "block", marginBottom: "10px" }}>
                 Current LinkedIn Bio (optional)
               </label>
               <textarea
@@ -120,8 +120,8 @@ export default function LinkedInOptimiser() {
                 placeholder="Paste your current bio to improve it..."
                 style={{
                   width: "100%", minHeight: "130px", padding: "14px",
-                  background: "#0B1E2A", border: "1px solid rgba(0,245,212,0.2)",
-                  borderRadius: "10px", color: "#E0FFFF", fontSize: "13px",
+                  background: "#FFFFFF", border: "1px solid rgba(45,90,61,0.2)",
+                  borderRadius: "10px", color: "#1E2018", fontSize: "13px",
                   fontFamily: "system-ui, sans-serif", lineHeight: 1.6,
                   resize: "vertical", outline: "none", boxSizing: "border-box",
                 }}
@@ -129,7 +129,7 @@ export default function LinkedInOptimiser() {
             </div>
           </div>
 
-          {error && <p style={{ color: "#FF6B6B", fontSize: "13px", margin: "10px 0 0" }}>{error}</p>}
+          {error && <p style={{ color: "#8B2020", fontSize: "13px", margin: "10px 0 0" }}>{error}</p>}
           <button
             onClick={handleGenerate}
             disabled={loading}
@@ -144,7 +144,7 @@ export default function LinkedInOptimiser() {
         {loading && (
           <div style={{ display: "flex", flexWrap: "wrap", gap: "12px" }}>
             {[1,2,3].map(i => (
-              <div key={i} style={{ flex: 1, height: "340px", background: "#003B44", borderRadius: "16px", opacity: 1 - i * 0.15 }} />
+              <div key={i} style={{ flex: 1, height: "340px", background: "#F0EAD8", borderRadius: "16px", opacity: 1 - i * 0.15 }} />
             ))}
           </div>
         )}
@@ -155,7 +155,7 @@ export default function LinkedInOptimiser() {
             {/* Tone selector tabs */}
             <div style={{ display: "flex", gap: "10px", marginBottom: "20px", flexWrap: "wrap" }}>
               {variations.map((v, i) => {
-                const col = TONE_COLORS[v.tone] || "#00F5D4";
+                const col = TONE_COLORS[v.tone] || "#2D5A3D";
                 return (
                   <button
                     key={i}
@@ -163,10 +163,10 @@ export default function LinkedInOptimiser() {
                     style={{
                       flex: 1, minWidth: "140px", padding: "14px 20px",
                       borderRadius: "12px", cursor: "pointer",
-                      background: selected === i ? `${col}15` : "#003B44",
-                      border: `1px solid ${selected === i ? col : "rgba(0,245,212,0.1)"}`,
-                      color: selected === i ? col : "#E0FFFF",
-                      fontFamily: "'Bodoni MT Black', serif", fontWeight: 900,
+                      background: selected === i ? `${col}15` : "#F0EAD8",
+                      border: `1px solid ${selected === i ? col : "rgba(45,90,61,0.1)"}`,
+                      color: selected === i ? col : "#1E2018",
+                      fontFamily: "'Libre Baskerville', serif", fontWeight: 900,
                       fontSize: "13px", transition: "all 0.2s",
                       textAlign: "center",
                     }}
@@ -180,20 +180,20 @@ export default function LinkedInOptimiser() {
 
             {/* Active variation */}
             {current && (
-              <div style={{ background: "#003B44", borderRadius: "16px", padding: "28px", border: `1px solid ${TONE_COLORS[current.tone] || "#00F5D4"}40` }}>
+              <div style={{ background: "#F0EAD8", borderRadius: "16px", padding: "28px", border: `1px solid ${TONE_COLORS[current.tone] || "#2D5A3D"}40` }}>
 
                 {/* Headline */}
-                <div style={{ marginBottom: "24px", paddingBottom: "20px", borderBottom: "1px solid rgba(0,245,212,0.1)" }}>
+                <div style={{ marginBottom: "24px", paddingBottom: "20px", borderBottom: "1px solid rgba(45,90,61,0.1)" }}>
                   <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "flex-start", gap: "12px", marginBottom: "10px" }}>
-                    <p style={{ color: "#E0FFFF", fontSize: "11px", opacity: 0.4, letterSpacing: "2px", textTransform: "uppercase", fontFamily: "'Bodoni MT Black', serif" }}>
+                    <p style={{ color: "#1E2018", fontSize: "11px", opacity: 0.4, letterSpacing: "2px", textTransform: "uppercase", fontFamily: "'Libre Baskerville', serif" }}>
                       LinkedIn Headline
                     </p>
                     <CopyButton text={current.headline} />
                   </div>
-                  <p style={{ color: TONE_COLORS[current.tone] || "#00F5D4", fontFamily: "'Bodoni MT Black', serif", fontWeight: 900, fontSize: "16px", lineHeight: 1.5 }}>
+                  <p style={{ color: TONE_COLORS[current.tone] || "#2D5A3D", fontFamily: "'Libre Baskerville', serif", fontWeight: 900, fontSize: "16px", lineHeight: 1.5 }}>
                     {current.headline}
                   </p>
-                  <p style={{ color: "#E0FFFF", fontSize: "11px", opacity: 0.35, marginTop: "8px" }}>
+                  <p style={{ color: "#1E2018", fontSize: "11px", opacity: 0.35, marginTop: "8px" }}>
                     {current.headline?.length || 0} / 220 characters
                   </p>
                 </div>
@@ -201,15 +201,15 @@ export default function LinkedInOptimiser() {
                 {/* Summary */}
                 <div>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px" }}>
-                    <p style={{ color: "#E0FFFF", fontSize: "11px", opacity: 0.4, letterSpacing: "2px", textTransform: "uppercase", fontFamily: "'Bodoni MT Black', serif" }}>
+                    <p style={{ color: "#1E2018", fontSize: "11px", opacity: 0.4, letterSpacing: "2px", textTransform: "uppercase", fontFamily: "'Libre Baskerville', serif" }}>
                       Summary
                     </p>
                     <CopyButton text={current.summary} />
                   </div>
-                  <p style={{ color: "#E0FFFF", fontSize: "14px", lineHeight: 1.9, fontFamily: "system-ui, sans-serif", whiteSpace: "pre-wrap" }}>
+                  <p style={{ color: "#1E2018", fontSize: "14px", lineHeight: 1.9, fontFamily: "system-ui, sans-serif", whiteSpace: "pre-wrap" }}>
                     {current.summary}
                   </p>
-                  <p style={{ color: "#E0FFFF", fontSize: "11px", opacity: 0.35, marginTop: "12px" }}>
+                  <p style={{ color: "#1E2018", fontSize: "11px", opacity: 0.35, marginTop: "12px" }}>
                     {current.summary?.split(" ").length || 0} words
                   </p>
                 </div>

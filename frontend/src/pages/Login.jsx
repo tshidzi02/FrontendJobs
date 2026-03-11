@@ -87,7 +87,7 @@ export default function Login() {
         <div className="card-title">Welcome Back</div>
 
         {error && (
-          <p style={{ color: "#FF6B6B", marginBottom: "16px", fontSize: "14px", textAlign: "center" }}>
+          <p style={{ color: "#8B2020", marginBottom: "16px", fontSize: "14px", textAlign: "center" }}>
             {error}
           </p>
         )}
@@ -121,7 +121,7 @@ export default function Login() {
               transform: "translateY(-50%)",
               background: "none", border: "none",
               cursor: "pointer", fontSize: "18px",
-              color: "#00F5D4", padding: "0", lineHeight: "1",
+              color: "#2D5A3D", padding: "0", lineHeight: "1",
             }}
             aria-label={showPassword ? "Hide password" : "Show password"}
           >
@@ -147,9 +147,9 @@ export default function Login() {
           />
         </div>
 
-        <p style={{ textAlign: "center", color: "#E0FFFF", fontSize: "14px" }}>
+        <p style={{ textAlign: "center", color: "#1E2018", fontSize: "14px" }}>
           Don't have an account?{" "}
-          <Link to="/register" style={{ color: "#00F5D4", textDecoration: "none" }}>
+          <Link to="/register" style={{ color: "#2D5A3D", textDecoration: "none" }}>
             Register here
           </Link>
         </p>

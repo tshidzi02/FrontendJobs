@@ -79,13 +79,13 @@ export default function Register() {
         <div className="card-title">Create Account</div>
 
         {error && (
-          <p style={{ color: "#FF6B6B", marginBottom: "16px", fontSize: "14px", textAlign: "center" }}>
+          <p style={{ color: "#8B2020", marginBottom: "16px", fontSize: "14px", textAlign: "center" }}>
             {error}
           </p>
         )}
 
         {success && (
-          <p style={{ color: "#00F5D4", marginBottom: "16px", fontSize: "14px", textAlign: "center" }}>
+          <p style={{ color: "#2D5A3D", marginBottom: "16px", fontSize: "14px", textAlign: "center" }}>
             {success}
           </p>
         )}
@@ -121,7 +121,7 @@ export default function Register() {
               border: "none",
               cursor: "pointer",
               fontSize: "18px",
-              color: "#00F5D4",
+              color: "#2D5A3D",
               padding: "0",
               lineHeight: "1",
             }}
@@ -153,7 +153,7 @@ export default function Register() {
               border: "none",
               cursor: "pointer",
               fontSize: "18px",
-              color: "#00F5D4",
+              color: "#2D5A3D",
               padding: "0",
               lineHeight: "1",
             }}
@@ -173,9 +173,9 @@ export default function Register() {
           {loading ? "Creating account..." : "Create Account"}
         </button>
 
-        <p style={{ textAlign: "center", color: "#E0FFFF", fontSize: "14px" }}>
+        <p style={{ textAlign: "center", color: "#1E2018", fontSize: "14px" }}>
           Already have an account?{" "}
-          <Link to="/login" style={{ color: "#00F5D4", textDecoration: "none" }}>
+          <Link to="/login" style={{ color: "#2D5A3D", textDecoration: "none" }}>
             Login here
           </Link>
         </p>
