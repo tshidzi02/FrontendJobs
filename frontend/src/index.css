@@ -68,7 +68,7 @@ html, body, #root {
 }
 
 body {
-  background-color: var(--color-bg);
+  background-color: transparent;
   color: var(--color-text);
   font-family: var(--font-body);
   font-size: 16px;
@@ -121,6 +121,11 @@ a:hover {
   flex-direction: column;
   background-color: var(--color-bg);
 }
+
+/* Pages with video backgrounds (Home, Login, Register) override
+   app-wrapper's background by using position:fixed on their root div,
+   which escapes the stacking context entirely. For all other pages
+   the warm linen background shows normally. */
 
 .page-content {
   flex: 1;

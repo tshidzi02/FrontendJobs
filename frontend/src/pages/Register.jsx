@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import api from "../services/api";
@@ -48,32 +47,43 @@ export default function Register() {
 
   return (
     <div style={{
+      position: "fixed",
+      top: 0,
+      left: 0,
+      width: "100vw",
+      height: "100vh",
       display: "flex",
       justifyContent: "center",
       alignItems: "center",
-      minHeight: "80vh",
       padding: "0 16px",
+      overflow: "auto",
     }}>
 
-        {/* Background Video */}
+      {/* Background Video */}
       <video
         autoPlay
         muted
         loop
         playsInline
         style={{
-          position: "absolute",
+          position: "fixed",
           top: 0,
           left: 0,
           width: "100%",
           height: "100%",
           objectFit: "cover",
           zIndex: -2,
-          marginTop: "100px" /* push below fixed navbar */
         }}
       >
-        <source src="/hero1-video.mp4" type="video/mp4" />
+        <source src="/nature-video.mp4" type="video/mp4" />
       </video>
+
+      {/* Dark overlay so card is readable */}
+      <div style={{
+        position: "fixed", top: 0, left: 0,
+        width: "100%", height: "100%",
+        background: "rgba(0,0,0,0.45)", zIndex: -1,
+      }} />
 
       <div className="card">
         <div className="card-title">Create Account</div>
@@ -183,4 +193,3 @@ export default function Register() {
     </div>
   );
 }
-

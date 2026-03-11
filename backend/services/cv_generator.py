@@ -194,6 +194,7 @@ def generate_cv(profile, ai_result):
 
         title      = prof_proj.get("name", prof_proj.get("title", ""))
         tech_stack = prof_proj.get("technologies", prof_proj.get("tech_stack", ""))
+        url        = prof_proj.get("url", "")
 
         # Get profile's original bullets (non-empty only)
         profile_bullets = [b for b in prof_proj.get("bullets", []) if isinstance(b, str) and b.strip()]
@@ -225,6 +226,7 @@ def generate_cv(profile, ai_result):
         projects_context.append({
             "title":      title,
             "tech_stack": tech_stack,
+            "url":        url,
             "bullets":    final_bullets,
         })
 
@@ -234,6 +236,7 @@ def generate_cv(profile, ai_result):
             {
                 "title":      proj.get("title", ""),
                 "tech_stack": proj.get("tech_stack", ""),
+                "url":        proj.get("url", ""),
                 "bullets":    [b for b in proj.get("bullets", []) if b.strip()],
             }
             for proj in ai_projects

@@ -708,9 +708,10 @@ export default function Profile() {
                           : proj.technologies.split(",").map(t => t.trim()).filter(Boolean)
                         ).map((t, ti) => (
                           <span key={ti} style={{
-                            background: "rgba(45,90,61,0.08)", border: "1px solid rgba(45,90,61,0.25)",
+                            background: "rgba(45,90,61,0.08)", border: "1px solid rgba(45,90,61,0.35)",
                             color: "#2D5A3D", fontSize: "11px", padding: "4px 10px", borderRadius: "4px",
                             display: "flex", alignItems: "center", gap: "6px",
+                            boxShadow: "0 0 8px rgba(45,90,61,0.25), inset 0 0 4px rgba(45,90,61,0.05)",
                           }}>
                             {t}
                             <span onClick={() => {
@@ -840,9 +841,10 @@ export default function Profile() {
                         : proj.technologies.split(",").map(t => t.trim()).filter(Boolean)
                       ).map((t, ti) => (
                         <span key={ti} style={{
-                          background: "rgba(45,90,61,0.08)", border: "1px solid rgba(45,90,61,0.25)",
+                          background: "rgba(45,90,61,0.08)", border: "1px solid rgba(45,90,61,0.35)",
                           color: "#2D5A3D", fontSize: "11px",
                           padding: "4px 10px", borderRadius: "4px", letterSpacing: "0.5px",
+                          boxShadow: "0 0 8px rgba(45,90,61,0.25), inset 0 0 4px rgba(45,90,61,0.05)",
                         }}>{t}</span>
                       ))}
                     </div>

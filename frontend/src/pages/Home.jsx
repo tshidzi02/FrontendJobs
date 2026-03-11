@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
@@ -36,7 +35,7 @@ export default function Home() {
           zIndex: -2,
         }}
       >
-        <source src="/hero2-video.mp4" type="video/mp4" />
+        <source src="/nature-video.mp4" type="video/mp4" />
       </video>
 
       {/* ── Dark Overlay ──────────────────────────────── */}
@@ -262,4 +261,3 @@ export default function Home() {
     </div>
   );
 }
-

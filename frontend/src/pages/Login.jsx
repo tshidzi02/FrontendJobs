@@ -1,4 +1,3 @@
-
 // =============================================================================
 // FILE: frontend/src/pages/Login.jsx  (UPDATED — AuthContext)
 // =============================================================================
@@ -63,25 +62,36 @@ export default function Login() {
 
   return (
     <div style={{
+      position: "fixed",
+      top: 0,
+      left: 0,
+      width: "100vw",
+      height: "100vh",
       display: "flex",
       justifyContent: "center",
       alignItems: "center",
-      minHeight: "80vh",
       padding: "0 16px",
+      overflow: "auto",
     }}>
 
       {/* Background Video */}
       <video
         autoPlay muted loop playsInline
         style={{
-          position: "absolute", top: 0, left: 0,
+          position:  "fixed", top: 0, left: 0,
           width: "100%", height: "100%",
           objectFit: "cover", zIndex: -2,
-          marginTop: "100px",
         }}
       >
-        <source src="/hero1-video.mp4" type="video/mp4" />
+        <source src="/nature-video.mp4" type="video/mp4" />
       </video>
+
+      {/* Dark overlay so card is readable */}
+      <div style={{
+        position: "fixed", top: 0, left: 0,
+        width: "100%", height: "100%",
+        background: "rgba(0,0,0,0.45)", zIndex: -1,
+      }} />
 
       <div className="card">
         <div className="card-title">Welcome Back</div>
@@ -157,4 +167,3 @@ export default function Login() {
     </div>
   );
 }
-

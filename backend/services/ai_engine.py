@@ -27,6 +27,13 @@ def generate_cv_content(
         if p.get("includeInCV", True)
     ]
 
+    # Store URL map keyed by project name so we can re-attach after AI call
+    # (AI is not told about URLs — it only enhances bullets and titles)
+    project_url_map = {
+        p.get("name", p.get("title", "")): p.get("url", "")
+        for p in filtered_projects
+    }
+
     # =========================================================================
     # MAIN CALL — Summary, Experience, Projects, Education
     # =========================================================================
@@ -264,6 +271,13 @@ Job (summary): {job_description[:600]}
         if isinstance(cat, dict) and cat.get("skills_list"):
             final_skills.append(cat)
 
+    # Re-attach the project URLs (AI doesn't return them — source from profile)
+    ai_projects = main_data.get("project_experience", [])
+    for proj in ai_projects:
+        if isinstance(proj, dict):
+            name = proj.get("title", "")
+            proj["url"] = project_url_map.get(name, "")
+
     # =========================================================================
     # ASSEMBLE FINAL RESULT
     # =========================================================================
@@ -272,7 +286,7 @@ Job (summary): {job_description[:600]}
         "SUMMARY":            summary,
         "skills":             final_skills,
         "experience":         main_data.get("experience", []),
-        "project_experience": main_data.get("project_experience", []),
+        "project_experience": ai_projects,
         "education":          main_data.get("education", education or []),
         "languages":          main_data.get("languages", languages or []),
         "REFERENCE":          main_data.get("REFERENCE", references or "Available upon Request"),

@@ -1,4 +1,3 @@
-
 // =============================================================================
 // FILE: frontend/src/pages/GenerateCV.jsx
 // =============================================================================
@@ -264,6 +263,7 @@ useEffect(() => {
       lines.push("─".repeat(40));
       result.project_experience.forEach(proj => {
         lines.push(`${proj.title || ""}`);
+        if (proj.url)       lines.push(`  ${proj.url}`);
         if (proj.tech_stack) lines.push(`  Technologies: ${proj.tech_stack}`);
         proj.bullets?.forEach((b) => lines.push(`  • ${b}`));
         lines.push("");
@@ -904,10 +904,18 @@ useEffect(() => {
                     borderBottom: index < result.project_experience.length - 1
                       ? "1px solid rgba(45,90,61,0.08)" : "none",
                   }}>
-                    <p style={{
-                      color: "#1E2018", fontFamily: "'Libre Baskerville', serif",
-                      fontSize: "15px", marginBottom: "4px",
-                    }}>{proj.title}</p>
+                    <div style={{ marginBottom: "4px", display: "flex", alignItems: "baseline", flexWrap: "wrap", gap: "10px" }}>
+                      <p style={{
+                        color: "#1E2018", fontFamily: "'Libre Baskerville', serif",
+                        fontSize: "15px", margin: 0,
+                      }}>{proj.title}</p>
+                      {proj.url && (
+                        <a href={proj.url} target="_blank" rel="noreferrer" style={{
+                          color: "#2D5A3D", fontSize: "12px", opacity: 0.75,
+                          textDecoration: "none",
+                        }}>↗ {proj.url}</a>
+                      )}
+                    </div>
                     {proj.tech_stack && (
                       <p style={{ color: "#2D5A3D", fontSize: "12px", opacity: 0.65, marginBottom: "12px" }}>
                         {proj.tech_stack}
@@ -1157,4 +1165,3 @@ useEffect(() => {
     </DashboardLayout>
   );
 }
-
