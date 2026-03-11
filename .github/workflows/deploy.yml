@@ -17,7 +17,6 @@ jobs:
           key: ${{ secrets.SERVER_SSH_KEY }}
           script: |
             cd /var/www/cvapp
-            git stash
-            git pull origin main
-            git stash pop
+            git fetch origin main
+            git reset --hard origin/main
             sudo systemctl restart cvapp
