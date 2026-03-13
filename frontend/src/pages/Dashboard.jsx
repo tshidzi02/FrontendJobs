@@ -422,51 +422,6 @@ export default function Dashboard() {
           </div>
 
 
-          {/* ── BUILD PROGRESS ────────────────────────────────────────────── */}
-          <div style={{
-            background:   "#F0EAD8",
-            borderRadius: "12px",
-            padding:      "24px",
-            border:       "1px solid rgba(45,90,61,0.08)",
-          }}>
-            <h3 style={{
-              color: "#2D5A3D", fontFamily: "'Libre Baskerville', serif",
-              fontSize: "14px", marginBottom: "16px", letterSpacing: "1px",
-            }}>
-              🗺️ Build Progress
-            </h3>
-            {[
-              { phase: "Phase 1", label: "Auth & Infrastructure",        done: true  },
-              { phase: "Phase 2", label: "CV Cabinet & Data Management",  done: true  },
-              { phase: "Phase 3", label: "AI CV Generation & Export",     done: true  },
-              { phase: "Phase 4", label: "ATS Optimisation & Cover Letter", done: true },
-              { phase: "Phase 5", label: "Job Search & Application Tracker", done: true },
-              { phase: "Phase 6", label: "Subscriptions & Monetisation",  done: false },
-              { phase: "Phase 7", label: "Advanced AI Features",          done: false },
-              { phase: "Phase 8", label: "Deployment & Go-Live",          done: false },
-            ].map(({ phase, label, done }) => (
-              <div key={phase} style={{
-                display:     "flex",
-                alignItems:  "center",
-                gap:         "12px",
-                padding:     "10px 0",
-                borderBottom: "1px solid rgba(45,90,61,0.05)",
-              }}>
-                <span style={{ fontSize: "16px", opacity: done ? 1 : 0.35 }}>
-                  {done ? "✅" : "⏳"}
-                </span>
-                <span style={{
-                  color:      "#1E2018",
-                  fontSize:   "13px",
-                  fontFamily: "'Libre Baskerville', serif",
-                  opacity:    done ? 0.9 : 0.4,
-                }}>
-                  <strong>{phase}:</strong> {label}
-                </span>
-              </div>
-            ))}
-          </div>
-
         </div>
       )}
 

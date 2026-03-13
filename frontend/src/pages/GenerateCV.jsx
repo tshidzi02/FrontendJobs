@@ -749,7 +749,7 @@ useEffect(() => {
                     </div>
                     {job.bullets?.map((bullet, bi) => (
                       <div key={bi} style={{
-                        display: "flex", flexWrap: "wrap", gap: "10px", marginBottom: "8px", alignItems: "flex-start",
+                        display: "flex",  gap: "10px", marginBottom: "8px", alignItems: "flex-start",
                       }}>
                         <span style={{ color: "#2D5A3D", fontSize: "12px", marginTop: "3px", flexShrink: 0 }}>→</span>
                         <p style={{ color: "#1E2018", fontSize: "13px", lineHeight: "1.65", opacity: 0.85, margin: 0 }}>
@@ -854,7 +854,7 @@ useEffect(() => {
                               padding: "10px 14px",
                               marginBottom: "8px",
                             }}>
-                              <div style={{ display: "flex", flexWrap: "wrap", gap: "10px", alignItems: "flex-start" }}>
+                              <div style={{ display: "flex", gap: "10px", alignItems: "flex-start" }}>
                                 <span style={{
                                   color: "#2D5A3D", fontSize: "12px", marginTop: "2px", flexShrink: 0,
                                 }}>•</span>
@@ -923,7 +923,7 @@ useEffect(() => {
                     )}
                     {proj.bullets?.map((bullet, bi) => (
                       <div key={bi} style={{
-                        display: "flex", flexWrap: "wrap", gap: "10px", marginBottom: "8px", alignItems: "flex-start",
+                        display: "flex",  gap: "10px", marginBottom: "8px", alignItems: "flex-start",
                       }}>
                         <span style={{ color: "#2D5A3D", fontSize: "12px", marginTop: "3px", flexShrink: 0 }}>→</span>
                         <p style={{ color: "#1E2018", fontSize: "13px", lineHeight: "1.65", opacity: 0.85, margin: 0 }}>
