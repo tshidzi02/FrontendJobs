@@ -78,7 +78,7 @@ function Navbar() {
             whiteSpace:     "nowrap",
           }}
         >
-          FRONTENDJOBS
+          FRONTEND
         </Link>
       </div>
 

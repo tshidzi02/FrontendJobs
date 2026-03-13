@@ -25,6 +25,7 @@ import re
 import os
 import json
 import traceback
+import json as _json
 
 from config import Config
 from services.ai_engine import generate_cv_content
@@ -42,6 +43,7 @@ from services.tools_ai import (
 )
 from google.oauth2 import id_token
 from google.auth.transport import requests as google_requests
+from openai import OpenAI
 
 
 # =============================================================================
@@ -995,9 +997,146 @@ def skills_gap():
     return jsonify(result)
 
 
+# =============================================================================
+# ADD THIS TO YOUR app.py  (replace any previous /api/parse-cv route)
+# =============================================================================
 
 
+@app.route("/api/parse-cv", methods=["POST"])
+@jwt_required()
+def parse_cv():
+    """
+    Parses CV content (text or image) into the profile JSON structure.
+    Accepts:
+      - Plain text CV  (cv_text is a regular string)
+      - Image CV       (cv_text starts with "__IMAGE__data:image/...")
+    """
+    data = request.get_json()
+    cv_text = (data.get("cv_text") or "").strip()
 
+    if not cv_text:
+        return jsonify({"error": "No CV content provided — the file may be empty or unreadable"}), 400
+
+    system_prompt = """You are a CV parser. Extract all information from the provided CV and return ONLY a valid JSON object — no markdown, no explanation, nothing else.
+
+The JSON must follow this EXACT structure:
+{
+  "personalInfo": {
+    "firstName": "",
+    "lastName": "",
+    "jobTitle": "",
+    "city": "",
+    "phone": "",
+    "email": "",
+    "github": "",
+    "website": ""
+  },
+  "skills": ["skill1", "skill2"],
+  "experience": [
+    {
+      "title": "",
+      "company": "",
+      "city": "",
+      "country": "",
+      "startYear": "",
+      "endYear": "",
+      "bullets": ["bullet1", "bullet2"]
+    }
+  ],
+  "education": [
+    {
+      "degree": "",
+      "institution": "",
+      "city": "",
+      "country": "",
+      "graduationStatus": "graduated",
+      "graduationMonth": "",
+      "graduationYear": "",
+      "minimumAverage": "",
+      "coursework": ["item1"]
+    }
+  ],
+  "projects": [
+    {
+      "name": "",
+      "technologies": "",
+      "bullets": ["bullet1"],
+      "url": "",
+      "includeInCV": true
+    }
+  ],
+  "languages": [
+    { "name": "", "level": 3 }
+  ],
+  "references": "Available upon Request"
+}
+
+Language level is 1-6: 1=Beginner(A1), 2=Elementary(A2), 3=Intermediate(B1), 4=Upper-Intermediate(B2), 5=Advanced(C1), 6=Bilingual(C2).
+For experience endYear use "Present" if current role. For technologies use comma-separated string.
+Return ONLY the JSON object, nothing else."""
+
+    raw = ""
+    try:
+        client = OpenAI()
+
+        # ── IMAGE MODE ───────────────────────────────────────────────────────
+        if cv_text.startswith("__IMAGE__"):
+            data_url = cv_text[len("__IMAGE__"):]
+            response = client.chat.completions.create(
+                model="gpt-4o",
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "image_url", "image_url": {"url": data_url}},
+                            {"type": "text", "text": "Parse this CV image and return the JSON profile."},
+                        ],
+                    },
+                ],
+                temperature=0.1,
+                max_tokens=4000,
+            )
+
+        # ── TEXT MODE ────────────────────────────────────────────────────────
+        else:
+            if len(cv_text) > 14000:
+                cv_text = cv_text[:14000]
+            response = client.chat.completions.create(
+                model="gpt-4o",
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user",   "content": f"Parse this CV:\n\n{cv_text}"},
+                ],
+                temperature=0.1,
+                max_tokens=4000,
+            )
+
+        raw   = response.choices[0].message.content or ""
+        # Strip markdown fences if present
+        clean = raw.strip()
+        if clean.startswith("```"):
+            clean = clean.split("```")[1]
+            if clean.startswith("json"):
+                clean = clean[4:]
+            clean = clean.strip()
+        # Find the JSON object boundaries as fallback
+        if not clean.startswith("{"):
+            start = clean.find("{")
+            end   = clean.rfind("}") + 1
+            if start >= 0 and end > start:
+                clean = clean[start:end]
+        parsed = _json.loads(clean)
+        return jsonify({"profile": parsed})
+
+    except _json.JSONDecodeError as e:
+        print(f"[parse-cv] JSON decode error: {e}")
+        print(f"[parse-cv] Raw response was: {raw[:500]}")
+        return jsonify({"error": f"AI returned invalid JSON: {str(e)}", "raw": raw[:300]}), 500
+    except Exception as e:
+        print(f"[parse-cv] Exception: {type(e).__name__}: {e}")
+        traceback.print_exc()
+        return jsonify({"error": f"{type(e).__name__}: {str(e)}"}), 500
 
 if __name__ == "__main__":
     app.run(debug=True)

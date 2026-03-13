@@ -128,6 +128,21 @@ export default function Profile() {
   const [error, setError]       = useState("");
   const [success, setSuccess]   = useState("");
 
+  // ── CV IMPORT MODAL STATE ─────────────────────────────────────────────────
+  const [showImport, setShowImport]         = useState(false);
+  const [importTab, setImportTab]           = useState("text"); // "text" | "file" | "image" | "html"
+  const [importText, setImportText]         = useState("");
+  const [importFile, setImportFile]         = useState(null);
+  const [importImage, setImportImage]       = useState(null);
+  const [importImagePreview, setImportImagePreview] = useState(null);
+  const [importHtmlFile, setImportHtmlFile] = useState(null);
+  const [importHtmlName, setImportHtmlName] = useState("");
+  const [importing, setImporting]           = useState(false);
+  const [importError, setImportError]       = useState("");
+  const [importPreview, setImportPreview]   = useState(null); // parsed result before applying
+  const [importJsonFile, setImportJsonFile] = useState(null);
+  const [importJsonName, setImportJsonName] = useState("");
+
 
   // ── LOAD PROFILE ──────────────────────────────────────────────────────────
   useEffect(() => {
@@ -294,7 +309,182 @@ export default function Profile() {
   const handleRemoveLanguage = (index) => setLanguages(languages.filter((_, i) => i !== index));
 
 
-  // ── SAVE ──────────────────────────────────────────────────────────────────
+  // ── CV IMPORT HANDLER ─────────────────────────────────────────────────────
+  const handleImport = async () => {
+    setImportError("");
+    setImporting(true);
+    setImportPreview(null);
+
+    try {
+      // ── Build cvText directly — no intermediate messages object needed ──
+      // Everything goes to our Flask /api/parse-cv endpoint as plain text.
+      let cvText = "";
+
+      if (importTab === "text") {
+        if (!importText.trim()) {
+          setImportError("Please paste your CV text first.");
+          setImporting(false);
+          return;
+        }
+        cvText = importText.trim();
+
+      } else if (importTab === "file") {
+        if (!importFile) {
+          setImportError("Please select a file first.");
+          setImporting(false);
+          return;
+        }
+        // For PDF/Word: read as text (best effort — works well for text-based PDFs)
+        cvText = await new Promise((res, rej) => {
+          const reader = new FileReader();
+          reader.onload = () => res(reader.result || "");
+          reader.onerror = () => rej(new Error("File read failed"));
+          reader.readAsText(importFile);
+        });
+        cvText = cvText.replace(/\s{2,}/g, " ").trim().slice(0, 15000);
+
+      } else if (importTab === "html") {
+        if (!importHtmlFile) {
+          setImportError("Please select an HTML file first.");
+          setImporting(false);
+          return;
+        }
+        const htmlRaw = await new Promise((res, rej) => {
+          const reader = new FileReader();
+          reader.onload = () => res(reader.result || "");
+          reader.onerror = () => rej(new Error("File read failed"));
+          reader.readAsText(importHtmlFile);
+        });
+
+        // Strip all tags → plain readable text
+        cvText = htmlRaw
+          .replace(/<script[\s\S]*?<\/script>/gi, "")
+          .replace(/<style[\s\S]*?<\/style>/gi, "")
+          .replace(/<svg[\s\S]*?<\/svg>/gi, "")
+          .replace(/<head[\s\S]*?<\/head>/gi, "")
+          .replace(/<[^>]+>/g, " ")
+          .replace(/&nbsp;/g, " ").replace(/&amp;/g, "&")
+          .replace(/&lt;/g, "<").replace(/&gt;/g, ">")
+          .replace(/\s{2,}/g, " ").trim()
+          .slice(0, 12000);
+
+        // Add a note to GPT that input/select values may be missing (saved React page)
+        if (htmlRaw.includes("id=\"root\"") || htmlRaw.includes("type=\"module\"")) {
+          cvText = `NOTE: This is a saved webpage from the FrontendJobs profile page. Input field values (name, company, job title, dates) may be missing from the HTML because they are held in React state. Extract what you can — skills, project names, bullet points, URLs are visible. Leave missing fields as empty strings.\n\n` + cvText;
+        }
+
+        if (!cvText || cvText.length < 100) {
+          setImportError("This HTML file appears empty after parsing. Try using the Paste Text tab instead.");
+          setImporting(false);
+          return;
+        }
+
+      } else if (importTab === "image") {
+        if (!importImage) {
+          setImportError("Please select an image first.");
+          setImporting(false);
+          return;
+        }
+        // Images are sent as base64 — backend handles via GPT-4o vision
+        const base64Data = await new Promise((res, rej) => {
+          const reader = new FileReader();
+          reader.onload = () => res(reader.result); // keep full data URL
+          reader.onerror = () => rej(new Error("Image read failed"));
+          reader.readAsDataURL(importImage);
+        });
+        cvText = `__IMAGE__${base64Data}`;
+      }
+
+      const apiResponse = await api.post("/parse-cv", { cv_text: cvText });
+
+      if (apiResponse.data.error) {
+        setImportError("Parse error: " + apiResponse.data.error);
+        return;
+      }
+
+      const parsed = apiResponse.data.profile;
+      if (!parsed || typeof parsed !== "object") {
+        setImportError("Unexpected response from server. Please try again.");
+        return;
+      }
+
+      setImportPreview(parsed);
+
+    } catch (err) {
+      console.error("Import error:", err);
+      setImportError("Error: " + (err.message || "Unknown error. Check browser console."));
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  const handleApplyImport = () => {
+    if (!importPreview) return;
+    if (importPreview.personalInfo) setPersonalInfo(importPreview.personalInfo);
+    if (importPreview.skills?.length)     setSkills(importPreview.skills);
+    if (importPreview.experience?.length) setExperience(importPreview.experience);
+    if (importPreview.education?.length)  setEducation(importPreview.education);
+    if (importPreview.projects?.length)   setProjects(importPreview.projects);
+    if (importPreview.languages?.length)  setLanguages(importPreview.languages);
+    if (importPreview.references)         setReferences(importPreview.references);
+    setShowImport(false);
+    setImportPreview(null);
+    setImportText("");
+    setImportFile(null);
+    setImportImage(null);
+    setImportImagePreview(null);
+    setImportHtmlFile(null);
+    setImportHtmlName("");
+    setImportJsonFile(null);
+    setImportJsonName("");
+    setSuccess("CV imported! Review the fields below and hit Save Profile.");
+    setTimeout(() => setSuccess(""), 5000);
+  };
+
+
+
+  // ── EXPORT PROFILE AS JSON ────────────────────────────────────────────────
+  const handleExportProfile = () => {
+    const profileData = {
+      personalInfo, skills, experience,
+      education, projects, languages, references,
+    };
+    const blob = new Blob([JSON.stringify(profileData, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    const name = [personalInfo.firstName, personalInfo.lastName].filter(Boolean).join("_") || "profile";
+    a.download = `frontendjobs_${name}_backup.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  // ── RESTORE FROM JSON BACKUP ──────────────────────────────────────────────
+  const handleJsonRestore = async () => {
+    if (!importJsonFile) {
+      setImportError("Please select a JSON backup file first.");
+      return;
+    }
+    setImportError("");
+    try {
+      const text = await new Promise((res, rej) => {
+        const reader = new FileReader();
+        reader.onload = () => res(reader.result || "");
+        reader.onerror = () => rej(new Error("File read failed"));
+        reader.readAsText(importJsonFile);
+      });
+      const parsed = JSON.parse(text);
+      // Validate it looks like a profile backup
+      if (!parsed.personalInfo && !parsed.skills && !parsed.experience) {
+        setImportError("This doesn't look like a FrontendJobs profile backup. Please use a file exported from this app.");
+        return;
+      }
+      setImportPreview(parsed);
+    } catch (e) {
+      setImportError("Could not read this file — make sure it's a valid JSON backup from FrontendJobs.");
+    }
+  };
+
   const handleSave = async () => {
     setError(""); setSuccess(""); setSaving(true);
     try {
@@ -338,15 +528,361 @@ export default function Profile() {
       <div style={{ maxWidth: "min(1000px, 100%)", margin: "0 auto" }}>
 
         {/* Page Header */}
-        <h1 style={{
-          fontFamily: "'Libre Baskerville', serif", fontSize: "clamp(20px, 4vw, 32px)",
-          color: "#2D5A3D", letterSpacing: "2px", marginBottom: "6px",
-        }}>
-          CV Profile
-        </h1>
-        <p style={{ color: "#1E2018", opacity: 0.5, fontSize: "14px", marginBottom: "32px" }}>
-          Your base CV data. The AI uses this to generate tailored CVs for each job.
-        </p>
+        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexWrap: "wrap", gap: "12px", marginBottom: "32px" }}>
+          <div>
+            <h1 style={{
+              fontFamily: "'Libre Baskerville', serif", fontSize: "clamp(20px, 4vw, 32px)",
+              color: "#2D5A3D", letterSpacing: "2px", marginBottom: "6px",
+            }}>
+              CV Profile
+            </h1>
+            <p style={{ color: "#1E2018", opacity: 0.5, fontSize: "14px" }}>
+              Your base CV data. The AI uses this to generate tailored CVs for each job.
+            </p>
+          </div>
+          <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+            <button
+              onClick={handleExportProfile}
+              style={{
+                background: "transparent", border: "1px solid rgba(45,90,61,0.35)",
+                color: "#2D5A3D", borderRadius: "10px", padding: "12px 18px",
+                cursor: "pointer", fontSize: "14px", fontFamily: "'Libre Baskerville', serif",
+                fontWeight: 900, display: "flex", alignItems: "center", gap: "8px",
+                whiteSpace: "nowrap",
+              }}
+              title="Download your profile as a JSON backup — restore instantly without AI"
+            >
+              💾 Backup Profile
+            </button>
+            <button
+              onClick={() => { setShowImport(true); setImportError(""); setImportPreview(null); }}
+              style={{
+                background: "rgba(45,90,61,0.1)", border: "1px solid rgba(45,90,61,0.35)",
+                color: "#2D5A3D", borderRadius: "10px", padding: "12px 22px",
+                cursor: "pointer", fontSize: "14px", fontFamily: "'Libre Baskerville', serif",
+                fontWeight: 900, display: "flex", alignItems: "center", gap: "8px",
+                whiteSpace: "nowrap",
+              }}
+            >
+              ⚡ Import File to Complete Profile
+            </button>
+          </div>
+        </div>
+
+
+        {/* ══ CV IMPORT MODAL ══════════════════════════════════════════════════ */}
+        {showImport && (
+          <div style={{
+            position: "fixed", inset: 0, background: "rgba(11,30,42,0.75)",
+            zIndex: 2000, display: "flex", alignItems: "center", justifyContent: "center",
+            padding: "20px",
+          }}
+            onClick={(e) => { if (e.target === e.currentTarget) setShowImport(false); }}
+          >
+            <div style={{
+              background: "#F5F0E8", borderRadius: "16px", width: "100%", maxWidth: "640px",
+              maxHeight: "90vh", overflowY: "auto", padding: "32px",
+              boxShadow: "0 20px 60px rgba(0,0,0,0.3)",
+            }}>
+
+              {/* Modal header */}
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+                <h2 style={{ color: "#2D5A3D", fontFamily: "'Libre Baskerville', serif", fontSize: "20px", margin: 0 }}>
+                  ⚡ Import from CV
+                </h2>
+                <button onClick={() => setShowImport(false)} style={{
+                  background: "transparent", border: "none", fontSize: "22px",
+                  cursor: "pointer", color: "#1E2018", opacity: 0.4, lineHeight: 1,
+                }}>×</button>
+              </div>
+              <p style={{ color: "#1E2018", fontSize: "13px", opacity: 0.5, marginBottom: "24px" }}>
+                AI will parse your CV and populate all profile fields automatically. Review before applying.
+              </p>
+
+              {/* Tabs */}
+              {!importPreview && (
+                <>
+                  <div style={{ display: "flex", gap: "8px", marginBottom: "20px", flexWrap: "wrap" }}>
+                    {[
+                      { id: "text",  label: "📋 Paste Text" },
+                      { id: "file",  label: "📄 PDF / Word" },
+                      { id: "image", label: "🖼 Screenshot" },
+                      { id: "html",  label: "🌐 HTML File" },
+                      { id: "json",  label: "💾 JSON Backup" },
+                    ].map(tab => (
+                      <button key={tab.id} onClick={() => { setImportTab(tab.id); setImportError(""); }}
+                        style={{
+                          flex: 1, padding: "10px 8px", borderRadius: "8px", cursor: "pointer",
+                          fontFamily: "'Libre Baskerville', serif", fontSize: "12px",
+                          border: importTab === tab.id ? "2px solid #2D5A3D" : "2px solid rgba(45,90,61,0.2)",
+                          background: importTab === tab.id ? "rgba(45,90,61,0.12)" : "transparent",
+                          color: importTab === tab.id ? "#2D5A3D" : "#1E2018",
+                          opacity: importTab === tab.id ? 1 : 0.55,
+                          transition: "all 0.15s ease",
+                        }}>
+                        {tab.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* TAB: Paste text */}
+                  {importTab === "text" && (
+                    <textarea
+                      value={importText}
+                      onChange={(e) => setImportText(e.target.value)}
+                      placeholder="Paste your full CV here — name, experience, education, skills, projects..."
+                      rows={12}
+                      style={{
+                        width: "100%", background: "#FFFFFF",
+                        border: "1px solid rgba(45,90,61,0.2)", borderRadius: "8px",
+                        color: "#1E2018", padding: "14px", fontSize: "13px",
+                        lineHeight: "1.6", resize: "vertical",
+                        fontFamily: "system-ui, sans-serif", marginBottom: "16px",
+                        outline: "none",
+                      }}
+                    />
+                  )}
+
+                  {/* TAB: PDF / Word file */}
+                  {importTab === "file" && (
+                    <div style={{ marginBottom: "16px" }}>
+                      <label style={{
+                        display: "flex", flexDirection: "column", alignItems: "center",
+                        justifyContent: "center", gap: "10px", padding: "32px",
+                        border: "2px dashed rgba(45,90,61,0.3)", borderRadius: "10px",
+                        cursor: "pointer", background: importFile ? "rgba(45,90,61,0.06)" : "#FFFFFF",
+                        transition: "all 0.2s ease",
+                      }}>
+                        <span style={{ fontSize: "32px" }}>{importFile ? "📄" : "⬆"}</span>
+                        <span style={{ color: "#1E2018", fontSize: "13px", opacity: 0.6, fontFamily: "'Libre Baskerville', serif" }}>
+                          {importFile ? importFile.name : "Click to upload PDF or Word (.docx)"}
+                        </span>
+                        {importFile && (
+                          <span style={{ color: "#2D5A3D", fontSize: "12px", opacity: 0.7 }}>
+                            {(importFile.size / 1024).toFixed(0)} KB
+                          </span>
+                        )}
+                        <input type="file" accept=".pdf,.doc,.docx" style={{ display: "none" }}
+                          onChange={(e) => { setImportFile(e.target.files[0] || null); setImportError(""); }} />
+                      </label>
+                      {importFile && (
+                        <button onClick={() => setImportFile(null)} style={{
+                          background: "transparent", border: "none", color: "#8B2020",
+                          cursor: "pointer", fontSize: "12px", marginTop: "8px",
+                          fontFamily: "'Libre Baskerville', serif", textDecoration: "underline",
+                        }}>Remove file</button>
+                      )}
+                    </div>
+                  )}
+
+                  {/* TAB: HTML file */}
+                  {importTab === "html" && (
+                    <div style={{ marginBottom: "16px" }}>
+                      <p style={{ color: "#1E2018", fontSize: "12px", opacity: 0.5, marginBottom: "12px", fontFamily: "'Libre Baskerville', serif" }}>
+                        Upload any CV-style HTML file — a saved webpage, an exported CV, or a profile page. AI will read the content and extract your info.
+                      </p>
+                      <label style={{
+                        display: "flex", flexDirection: "column", alignItems: "center",
+                        justifyContent: "center", gap: "10px", padding: "32px",
+                        border: "2px dashed rgba(45,90,61,0.3)", borderRadius: "10px",
+                        cursor: "pointer", background: importHtmlFile ? "rgba(45,90,61,0.06)" : "#FFFFFF",
+                        transition: "all 0.2s ease",
+                      }}>
+                        <span style={{ fontSize: "32px" }}>{importHtmlFile ? "🌐" : "⬆"}</span>
+                        <span style={{ color: "#1E2018", fontSize: "13px", opacity: 0.6, fontFamily: "'Libre Baskerville', serif", textAlign: "center" }}>
+                          {importHtmlName || "Click to upload an HTML file"}
+                        </span>
+                        {importHtmlFile && (
+                          <span style={{ color: "#2D5A3D", fontSize: "12px", opacity: 0.7 }}>
+                            {(importHtmlFile.size / 1024).toFixed(0)} KB
+                          </span>
+                        )}
+                        <input type="file" accept=".html,.htm" style={{ display: "none" }}
+                          onChange={(e) => {
+                            const f = e.target.files[0];
+                            if (!f) return;
+                            setImportHtmlFile(f);
+                            setImportHtmlName(f.name);
+                            setImportError("");
+                          }} />
+                      </label>
+                      {importHtmlFile && (
+                        <button onClick={() => { setImportHtmlFile(null); setImportHtmlName(""); }} style={{
+                          background: "transparent", border: "none", color: "#8B2020",
+                          cursor: "pointer", fontSize: "12px", marginTop: "8px",
+                          fontFamily: "'Libre Baskerville', serif", textDecoration: "underline",
+                        }}>Remove file</button>
+                      )}
+                    </div>
+                  )}
+
+                  {/* TAB: JSON Backup restore */}
+                  {importTab === "json" && (
+                    <div style={{ marginBottom: "16px" }}>
+                      <p style={{ color: "#1E2018", fontSize: "12px", opacity: 0.5, marginBottom: "12px", fontFamily: "'Libre Baskerville', serif" }}>
+                        Restore from a <strong>frontendjobs_..._backup.json</strong> file you previously exported. This bypasses AI entirely — instant restore.
+                      </p>
+                      <label style={{
+                        display: "flex", flexDirection: "column", alignItems: "center",
+                        justifyContent: "center", gap: "10px", padding: "32px",
+                        border: "2px dashed rgba(45,90,61,0.3)", borderRadius: "10px",
+                        cursor: "pointer", background: importJsonFile ? "rgba(45,90,61,0.06)" : "#FFFFFF",
+                        transition: "all 0.2s ease",
+                      }}>
+                        <span style={{ fontSize: "32px" }}>{importJsonFile ? "💾" : "⬆"}</span>
+                        <span style={{ color: "#1E2018", fontSize: "13px", opacity: 0.6, fontFamily: "'Libre Baskerville', serif", textAlign: "center" }}>
+                          {importJsonName || "Click to upload your JSON backup file"}
+                        </span>
+                        {importJsonFile && (
+                          <span style={{ color: "#2D5A3D", fontSize: "12px", opacity: 0.7 }}>
+                            {(importJsonFile.size / 1024).toFixed(1)} KB
+                          </span>
+                        )}
+                        <input type="file" accept=".json" style={{ display: "none" }}
+                          onChange={(e) => {
+                            const f = e.target.files[0];
+                            if (!f) return;
+                            setImportJsonFile(f);
+                            setImportJsonName(f.name);
+                            setImportError("");
+                          }} />
+                      </label>
+                      {importJsonFile && (
+                        <button onClick={() => { setImportJsonFile(null); setImportJsonName(""); }} style={{
+                          background: "transparent", border: "none", color: "#8B2020",
+                          cursor: "pointer", fontSize: "12px", marginTop: "8px",
+                          fontFamily: "'Libre Baskerville', serif", textDecoration: "underline",
+                        }}>Remove file</button>
+                      )}
+                    </div>
+                  )}
+
+                  {/* TAB: Screenshot / image */}
+                  {importTab === "image" && (
+                    <div style={{ marginBottom: "16px" }}>
+                      <label style={{
+                        display: "flex", flexDirection: "column", alignItems: "center",
+                        justifyContent: "center", gap: "10px", padding: "24px",
+                        border: "2px dashed rgba(45,90,61,0.3)", borderRadius: "10px",
+                        cursor: "pointer", background: "#FFFFFF",
+                        transition: "all 0.2s ease",
+                      }}>
+                        {importImagePreview ? (
+                          <img src={importImagePreview} alt="CV preview"
+                            style={{ maxWidth: "100%", maxHeight: "200px", borderRadius: "6px", objectFit: "contain" }} />
+                        ) : (
+                          <>
+                            <span style={{ fontSize: "32px" }}>🖼</span>
+                            <span style={{ color: "#1E2018", fontSize: "13px", opacity: 0.6, fontFamily: "'Libre Baskerville', serif" }}>
+                              Click to upload a screenshot of your CV
+                            </span>
+                            <span style={{ color: "#1E2018", fontSize: "11px", opacity: 0.35 }}>PNG, JPG, WEBP</span>
+                          </>
+                        )}
+                        <input type="file" accept="image/*" style={{ display: "none" }}
+                          onChange={(e) => {
+                            const f = e.target.files[0];
+                            if (!f) return;
+                            setImportImage(f);
+                            setImportImagePreview(URL.createObjectURL(f));
+                            setImportError("");
+                          }} />
+                      </label>
+                      {importImage && (
+                        <button onClick={() => { setImportImage(null); setImportImagePreview(null); }} style={{
+                          background: "transparent", border: "none", color: "#8B2020",
+                          cursor: "pointer", fontSize: "12px", marginTop: "8px",
+                          fontFamily: "'Libre Baskerville', serif", textDecoration: "underline",
+                        }}>Remove image</button>
+                      )}
+                    </div>
+                  )}
+
+                  {importError && (
+                    <p style={{ color: "#8B2020", fontSize: "13px", marginBottom: "12px" }}>⚠ {importError}</p>
+                  )}
+
+                  <button
+                    onClick={importTab === "json" ? handleJsonRestore : handleImport}
+                    disabled={importing}
+                    style={{
+                      width: "100%", padding: "14px", borderRadius: "10px",
+                      background: importing ? "rgba(45,90,61,0.5)" : "#2D5A3D",
+                      color: "#EDE8DE", border: "none", cursor: importing ? "not-allowed" : "pointer",
+                      fontFamily: "'Libre Baskerville', serif", fontSize: "15px", fontWeight: 900,
+                      display: "flex", alignItems: "center", justifyContent: "center", gap: "10px",
+                    }}
+                  >
+                    {importing ? (
+                      <>
+                        <span style={{
+                          display: "inline-block", width: "14px", height: "14px",
+                          border: "2px solid #EDE8DE", borderTopColor: "transparent",
+                          borderRadius: "50%", animation: "spin 0.7s linear infinite",
+                        }} />
+                        Parsing CV...
+                      </>
+                    ) : importTab === "json" ? "💾 Restore from Backup" : "✦ Parse My CV"}
+                  </button>
+                </>
+              )}
+
+              {/* ── PREVIEW RESULT ── */}
+              {importPreview && (
+                <div>
+                  <div style={{
+                    background: "rgba(45,90,61,0.08)", border: "1px solid rgba(45,90,61,0.2)",
+                    borderRadius: "10px", padding: "16px 20px", marginBottom: "20px",
+                  }}>
+                    <p style={{ color: "#2D5A3D", fontFamily: "'Libre Baskerville', serif", fontSize: "13px", marginBottom: "12px", fontWeight: 900 }}>
+                      ✓ CV Parsed Successfully — Preview
+                    </p>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                      {[
+                        { label: "Name",       value: `${importPreview.personalInfo?.firstName || ""} ${importPreview.personalInfo?.lastName || ""}`.trim() },
+                        { label: "Job Title",  value: importPreview.personalInfo?.jobTitle },
+                        { label: "Skills",     value: importPreview.skills?.length ? `${importPreview.skills.length} skills found` : null },
+                        { label: "Experience", value: importPreview.experience?.length ? `${importPreview.experience.length} role(s)` : null },
+                        { label: "Education",  value: importPreview.education?.length ? `${importPreview.education.length} qualification(s)` : null },
+                        { label: "Projects",   value: importPreview.projects?.length ? `${importPreview.projects.length} project(s)` : null },
+                        { label: "Languages",  value: importPreview.languages?.length ? `${importPreview.languages.length} language(s)` : null },
+                      ].filter(r => r.value).map(({ label, value }) => (
+                        <div key={label} style={{ display: "flex", gap: "10px", fontSize: "13px" }}>
+                          <span style={{ color: "#1E2018", opacity: 0.45, fontFamily: "'Libre Baskerville', serif", minWidth: "90px" }}>{label}</span>
+                          <span style={{ color: "#1E2018" }}>{value}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <p style={{ color: "#1E2018", fontSize: "12px", opacity: 0.5, marginBottom: "16px" }}>
+                    This will replace your current profile fields. You can still edit anything after applying.
+                  </p>
+
+                  <div style={{ display: "flex", gap: "10px" }}>
+                    <button onClick={handleApplyImport} style={{
+                      flex: 2, padding: "13px", borderRadius: "10px",
+                      background: "#2D5A3D", color: "#EDE8DE", border: "none",
+                      cursor: "pointer", fontFamily: "'Libre Baskerville', serif",
+                      fontSize: "14px", fontWeight: 900,
+                    }}>
+                      ✓ Apply to Profile
+                    </button>
+                    <button onClick={() => setImportPreview(null)} style={{
+                      flex: 1, padding: "13px", borderRadius: "10px",
+                      background: "transparent", color: "#1E2018",
+                      border: "1px solid rgba(45,90,61,0.25)",
+                      cursor: "pointer", fontFamily: "'Libre Baskerville', serif", fontSize: "14px",
+                    }}>
+                      ← Back
+                    </button>
+                  </div>
+                </div>
+              )}
+
+            </div>
+          </div>
+        )}
 
 
         {/* ══ SECTION 1 — PERSONAL INFO ══════════════════════════════════════ */}
