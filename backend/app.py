@@ -53,7 +53,7 @@ app.config.from_object(Config)
 
 # Force SQLite - ignore any environment DATABASE_URL
 app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///users.db"
-CORS(app, origins=["http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:5174"])
+CORS(app, origins=["https://frontendjobs.online", "http://localhost:5173", "http://127.0.0.1:5173"])
 
 bcrypt = Bcrypt(app)
 jwt = JWTManager(app)
