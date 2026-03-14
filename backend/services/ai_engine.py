@@ -87,7 +87,12 @@ JOB DESCRIPTION:
 
 Return this exact JSON structure:
 {{
-  "SUMMARY": "300-350 word summary",
+  "SUMMARY": "300-350 word summary tailored to the job description, 
+  written in first person, professional tone. Focus on how your background 
+  and skills make you a great fit for this specific role. Do NOT be generic. 
+  and use my skills to explain why I'm a strong candidate for this job. 
+  Use my skills to show how i can use those skills for the job. 
+  ",
   "experience": [
     {{
       "role": "exact job title from profile",
@@ -100,7 +105,11 @@ Return this exact JSON structure:
       "bullets": [
         "Original bullet 1 — enhanced or kept as-is",
         "Original bullet 2 — enhanced or kept as-is",
-        "AI-added bullet relevant to this job"
+        "Original bullet 3 — enhanced or kept as-is",
+        "Original bullet 4 — enhanced or kept as-is",
+        "AI-added bullet relevant to this job description",
+        "AI-added bullet relevant to this job description",
+        "AI-added bullet relevant to this job description",
       ]
     }}
   ],
@@ -111,6 +120,10 @@ Return this exact JSON structure:
       "bullets": [
         "Original bullet 1 — enhanced with strong verbs and impact",
         "Original bullet 2 — enhanced with measurable results",
+        "Original bullet 3 — enhanced with strong verbs and impact",
+        "Original bullet 4 — enhanced with measurable results",
+        "AI-added bullet directly aligned to the job description requirements",
+        "AI-added bullet showing how this project demonstrates skills the job needs"
         "AI-added bullet directly aligned to the job description requirements",
         "AI-added bullet showing how this project demonstrates skills the job needs"
       ]
@@ -178,6 +191,21 @@ Task:
 4. Do NOT include any skill the candidate already has.
 5. If no new skills needed, return empty array.
 6. Return valid JSON only.
+7. Do NOT return any skills that are already in the candidate's profile. Focus ONLY on new 
+skills that are required by the job description but missing from the candidate's existing 
+skills list.
+8. The categories you create should be relevant to the job description and the skills you 
+identify. For example, if the job description emphasizes cloud computing, you might have a 
+category called "Cloud Platforms" with skills like "AWS" or "Azure". If it emphasizes teamwork
+and communication, you might have a category called "Soft Skills" with skills like 
+"Cross-functional Collaboration" or "Effective Communication". The goal is to organize 
+the new skills in a way that makes sense for the specific requirements of the job.
+9. You should add an additional 10 more skills beyond the ones listed in the candidate's 
+profile, as long as they are relevant to the job description. These should be skills that 
+a strong candidate for this role would typically have, based on the job description's 
+requirements and responsibilities. The AI should use its understanding of industry standards 
+and job market trends to identify these additional skills, ensuring that they are genuinely 
+relevant and would enhance the candidate's fit for the role.
 
 {{
   "new_skill_categories": [
@@ -186,7 +214,7 @@ Task:
       "skills_list": [
         {{
           "skill": "Skill Name",
-          "description": "What it is and why this job needs it.",
+          "description": "What it is and why this job needs it.It should be 100 words",
           "is_new": true
         }}
       ]
@@ -217,7 +245,7 @@ Task:
     if own_skill_names:
         desc_prompt = f"""You are a CV skills writer. Return valid JSON only.
 
-For each skill below, write one short sentence (max 15 words) explaining
+For each skill below, write one short sentence (max 100 words) explaining
 what it is and why it is relevant to this job.
 
 Skills: {own_skills_str}

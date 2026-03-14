@@ -19,6 +19,7 @@ export default function Generate() {
 
   // ── STATE ────────────────────────────────────────────────────────────────    
   const [jobDescription, setJobDescription] = useState("");
+  const [jobTitle, setJobTitle]             = useState("");
   const [profile, setProfile]               = useState(null);
   const [result, setResult]                 = useState(null);
   const [loading, setLoading]               = useState(false);
@@ -57,7 +58,7 @@ useEffect(() => {
   const state = routerLocation.state;
   if (state?.jobDescription) {
     setJobDescription(state.jobDescription);
-    // Clear the router state so refreshing the page doesn't re-fill
+    if (state?.jobTitle) setJobTitle(state.jobTitle);
     window.history.replaceState({}, document.title);
   }
 }, [routerLocation.state]);
@@ -131,7 +132,9 @@ useEffect(() => {
       const firstName = profile?.personalInfo?.firstName || "";
       const lastName  = profile?.personalInfo?.lastName  || "";
       const fullName  = `${firstName}${lastName ? "_" + lastName : ""}`.trim();
-      link.download   = fullName ? `${fullName}_CV.docx` : "CV.docx";
+      const titleSlug = jobTitle.trim().replace(/\s+/g, "_").replace(/[^a-zA-Z0-9_]/g, "").slice(0, 50);
+      const filename  = [fullName, titleSlug, "CV"].filter(Boolean).join("_") + ".docx";
+      link.download   = filename;
 
       document.body.appendChild(link);
       link.click();
@@ -162,14 +165,14 @@ useEffect(() => {
 
     // Extract a job title from the first non-empty line of the job description.
     // This labels the cabinet card so the user knows what role this CV was for.
-    const firstLine = jobDescription.trim().split("\n").find(l => l.trim()) || "Untitled CV";
-    const jobTitle  = firstLine.trim().slice(0, 120);
+    const firstLine = jobTitle.trim() || jobDescription.trim().split("\n").find(l => l.trim()) || "Untitled CV";
+    const jobTitleLabel = firstLine.trim().slice(0, 120);
 
     try {
       await api.post("/cabinet", {
         ai_result:        result,
         profile_snapshot: profile || {},
-        job_title:        jobTitle,
+        job_title:        jobTitleLabel,
       });
 
       setSaved(true);
@@ -333,6 +336,26 @@ useEffect(() => {
 
         {/* ══ INPUT CARD ═══════════════════════════════════ */}
         <div className="card" style={{ maxWidth: "100%", marginBottom: "24px" }}>
+
+          {/* Job Title field */}
+          <h3 style={{
+            color: "#2D5A3D", fontFamily: "'Libre Baskerville', serif",
+            fontSize: "13px", letterSpacing: "2px", textTransform: "uppercase",
+            marginBottom: "10px", opacity: 0.8,
+          }}>💼 Job Title</h3>
+          <input
+            value={jobTitle}
+            onChange={(e) => setJobTitle(e.target.value)}
+            placeholder="e.g. Frontend Developer, React Engineer..."
+            style={{
+              width: "100%", background: "#FFFFFF",
+              border: "1px solid rgba(45,90,61,0.2)", borderRadius: "8px",
+              color: "#1E2018", padding: "12px 14px", fontSize: "14px",
+              fontFamily: "system-ui, sans-serif", marginBottom: "20px",
+              outline: "none",
+            }}
+          />
+
           <h3 style={{
             color: "#2D5A3D", fontFamily: "'Libre Baskerville', serif",
             fontSize: "13px", letterSpacing: "2px", textTransform: "uppercase",
