@@ -21,7 +21,7 @@ function Navbar() {
   const handleLogout = () => { logout(); navigate("/"); };
 
   const dashboardRoutes = [
-    "/dashboard", "/cabinet", "/generate", "/profile",
+    "/dashboard", "/cabinet", "/generate", "/profile","/bulkgenerate",
     "/cover-letter", "/jobs", "/tracker",
     "/tools/interview", "/tools/linkedin", "/tools/salary", "/tools/skills-gap",
   ];

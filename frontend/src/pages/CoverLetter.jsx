@@ -1,4 +1,5 @@
 
+
 // =============================================================================
 // FILE: frontend/src/pages/CoverLetter.jsx  (UPDATED — Lesson 4.1 Signature)
 // =============================================================================
@@ -71,7 +72,9 @@ export default function CoverLetter() {
   const [saving, setSaving]                 = useState(false);
   const [saved, setSaved]                   = useState(false);
   const [saveError, setSaveError]           = useState("");
-  const [downloadError, setDownloadError]   = useState("");
+  const [downloadError, setDownloadError]     = useState("");
+  const [downloadingTex, setDownloadingTex]   = useState(false);
+  const [downloadTexError, setDownloadTexError] = useState("");
   // downloadError: shown on screen when .docx download fails — surfaces the real error message.
 
   const [hasProfile, setHasProfile]         = useState(null);
@@ -186,20 +189,7 @@ export default function CoverLetter() {
   };
 
 
-  // ── DOWNLOAD .DOCX HANDLER ───────────────────────────────────────────────
-  // =============================================================================
-// PATCH for frontend/src/pages/CoverLetter.jsx
-// =============================================================================
-// REPLACE the existing handleDownload function with this one.
-//
-// CHANGE: Replaces raw fetch() with hardcoded URL with the api axios instance.
-//   Before: fetch("http://127.0.0.1:5000/api/download-cover-letter", ...)
-//           → breaks in production, duplicates auth token logic
-//   After:  api.post("/download-cover-letter", ..., { responseType: "blob" })
-//           → uses VITE_API_URL env variable, token attached automatically
-//           → consistent with every other download in the app
-// =============================================================================
-
+  // ── DOWNLOAD .DOCX HANDLER ──────────────────────────────────────────────────
   const handleDownload = async (text, jobTitleStr = "Cover_Letter") => {
     setDownloadError("");
     try {
@@ -208,20 +198,16 @@ export default function CoverLetter() {
         { cover_letter: text, job_title: jobTitleStr },
         { responseType: "blob" }
       );
-
       const blob = response.data;
       const url  = URL.createObjectURL(blob);
       const link = document.createElement("a");
-      link.href  = url;
-
-      const safeName = jobTitleStr.replace(/[^a-zA-Z0-9\s]/g, "").replace(/\s+/g, "_");
-      link.download  = `${safeName}_Cover_Letter.docx`;
-
+      link.href     = url;
+      const safe = jobTitleStr.replace(/[^a-zA-Z0-9\s]/g, "").replace(/\s+/g, "_").slice(0, 60);
+      link.download = `${safe}_Cover_Letter.docx`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
-
     } catch (err) {
       if (err.response?.status === 401) {
         localStorage.removeItem("token");
@@ -232,6 +218,38 @@ export default function CoverLetter() {
     }
   };
 
+
+  const handleDownloadTex = async (text, jobTitleStr = "Cover_Letter") => {
+    if (!text) return;
+    setDownloadingTex(true);
+    setDownloadTexError("");
+    try {
+      const response = await api.post(
+        "/download-cover-letter-tex",
+        { cover_letter: text, job_title: jobTitleStr },
+        { responseType: "blob" }
+      );
+      const blob = response.data;
+      const url  = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href     = url;
+      link.download = "Cover_Letter.tex";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      if (err.response?.status === 401) {
+        localStorage.removeItem("token");
+        navigate("/login");
+      } else {
+        setDownloadTexError("TeX download failed.");
+      }
+    } finally {
+      setDownloadingTex(false);
+    }
+  };
+ 
 
   // ── SAVE HANDLER ──────────────────────────────────────────────────────────
   const handleSave = async () => {
@@ -568,28 +586,70 @@ export default function CoverLetter() {
                 {copied ? "✓ Copied!" : "⎘ Copy"}
               </button>
 
-              {/* Download .txt */}
+              {/* ── Download .docx ── */}
               <button
                 onClick={() => handleDownload(result, jobDescription.split("\n")[0] || "Cover_Letter")}
                 style={{
-                  background: "transparent",
-                  border: "1px solid rgba(45,90,61,0.4)",
-                  color: "#2D5A3D", padding: "11px 24px",
-                  borderRadius: "6px", cursor: "pointer",
-                  fontSize: "14px", fontFamily: "'Libre Baskerville', serif",
-                  transition: "background 0.15s ease",
+                  background:   "transparent",
+                  border:       "1px solid rgba(45,90,61,0.4)",
+                  color:        "#2D5A3D",
+                  padding:      "11px 24px",
+                  borderRadius: "6px",
+                  cursor:       "pointer",
+                  fontSize:     "14px",
+                  fontFamily:   "'Libre Baskerville', serif",
+                  transition:   "background 0.15s ease",
                 }}
                 onMouseEnter={(e) => e.currentTarget.style.background = "rgba(45,90,61,0.08)"}
                 onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
               >
                 ⬇ Download .docx
               </button>
-
               {downloadError && (
-                <p style={{ color: "#8B2020", fontSize: "12px", marginTop: "6px", fontFamily: "system-ui, sans-serif" }}>
-                  ⚠ {downloadError}
-                </p>
+                <p style={{ color: "#8B2020", fontSize: "12px", marginTop: "6px" }}>⚠ {downloadError}</p>
               )}
+
+              {/* ── Download .tex + Overleaf suggestion ── */}
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: "4px" }}>
+                <button
+                  onClick={() => handleDownloadTex(result, jobDescription.split("\n")[0] || "Cover_Letter")}
+                  disabled={downloadingTex}
+                  style={{
+                    background:   "#2D5A3D",
+                    border:       "none",
+                    color:        "#EDE8DE",
+                    padding:      "11px 24px",
+                    borderRadius: "6px",
+                    cursor:       downloadingTex ? "not-allowed" : "pointer",
+                    fontSize:     "14px",
+                    fontFamily:   "'Libre Baskerville', serif",
+                    fontWeight:   900,
+                    opacity:      downloadingTex ? 0.65 : 1,
+                    display:      "flex", alignItems: "center", gap: "8px",
+                  }}
+                >
+                  {downloadingTex ? (
+                    <>
+                      <span style={{
+                        display: "inline-block", width: "12px", height: "12px",
+                        border: "2px solid rgba(255,255,255,0.4)", borderTopColor: "white",
+                        borderRadius: "50%", animation: "spin 0.7s linear infinite",
+                      }} />
+                      Preparing...
+                    </>
+                  ) : "⬇ Download .tex"}
+                </button>
+                <span style={{ fontSize: "12px", color: "#1E2018", opacity: 0.55, lineHeight: "1.4" }}>
+                  Edit & compile free on{" "}
+                  <a href="https://www.overleaf.com" target="_blank" rel="noopener noreferrer"
+                    style={{ color: "#2D5A3D", fontWeight: 700, textDecoration: "underline" }}>
+                    overleaf.com
+                  </a>
+                </span>
+                {downloadTexError && (
+                  <p style={{ color: "#8B2020", fontSize: "12px", marginTop: "3px" }}>⚠ {downloadTexError}</p>
+                )}
+              </div>
 
               {/* Save */}
               <div>
@@ -940,7 +1000,7 @@ export default function CoverLetter() {
                       ⎘ Copy
                     </button>
 
-                    {/* Download */}
+                    {/* Download .docx */}
                     <button
                       onClick={() => handleDownload(cl.cover_letter, cl.job_title)}
                       style={{
@@ -954,7 +1014,22 @@ export default function CoverLetter() {
                       onMouseEnter={(e) => e.currentTarget.style.background = "rgba(45,90,61,0.08)"}
                       onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
                     >
-                      ⬇
+                      ⬇ .docx
+                    </button>
+
+                    {/* Download .tex */}
+                    <button
+                      onClick={() => handleDownloadTex(cl.cover_letter, cl.job_title)}
+                      style={{
+                        background: "#2D5A3D",
+                        border: "none",
+                        color: "#EDE8DE", padding: "6px 14px",
+                        borderRadius: "6px", cursor: "pointer",
+                        fontSize: "12px", fontFamily: "'Libre Baskerville', serif",
+                        fontWeight: 900,
+                      }}
+                    >
+                      ⬇ .tex
                     </button>
 
                     {/* Delete — two-step */}
@@ -1043,4 +1118,7 @@ export default function CoverLetter() {
     </DashboardLayout>
   );
 }
+
+
+
 

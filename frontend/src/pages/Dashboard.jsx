@@ -1,4 +1,5 @@
 
+
 // =============================================================================
 // FILE: frontend/src/pages/Dashboard.jsx  (UPDATED — Phase 5.6: Tracker Stats)
 // =============================================================================
@@ -428,4 +429,7 @@ export default function Dashboard() {
     </DashboardLayout>
   );
 }
+
+
+
 

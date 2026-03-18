@@ -1,0 +1,419 @@
+\documentclass[11pt, a4paper]{article}
+
+\usepackage[a4paper, top=8mm, left=14mm, right=14mm, bottom=10mm]{geometry}
+\usepackage{xcolor}
+\usepackage{fontspec}
+\usepackage{enumitem}
+\usepackage{tabularx}
+\usepackage{parskip}
+\usepackage{microtype}
+\usepackage{hyperref}
+\usepackage{mdframed}
+\usepackage{multicol}
+\usepackage{graphicx}
+
+\definecolor{DKGreen}{HTML}{2D5016}
+\definecolor{MDGreen}{HTML}{4A7C2F}
+\definecolor{CardBG}{HTML}{F5F3EE}
+\definecolor{HeaderBG}{HTML}{2D5016}
+\definecolor{BorderClr}{HTML}{C8D8B0}
+\definecolor{DarkTxt}{HTML}{1A1A1A}
+\definecolor{MidTxt}{HTML}{3C3C3C}
+\definecolor{LiteTxt}{HTML}{7A7A6E}
+\definecolor{AccentGreen}{HTML}{5A8A35}
+\definecolor{PageBG}{HTML}{FAF8F3}
+\definecolor{HeaderLight}{HTML}{A8CC80}
+\definecolor{HeaderContact}{HTML}{D0E8B0}
+\definecolor{HeaderSep}{HTML}{6A9A50}
+
+\setmainfont{Arial}[Ligatures=TeX]
+\hypersetup{colorlinks=true, urlcolor=MDGreen, linkcolor=DKGreen}
+\pagecolor{PageBG}
+\pagestyle{empty}
+
+\setlist[itemize]{
+  label={\textcolor{DKGreen}{$\rightarrow$}},
+  leftmargin=1.4em, itemsep=2pt, topsep=3pt, parsep=0pt
+}
+
+\newcommand{\cvsection}[1]{%
+  \vspace{6pt}%
+  \noindent%
+  \colorbox{DKGreen}{\hspace{4pt}\rule{0pt}{14pt}\hspace{4pt}}%
+  \colorbox{CardBG}{%
+    \parbox[c][14pt]{\dimexpr\linewidth-16pt\relax}{%
+      \hspace{8pt}\textcolor{DKGreen}{\textbf{\large\MakeUppercase{#1}}}%
+    }%
+  }%
+  \par
+  \noindent{\color{BorderClr}\rule{\linewidth}{0.6pt}}%
+  \vspace{4pt}\par\noindent%
+}
+
+\newcommand{\skillcard}[2]{%
+  \begin{mdframed}[
+    linecolor=BorderClr, linewidth=0.6pt,
+    leftline=true, rightline=true, topline=true, bottomline=true,
+    innerleftmargin=7pt, innerrightmargin=6pt,
+    innertopmargin=5pt, innerbottommargin=5pt,
+    backgroundcolor=white,
+    leftmargin=0pt, rightmargin=0pt,
+    skipabove=4pt, skipbelow=4pt,
+  ]%
+  \textcolor{DKGreen}{\textbf{#1}}\\[2pt]%
+  {\small\textcolor{LiteTxt}{#2}}%
+  \end{mdframed}%
+}
+
+\newcommand{\sqon}{\textcolor{DKGreen}{$\blacksquare$}\,}
+\newcommand{\sqoff}{\textcolor{BorderClr}{$\blacksquare$}\,}
+\newcommand{\langbar}[1]{%
+  \ifnum#1>0\sqon\else\sqoff\fi%
+  \ifnum#1>1\sqon\else\sqoff\fi%
+  \ifnum#1>2\sqon\else\sqoff\fi%
+  \ifnum#1>3\sqon\else\sqoff\fi%
+  \ifnum#1>4\sqon\else\sqoff\fi%
+  \ifnum#1>5\sqon\else\sqoff\fi%
+}
+
+\newcommand{\sectionrule}{%
+  \vspace{2pt}{\color{BorderClr}\rule{\linewidth}{0.6pt}}\vspace{4pt}%
+}
+
+\begin{document}
+
+\noindent\hspace{-6mm}%
+\colorbox{HeaderBG}{%
+  \begin{minipage}{\dimexpr\linewidth+12mm\relax}%
+    \vspace{5mm}%
+    \hspace{5mm}{\fontsize{28}{32}\selectfont%
+      \textcolor{white}{\textbf{Mutshidzi Madzivhandila}}}
+    \par\vspace{2mm}%
+    \hspace{5mm}{\large\textcolor{HeaderLight}{\textit{Computer Scientist, Software Developer}}}
+    \par\vspace{3mm}%
+    \hspace{5mm}%
+    \textcolor{HeaderContact}{Somerset West}\;
+    \textcolor{HeaderSep}{$\vert$}\;
+    \textcolor{HeaderContact}{0723333217}\;
+    \textcolor{HeaderSep}{$\vert$}\;
+    \textcolor{HeaderContact}{tshidzi02@gmail.com}
+    \par\vspace{5mm}%
+  \end{minipage}%
+}
+
+\vspace{4mm}
+
+\cvsection{Professional Summary}
+\noindent\textcolor{MidTxt}{As a final-year BSc student in Applied Mathematics and Computer Science, I have honed my skills in Python and JavaScript, which are critical for web development. My experience as a Computer Science Intern/Test Automation Developer at Stellenbosch University has equipped me with the ability to develop and maintain automation scripts, optimize tools, and integrate APIs—skills that align well with the responsibilities of a Junior Web Developer. My role involved collaborating with developers to enhance software systems, which mirrors the teamwork and communication skills required for this position. Additionally, my project work, particularly in developing a full-stack SaaS platform and an AI-powered job search platform, demonstrates my proficiency in building user-friendly and efficient applications. These projects have not only strengthened my technical expertise but also my ability to manage content and optimize performance. My experience in sales has further refined my client interaction skills, ensuring I can communicate effectively with team members and stakeholders. I am eager to apply my technical skills and collaborative spirit to contribute to your marketing team, enhance website functionality, and drive digital marketing success.}
+
+\cvsection{Skills}
+
+\vspace{4pt}
+\noindent{\textcolor{AccentGreen}{\textbf{\MakeUppercase{Your Skills}}}}
+\sectionrule
+\begin{multicols}{2}
+\skillcard{Python}{Python is a versatile programming language that is essential for developing dynamic web applications and automating tasks, making it relevant for enhancing web development projects.}
+\skillcard{Java}{Java is a robust programming language that supports building scalable web applications, which is crucial for developing and maintaining complex websites.}
+\skillcard{JavaScript}{JavaScript is a core technology for creating interactive and dynamic web content, vital for enhancing user experience on WordPress sites.}
+\skillcard{Object-Oriented Programming}{Object-Oriented Programming (OOP) is a programming paradigm that helps in structuring code efficiently, which is essential for building maintainable and scalable web applications.}
+\skillcard{Algorithms \& Data Structures}{Understanding algorithms and data structures is crucial for optimizing web application performance and ensuring efficient data handling.}
+\skillcard{Data Analysis}{Data analysis skills enable the extraction of insights from web analytics, helping to improve website performance and marketing strategies.}
+\skillcard{Mathematical Modelling}{Mathematical modelling aids in solving complex problems and optimizing web applications, contributing to more effective project outcomes.}
+\skillcard{Problem Solving}{Problem-solving skills are essential for identifying and resolving issues in web development, ensuring smooth website functionality.}
+\skillcard{Analytical Thinking}{Analytical thinking helps in evaluating web development processes and making data-driven decisions to enhance website performance.}
+\skillcard{Git}{Git is a version control system that facilitates collaboration and code management, crucial for team-based web development projects.}
+\skillcard{GitHub / GitLab}{GitHub and GitLab are platforms for hosting and managing code repositories, essential for collaborative web development and version control.}
+\skillcard{Google Apps Script}{Google Apps Script allows automation of tasks and integration with Google services, enhancing productivity in web development projects.}
+\skillcard{VS Code}{VS Code is a popular code editor that supports various programming languages, providing a versatile environment for efficient web development.}
+\skillcard{LaTeX}{LaTeX is a typesetting system useful for creating technical documentation, ensuring clear and professional presentation of web development projects.}
+\skillcard{Software Development}{Software development skills are fundamental for building, testing, and deploying web applications, aligning with the role's technical requirements.}
+\skillcard{Workflow Automation}{Workflow automation streamlines repetitive tasks, increasing efficiency and allowing more focus on creative web development activities.}
+\skillcard{API Integration}{API integration enables seamless connectivity between different software systems, enhancing the functionality of web applications.}
+\skillcard{Scripting}{Scripting skills allow for the automation of tasks and customization of web applications, improving efficiency and functionality.}
+\skillcard{Debugging}{Debugging is the process of identifying and fixing errors in code, essential for maintaining the quality and performance of web applications.}
+\skillcard{HTML}{HTML is the standard markup language for creating web pages, fundamental for building and structuring content on WordPress sites.}
+\skillcard{CSS}{CSS is used to style and layout web pages, crucial for creating visually appealing and responsive WordPress websites.}
+\skillcard{React}{React is a JavaScript library for building user interfaces, enabling the creation of dynamic and interactive web components.}
+\skillcard{Databases \& SQL}{Knowledge of databases and SQL is essential for managing and retrieving data efficiently, supporting dynamic content on websites.}
+\skillcard{Command Line Tools}{Command line tools facilitate efficient system navigation and task automation, enhancing productivity in web development.}
+\skillcard{Technical Documentation}{Technical documentation skills ensure clear communication of web development processes and project specifications.}
+\skillcard{Communication}{Effective communication is vital for collaborating with team members and stakeholders, ensuring successful project outcomes.}
+\skillcard{Collaboration}{Collaboration skills are essential for working effectively within a team, contributing to the success of web development projects.}
+\skillcard{Time Management}{Time management skills help prioritize tasks and meet project deadlines, ensuring timely delivery of web development projects.}
+\skillcard{Adaptability}{Adaptability is crucial for adjusting to new technologies and project requirements, enabling continuous growth and learning in web development.}
+\end{multicols}
+\vspace{4pt}
+
+\vspace{4pt}
+\noindent{\textcolor{AccentGreen}{\textbf{\MakeUppercase{Tools and Platforms}}}}
+\sectionrule
+\begin{multicols}{2}
+\skillcard{WordPress}{WordPress is a popular Content Management System (CMS) used to build and manage websites. This job requires proficiency in WordPress to effectively build, customize, and maintain websites, ensuring they are responsive and optimized for performance. Mastery of WordPress is crucial for implementing content updates, troubleshooting technical issues, and supporting the marketing team's web development projects.}
+\skillcard{PHP}{PHP is a server-side scripting language used in web development. This job requires familiarity with PHP to customize WordPress themes and plugins, enhancing website functionality and performance. Understanding PHP is essential for diagnosing and resolving technical issues, ensuring websites remain functional and up-to-date.}
+\end{multicols}
+\vspace{4pt}
+
+\vspace{4pt}
+\noindent{\textcolor{AccentGreen}{\textbf{\MakeUppercase{SEO and Performance Optimization}}}}
+\sectionrule
+\begin{multicols}{2}
+\skillcard{On-page SEO Techniques}{On-page SEO involves optimizing individual web pages to rank higher and earn more relevant traffic in search engines. This job requires knowledge of on-page SEO techniques, such as using meta tags, alt text, and structured data, to improve website visibility and search engine ranking. Effective SEO practices are vital for driving organic traffic and enhancing the website's online presence.}
+\skillcard{Website Speed Optimization}{Website speed optimization involves techniques to improve the loading time and performance of a website. This job requires skills in optimizing website speed to enhance user experience, reduce bounce rates, and improve search engine rankings. Fast-loading websites are crucial for maintaining user engagement and achieving marketing goals.}
+\end{multicols}
+\vspace{4pt}
+
+\vspace{4pt}
+\noindent{\textcolor{AccentGreen}{\textbf{\MakeUppercase{Soft Skills}}}}
+\sectionrule
+\begin{multicols}{2}
+\skillcard{Attention to Detail}{Attention to detail is the ability to accurately and thoroughly accomplish tasks with a focus on all aspects of the work. This job requires strong attention to detail to ensure websites are built and maintained with precision, minimizing errors and enhancing user experience. Attention to detail is critical for diagnosing technical issues and implementing effective solutions.}
+\skillcard{Teamwork}{Teamwork involves collaborating effectively with others to achieve common goals. This job requires excellent teamwork skills to work closely with graphic designers, content creators, and other marketing team members. Successful collaboration is essential for implementing content updates, promotional campaigns, and achieving project objectives.}
+\end{multicols}
+\vspace{4pt}
+
+\vspace{4pt}
+\noindent{\textcolor{AccentGreen}{\textbf{\MakeUppercase{Additional Relevant Skills}}}}
+\sectionrule
+\begin{multicols}{2}
+\skillcard{Responsive Web Design}{Responsive web design is an approach to web design that makes web pages render well on a variety of devices and window or screen sizes. This job requires skills in responsive web design to ensure websites are user-friendly and accessible on all devices, enhancing user experience and engagement.}
+\skillcard{Cross-Browser Compatibility}{Cross-browser compatibility ensures that websites function correctly across different web browsers. This job requires skills in ensuring cross-browser compatibility to provide a consistent user experience, regardless of the browser used. It is essential for reaching a wider audience and maintaining website functionality.}
+\skillcard{Graphic Design Basics}{Graphic design basics involve understanding design principles and tools to create visually appealing content. This job requires basic graphic design skills to collaborate effectively with designers and contribute to the visual aspects of web development projects. It enhances the ability to implement design changes and improve website aesthetics.}
+\skillcard{Content Management Systems (CMS) Knowledge}{CMS knowledge involves understanding various content management systems to manage digital content effectively. This job requires CMS knowledge to efficiently update and manage website content, ensuring it aligns with marketing strategies and objectives. It is crucial for maintaining website relevance and engagement.}
+\skillcard{Web Analytics}{Web analytics involves analyzing website data to understand user behavior and improve website performance. This job requires skills in web analytics to provide regular reports on website performance and insights for improvement. It is essential for data-driven decision-making and optimizing marketing strategies.}
+\skillcard{Version Control Systems}{Version control systems, like Git, are tools that help manage changes to source code over time. This job requires proficiency in version control systems to track and manage changes in website development projects, ensuring collaboration and minimizing conflicts. It is crucial for maintaining code integrity and project organization.}
+\skillcard{User Experience (UX) Design}{UX design focuses on creating products that provide meaningful and relevant experiences to users. This job requires UX design skills to ensure websites are user-friendly, intuitive, and meet user needs. It is essential for enhancing user satisfaction and achieving marketing goals.}
+\skillcard{Digital Marketing Basics}{Digital marketing basics involve understanding online marketing strategies to promote products or services. This job requires knowledge of digital marketing basics to collaborate effectively with the marketing team and contribute to promotional campaigns. It enhances the ability to align web development projects with marketing objectives.}
+\skillcard{Project Management}{Project management involves planning, executing, and overseeing projects to achieve specific goals. This job requires project management skills to prioritize tasks, meet deadlines, and ensure successful completion of web development projects. It is essential for maintaining project organization and achieving team objectives.}
+\skillcard{Mobile Usability}{Mobile usability focuses on optimizing websites for mobile devices to ensure a seamless user experience. This job requires skills in mobile usability to enhance website accessibility and engagement on smartphones and tablets. It is crucial for reaching a broader audience and improving user satisfaction.}
+\end{multicols}
+\vspace{4pt}
+
+\cvsection{Experience}
+
+\vspace{6pt}
+\noindent
+\begin{tabularx}{\linewidth}{Xr}
+  \textcolor{DarkTxt}{\textbf{\large COMPUTER SCIENCE INTERN /TEST AUTOMATION DEVELOPER}} &
+  \textcolor{LiteTxt}{\textit{2021 -- Present}} \\
+\end{tabularx}%
+{\color{DKGreen}\rule{\linewidth}{0.8pt}}%
+\vspace{2pt}
+\noindent\textcolor{MDGreen}{\textbf{Stellenbosch University}}\;
+\textcolor{LiteTxt}{$\bullet$\; Stellenbosch, South Africa}
+\vspace{3pt}
+\begin{itemize}
+  \item \textcolor{MidTxt}{Developed and maintained test automation scripts using Python, JavaScript, and Google Apps Script, reducing manual processing time and improving workflow efficiency.}
+  \item \textcolor{MidTxt}{Built and optimized automation tools and document-processing pipelines to extract, clean, and format large datasets for academic and software development projects.}
+  \item \textcolor{MidTxt}{Integrated APIs and AI tools into existing systems to automate data transformation, reporting, and content generation processes.}
+  \item \textcolor{MidTxt}{Collaborated with developers to debug, test, and optimize software systems, improving code quality, automation coverage, and overall system performance.}
+  \item \textcolor{MidTxt}{Applied problem-solving skills to ensure system uptime and functionality, aligning with the technical support responsibilities of the job.}
+  \item \textcolor{MidTxt}{Enhanced website performance by optimizing automation scripts, demonstrating skills in performance optimization.}
+  \item \textcolor{MidTxt}{Leveraged API integration experience to support content management and promotional campaigns effectively.}
+\end{itemize}
+\vspace{2pt}
+
+\vspace{6pt}
+\noindent
+\begin{tabularx}{\linewidth}{Xr}
+  \textcolor{DarkTxt}{\textbf{\large SALES REPRESENTATIVE}} &
+  \textcolor{LiteTxt}{\textit{2023 -- 2025}} \\
+\end{tabularx}%
+{\color{DKGreen}\rule{\linewidth}{0.8pt}}%
+\vspace{2pt}
+\noindent\textcolor{MDGreen}{\textbf{M AND L HPC BRANDS GROUP (PTY) LTP}}\;
+\textcolor{LiteTxt}{$\bullet$\; Johannesburg, South Africa}
+\vspace{3pt}
+\begin{itemize}
+  \item \textcolor{MidTxt}{Delivered remote customer engagement and product support, strengthening communication, problem-solving, and client relationship management skills.}
+  \item \textcolor{MidTxt}{Adapted messaging and sales approaches to interact effectively with diverse customers, improving customer satisfaction and engagement.}
+  \item \textcolor{MidTxt}{Managed customer inquiries and product information requests, demonstrating patience, active listening, and clear explanation of complex information.}
+  \item \textcolor{MidTxt}{Maintained consistent remote collaboration with team members and management, supporting sales targets and customer service objectives.}
+  \item \textcolor{MidTxt}{Developed strong attention to detail and prioritization skills, essential for managing website content and updates.}
+  \item \textcolor{MidTxt}{Utilized communication skills to effectively collaborate with marketing teams, aligning with the job's collaborative requirements.}
+  \item \textcolor{MidTxt}{Applied problem-solving abilities to address and resolve customer issues, relevant to technical support and troubleshooting.}
+\end{itemize}
+\vspace{2pt}
+
+\cvsection{Education}
+
+\vspace{6pt}
+\noindent\textcolor{DarkTxt}{\textbf{\large Bachelor of Science: Applied Mathematics}}\par
+\vspace{2pt}
+\noindent\textcolor{MDGreen}{\textbf{Stellenbosch University}}\;
+\textcolor{LiteTxt}{$\bullet$\; Stellenbosch, South Africa}\par
+\vspace{1pt}
+\noindent\textcolor{LiteTxt}{\textit{December 2026}}
+\vspace{2pt}
+\noindent\textcolor{MidTxt}{\textbf{Minimum Average:}}\;
+\textcolor{DKGreen}{70}
+\vspace{3pt}
+\noindent\textcolor{DKGreen}{\textbf{Relevant Coursework:}}
+\sectionrule
+\begin{itemize}
+  \item \textcolor{MidTxt}{Algorithms \& Data Structures: Covers fundamental algorithms and data structures, essential for efficient website development and problem-solving.}
+  \item \textcolor{MidTxt}{Web Programming \& Databases: Focuses on web development and database management, directly relevant to building and maintaining WordPress websites.}
+  \item \textcolor{MidTxt}{Operations Research: Teaches optimization techniques, useful for enhancing website performance and SEO.}
+  \item \textcolor{MidTxt}{Linear Algebra: Provides mathematical foundations for understanding complex algorithms and data processing.}
+  \item \textcolor{MidTxt}{Analysis: Develops analytical skills for evaluating and improving website functionality.}
+  \item \textcolor{MidTxt}{Mathematical Modelling: Equips with skills to model and solve real-world problems, applicable to web development projects.}
+  \item \textcolor{MidTxt}{WA for Aurora Netball Team, 2021 to 2025: Demonstrates leadership and teamwork skills, relevant to collaborating with marketing teams.}
+  \item \textcolor{MidTxt}{Sales Representative Apprenticeship, M AND L HPC BRANDS GROUP (PTY) LTP, Completed 2025: Enhances communication and client interaction skills, essential for customer engagement and support.}
+\end{itemize}
+\vspace{2pt}
+
+\cvsection{Project Experience}
+
+\vspace{8pt}
+\noindent%
+{\color{DKGreen}\rule{4pt}{14pt}}\hspace{6pt}%
+\textcolor{DarkTxt}{\textbf{\large FrontendJobs AI-Powered Job Search Platform}}\par
+\vspace{1pt}
+\noindent\hspace{10pt}\textcolor{DKGreen}{\textbf{\small React, Vite, Flask, PostgreSQL, OpenAI GPT-4o, Python, DigitalOcean}}
+\vspace{2pt}
+\begin{itemize}
+  \item \textcolor{MidTxt}{Architected and deployed a full-stack SaaS platform using React (Vite) and Flask, integrating OpenAI GPT-4o to generate ATS-optimised CVs and cover letters tailored to specific job descriptions.}
+  \item \textcolor{MidTxt}{Engineered a semantic similarity scoring engine using OpenAI text embeddings and cosine similarity, delivering real-time ATS match scores, skills gap analysis, and missing keyword detection with weighted composite scoring.}
+  \item \textcolor{MidTxt}{Designed and implemented RESTful API endpoints with JWT authentication, Google OAuth 2.0, and PostgreSQL persistence, deployed to DigitalOcean with Nginx reverse proxy and SSL via Certbot.}
+  \item \textcolor{MidTxt}{Built an AI tools suite — including Interview Prep, LinkedIn Bio Optimiser, Salary Estimator, and Skills Gap Report — enabling users to maximise job application success through data-driven career intelligence.}
+  \item \textcolor{MidTxt}{Demonstrated proficiency in building responsive and user-friendly applications, aligning with the requirement for website development and maintenance.}
+  \item \textcolor{MidTxt}{Utilized API integration skills to enhance application functionality, relevant to content management and updates.}
+  \item \textcolor{MidTxt}{Showcased ability to optimize web applications for performance, directly aligning with the job's SEO and performance optimization requirements.}
+  \item \textcolor{MidTxt}{Applied teamwork and collaboration skills by working with diverse technologies and platforms, reflecting the collaborative nature of the role.}
+\end{itemize}
+\vspace{2pt}
+
+\vspace{8pt}
+\noindent%
+{\color{DKGreen}\rule{4pt}{14pt}}\hspace{6pt}%
+\textcolor{DarkTxt}{\textbf{\large SEIR/SEIRD Epidemiological Disease Spread Simulator}}\par
+\vspace{1pt}
+\noindent\hspace{10pt}\textcolor{DKGreen}{\textbf{\small SciPy, Matplotlib}}
+\vspace{2pt}
+\begin{itemize}
+  \item \textcolor{MidTxt}{Engineered a compartmental epidemiological simulation using SEIR and SEIRD differential equation models to replicate real-world infectious disease spread dynamics across population groups.}
+  \item \textcolor{MidTxt}{Implemented numerical solvers using SciPy to compute differential equation systems, producing time-series outputs that tracked Susceptible, Exposed, Infected, Recovered, and Deceased compartments.}
+  \item \textcolor{MidTxt}{Conducted parameter sensitivity analysis by systematically varying transmission rate, recovery rate, and mortality coefficients, generating comparative visualisations using Matplotlib to assess outbreak severity under different scenarios.}
+  \item \textcolor{MidTxt}{Validated simulation outputs against published epidemiological data, demonstrating the ability to translate complex mathematical theory into accurate, reproducible computational models.}
+  \item \textcolor{MidTxt}{Showcased strong analytical skills and attention to detail, essential for diagnosing and resolving technical issues.}
+  \item \textcolor{MidTxt}{Applied data visualization techniques to present complex information clearly, relevant to updating website content and multimedia elements.}
+  \item \textcolor{MidTxt}{Demonstrated ability to optimize algorithms for performance, aligning with the job's focus on website speed and usability.}
+  \item \textcolor{MidTxt}{Utilized problem-solving skills to enhance simulation accuracy, reflecting the technical support and troubleshooting aspects of the role.}
+\end{itemize}
+\vspace{2pt}
+
+\vspace{8pt}
+\noindent%
+{\color{DKGreen}\rule{4pt}{14pt}}\hspace{6pt}%
+\textcolor{DarkTxt}{\textbf{\large React Task Manager — Component-Based Web Application}}\par
+\vspace{1pt}
+\noindent\hspace{10pt}\textcolor{DKGreen}{\textbf{\small React, JavaScript, HTML, CSS, React Router}}
+\vspace{2pt}
+\begin{itemize}
+  \item \textcolor{MidTxt}{Implemented responsive layouts using CSS Flexbox and Grid, ensuring consistent cross-device and cross-browser compatibility across desktop and mobile viewports.}
+  \item \textcolor{MidTxt}{Applied frontend engineering best practices including reusable component composition, prop drilling management, and separation of concerns to produce a scalable and maintainable codebase.}
+  \item \textcolor{MidTxt}{Built real-time search and multi-criteria filtering functionality using React hooks (useState, useEffect), enabling efficient data querying and responsive UI updates without page reloads.}
+  \item \textcolor{MidTxt}{Architected a React single-page application using a component-based design pattern, implementing React Router for client-side navigation and dynamic content rendering across multiple views.}
+\end{itemize}
+\vspace{2pt}
+
+\vspace{8pt}
+\noindent%
+{\color{DKGreen}\rule{4pt}{14pt}}\hspace{6pt}%
+\textcolor{DarkTxt}{\textbf{\large Algorithm \& Data Structures Implementation Library}}\par
+\vspace{1pt}
+\noindent\hspace{10pt}\textcolor{DKGreen}{\textbf{\small Python, Java, Data Structures, Big-O Analysis}}
+\vspace{2pt}
+\begin{itemize}
+  \item \textcolor{MidTxt}{Built systematic debugging and test validation workflows, writing edge-case test suites in Python to verify correctness of all algorithm implementations before deployment.}
+  \item \textcolor{MidTxt}{Solved over 30 logic-based programming challenges by decomposing problems into modular, testable components — applying dynamic programming, recursion, and greedy strategies to derive optimal solutions.}
+  \item \textcolor{MidTxt}{Performed rigorous time and space complexity analysis using Big-O notation, benchmarking algorithm performance across varying input sizes to justify data structure selection and optimisation decisions.}
+  \item \textcolor{MidTxt}{Implemented a library of core computer science algorithms in Python and Java, including binary search, quicksort, merge sort, depth-first search, and breadth-first search for practical problem-solving applications.}
+\end{itemize}
+\vspace{2pt}
+
+\vspace{8pt}
+\noindent%
+{\color{DKGreen}\rule{4pt}{14pt}}\hspace{6pt}%
+\textcolor{DarkTxt}{\textbf{\large Automated Personal Budget Management System}}\par
+\vspace{1pt}
+\noindent\hspace{10pt}\textcolor{DKGreen}{\textbf{\small Google Apps Script, Google Sheets}}
+\vspace{2pt}
+\begin{itemize}
+  \item \textcolor{MidTxt}{Implemented automated spreadsheet logic to generate monthly summaries and financial insights with minimal manual input.}
+  \item \textcolor{MidTxt}{Designed a structured calendar-style layout to visualise daily spending and improve financial planning.}
+  \item \textcolor{MidTxt}{Built custom Google Apps Script functions to automate calculations, expense categorisation, and dynamic financial summaries.}
+  \item \textcolor{MidTxt}{Developed an automated budget management system in Google Sheets to track daily expenses, income, and category-based spending trends.}
+\end{itemize}
+\vspace{2pt}
+
+\vspace{8pt}
+\noindent%
+{\color{DKGreen}\rule{4pt}{14pt}}\hspace{6pt}%
+\textcolor{DarkTxt}{\textbf{\large Automated Payslip Generator for Payroll Tracking}}\par
+\vspace{1pt}
+\noindent\hspace{10pt}\textcolor{DKGreen}{\textbf{\small Google Apps Script, JavaScript, Google Sheets, Google Docs}}
+\vspace{2pt}
+\begin{itemize}
+  \item \textcolor{MidTxt}{Reduced manual payroll processing by creating a repeatable and scalable document automation pipeline.}
+  \item \textcolor{MidTxt}{Automated document generation and formatting to produce consistent, professional payslips directly from spreadsheet data.}
+  \item \textcolor{MidTxt}{Developed Google Apps Script workflows to dynamically populate employee details, salary calculations, and deductions.}
+  \item \textcolor{MidTxt}{Built an automated payslip generation system that converts payroll data from Google Sheets into structured payslip documents.}
+\end{itemize}
+\vspace{2pt}
+
+\cvsection{Languages}
+
+\vspace{4pt}
+\noindent
+\begin{minipage}[t]{0.30\linewidth}
+\noindent\textcolor{DKGreen}{\textbf{English}}%
+\hfill\textcolor{LiteTxt}{\small C2}\par
+\vspace{2pt}%
+\langbar{6}\par
+\vspace{1pt}%
+\textcolor{LiteTxt}{\textit{\small Bilingual or Proficient (C2)}}
+\end{minipage}%
+\hfill
+\begin{minipage}[t]{0.30\linewidth}
+\noindent\textcolor{DKGreen}{\textbf{TshiVenda}}%
+\hfill\textcolor{LiteTxt}{\small C1}\par
+\vspace{2pt}%
+\langbar{5}\par
+\vspace{1pt}%
+\textcolor{LiteTxt}{\textit{\small Advanced (C1)}}
+\end{minipage}%
+\hfill
+\begin{minipage}[t]{0.30\linewidth}
+\noindent\textcolor{DKGreen}{\textbf{isiZulu}}%
+\hfill\textcolor{LiteTxt}{\small C1}\par
+\vspace{2pt}%
+\langbar{5}\par
+\vspace{1pt}%
+\textcolor{LiteTxt}{\textit{\small Advanced (C1)}}
+\end{minipage}%
+\par\vspace{6pt}\noindent
+\begin{minipage}[t]{0.30\linewidth}
+\noindent\textcolor{DKGreen}{\textbf{isiXhosa}}%
+\hfill\textcolor{LiteTxt}{\small B2}\par
+\vspace{2pt}%
+\langbar{4}\par
+\vspace{1pt}%
+\textcolor{LiteTxt}{\textit{\small Upper-Intermediate (B2)}}
+\end{minipage}%
+\hfill
+\begin{minipage}[t]{0.30\linewidth}
+\noindent\textcolor{DKGreen}{\textbf{French}}%
+\hfill\textcolor{LiteTxt}{\small A2}\par
+\vspace{2pt}%
+\langbar{2}\par
+\vspace{1pt}%
+\textcolor{LiteTxt}{\textit{\small Elementary (A2)}}
+\end{minipage}%
+\hfill
+
+\cvsection{Reference}
+
+\vspace{4pt}
+\noindent\textcolor{LiteTxt}{\textit{Available upon Request}}
+
+\end{document}

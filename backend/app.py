@@ -34,6 +34,8 @@ from services.semantic_matcher import semantic_match_score
 from services.cv_generator import generate_cv
 from services.cover_letter_generator import generate_cover_letter
 from services.cover_letter_docx import generate_cover_letter_docx
+from services.cv_pdf             import generate_cv_pdf
+from services.cover_letter_pdf   import generate_cover_letter_pdf
 from services.job_search import search_jobs
 from services.tools_ai import (
     generate_interview_prep,
@@ -61,6 +63,7 @@ bcrypt = Bcrypt(app)
 jwt = JWTManager(app)
 db = SQLAlchemy(app)
 migrate = Migrate(app, db)
+
 
 # =============================================================================
 # DATABASE MODELS
@@ -1137,6 +1140,166 @@ Return ONLY the JSON object, nothing else."""
         print(f"[parse-cv] Exception: {type(e).__name__}: {e}")
         traceback.print_exc()
         return jsonify({"error": f"{type(e).__name__}: {str(e)}"}), 500
+
+# =============================================================================
+# ADD TO: backend/app.py
+# =============================================================================
+# Step 1 — Add these two imports at the top of app.py with the other service imports:
+#
+#   from services.cv_latex          import generate_cv_pdf
+#   from services.cover_letter_latex import generate_cover_letter_pdf
+#
+# Step 2 — Paste the two routes below directly after their .docx counterparts:
+#   • /api/download-cv-pdf      goes right after /api/download-cv
+#   • /api/download-cover-letter-pdf  goes right after /api/download-cover-letter
+# =============================================================================
+
+
+# ── DOWNLOAD CV as PDF (LaTeX) ─────────────────────────────────────────────────
+@app.route("/api/download-cv-pdf", methods=["POST"])
+@jwt_required()
+def download_cv_pdf():
+    """
+    Renders cv_template.tex with the AI result and compiles it to PDF via xelatex.
+
+    Request body — identical to /api/download-cv:
+      {
+        "ai_result": { ...same AI result object... },
+        "profile":   { ...same profile object... }
+      }
+
+    Returns: PDF file download named <FirstName_LastName_JobTitle_CV.pdf>
+
+    Errors:
+      400 — no ai_result provided
+      500 — xelatex not installed, or template missing, or compile error
+    """
+    data      = request.get_json()
+    ai_result = data.get("ai_result", {})
+    profile   = data.get("profile", {})
+
+    if not ai_result:
+        return jsonify({"message": "No AI result provided"}), 400
+
+    try:
+        output_path = generate_cv_pdf(profile, ai_result)
+
+        personal   = profile.get("personalInfo", {})
+        first_name = personal.get("firstName", "")
+        last_name  = personal.get("lastName",  "")
+        job_title  = data.get("jobTitle", "").strip().replace(" ", "_")[:50]
+        full_name  = f"{first_name}{'_' + last_name if last_name else ''}".strip()
+        filename   = "_".join(filter(None, [full_name, job_title, "CV"])) + ".pdf"
+
+        return send_file(
+            output_path,
+            as_attachment=True,
+            download_name=filename,
+            mimetype="application/pdf",
+        )
+    except RuntimeError as e:
+        # xelatex not installed or compile error — return a helpful message
+        return jsonify({"message": str(e)}), 500
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({"message": f"PDF generation failed: {str(e)}"}), 500
+
+
+# ── DOWNLOAD COVER LETTER as PDF (LaTeX) ──────────────────────────────────────
+@app.route("/api/download-cover-letter-pdf", methods=["POST"])
+@jwt_required()
+def download_cover_letter_pdf():
+    """
+    Renders cover_letter_template.tex and compiles it to PDF via xelatex.
+
+    Request body — identical to /api/download-cover-letter:
+      {
+        "cover_letter": "Full plain text of the generated cover letter",
+        "job_title":    "Senior Software Engineer"
+      }
+
+    Profile is loaded from DB (same as the .docx route — no need to resend it).
+
+    Returns: PDF file download named Cover_Letter.pdf
+    """
+    email = get_jwt_identity()
+    user  = User.query.filter_by(email=email).first()
+    if not user:
+        return jsonify({"message": "User not found"}), 404
+
+    data         = request.get_json()
+    cover_letter = data.get("cover_letter", "").strip()
+    job_title    = data.get("job_title", "Application")
+
+    if not cover_letter:
+        return jsonify({"message": "No cover letter text provided"}), 400
+
+    profile_row = Profile.query.filter_by(user_id=user.id).first()
+    profile     = json.loads(profile_row.data) if profile_row else {}
+
+    try:
+        output_path = generate_cover_letter_pdf(profile, cover_letter, job_title)
+        return send_file(
+            output_path,
+            as_attachment=True,
+            download_name="Cover_Letter.pdf",
+            mimetype="application/pdf",
+        )
+    except RuntimeError as e:
+        return jsonify({"message": str(e)}), 500
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({"message": f"PDF generation failed: {str(e)}"}), 500
+
+
+
+# ── DOWNLOAD CV as .tex (Overleaf) ────────────────────────────────────────────
+@app.route("/api/download-cv-tex", methods=["POST"])
+@jwt_required()
+def download_cv_tex():
+    from services.cv_latex import generate_cv_tex
+    data      = request.get_json()
+    ai_result = data.get("ai_result", {})
+    profile   = data.get("profile", {})
+    if not ai_result:
+        return jsonify({"message": "No AI result provided"}), 400
+    try:
+        tex_path   = generate_cv_tex(profile, ai_result)
+        personal   = profile.get("personalInfo", {})
+        first_name = personal.get("firstName", "")
+        last_name  = personal.get("lastName",  "")
+        full_name  = f"{first_name}{'_' + last_name if last_name else ''}".strip()
+        filename   = "_".join(filter(None, [full_name, "CV"])) + ".tex"
+        return send_file(tex_path, as_attachment=True,
+                         download_name=filename, mimetype="text/plain")
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({"message": f"TeX generation failed: {str(e)}"}), 500
+
+
+# ── DOWNLOAD COVER LETTER as .tex (Overleaf) ──────────────────────────────────
+@app.route("/api/download-cover-letter-tex", methods=["POST"])
+@jwt_required()
+def download_cover_letter_tex():
+    from services.cover_letter_latex import generate_cover_letter_tex
+    email = get_jwt_identity()
+    user  = User.query.filter_by(email=email).first()
+    if not user:
+        return jsonify({"message": "User not found"}), 404
+    data         = request.get_json()
+    cover_letter = data.get("cover_letter", "").strip()
+    job_title    = data.get("job_title", "Application")
+    if not cover_letter:
+        return jsonify({"message": "No cover letter text provided"}), 400
+    profile_row = Profile.query.filter_by(user_id=user.id).first()
+    profile     = json.loads(profile_row.data) if profile_row else {}
+    try:
+        tex_path = generate_cover_letter_tex(profile, cover_letter, job_title)
+        return send_file(tex_path, as_attachment=True,
+                         download_name="Cover_Letter.tex", mimetype="text/plain")
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({"message": f"TeX generation failed: {str(e)}"}), 500
 
 if __name__ == "__main__":
     app.run(debug=True)

@@ -21,6 +21,9 @@ import ProtectedRoute from "./components/ProtectedRoute";
 import { SidebarProvider } from "./context/SidebarContext";
 import { AuthProvider } from "./context/AuthContext";
 import Profile from "./pages/Profile";
+import BulkGenerate from "./pages/BulkGenerate";
+
+
 
 function BackgroundWrapper({ children }) {
   return (
@@ -58,6 +61,7 @@ export default function App() {
               <Route path="/tools/linkedin"  element={<ProtectedRoute><LinkedInOptimiser /></ProtectedRoute>} />
               <Route path="/tools/salary"    element={<ProtectedRoute><SalaryEstimator /></ProtectedRoute>} />
               <Route path="/tools/skills-gap" element={<ProtectedRoute><SkillsGap /></ProtectedRoute>} />
+              <Route path="/bulkgenerate" element={<ProtectedRoute><BulkGenerate /></ProtectedRoute>} />
             </Routes>
           </BackgroundWrapper>
         </SidebarProvider>

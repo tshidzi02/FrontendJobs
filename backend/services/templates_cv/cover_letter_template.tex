@@ -1,0 +1,99 @@
+% =============================================================================
+% FILE: backend/services/templates_cv/cover_letter_template.tex
+% ENGINE: Jinja2 via jinja2 (rendered by cover_letter_latex.py)
+% COMPILE: xelatex
+% =============================================================================
+\documentclass[11pt, a4paper]{article}
+
+\usepackage[a4paper, top=0mm, left=12mm, right=12mm, bottom=12mm]{geometry}
+\usepackage{xcolor}
+\usepackage{fontspec}
+\usepackage{parskip}
+\usepackage{hyperref}
+\usepackage{tabularx}
+
+% ── Colours ───────────────────────────────────────────────────────────────────
+\definecolor{DKGreen}{HTML}{2D5016}
+\definecolor{MDGreen}{HTML}{4A7C2F}
+\definecolor{BorderClr}{HTML}{C8D8B0}
+\definecolor{MidTxt}{HTML}{3C3C3C}
+\definecolor{LiteTxt}{HTML}{7A7A6E}
+\definecolor{PageBG}{HTML}{FAF8F3}
+\definecolor{HeaderBG}{HTML}{2D5016}
+\definecolor{HeaderLight}{HTML}{A8CC80}
+\definecolor{HeaderContact}{HTML}{D0E8B0}
+\definecolor{HeaderSep}{HTML}{6A9A50}
+
+% ── Fonts ─────────────────────────────────────────────────────────────────────
+\setmainfont{Arial}[
+  Ligatures = TeX
+]
+
+\hypersetup{colorlinks=true, urlcolor=MDGreen}
+\pagecolor{PageBG}
+\pagestyle{empty}
+
+% ── Rule helper ───────────────────────────────────────────────────────────────
+\newcommand{\clrule}{%
+  \vspace{4pt}{\color{DKGreen}\hrule height 1pt}\vspace{6pt}%
+}
+
+% =============================================================================
+\begin{document}
+
+% ── HEADER BANNER ─────────────────────────────────────────────────────────────
+\noindent\hspace{-2mm}%
+\colorbox{HeaderBG}{%
+  \begin{minipage}{\dimexpr\linewidth+4mm\relax}%
+    \vspace{6mm}
+    \hspace{4mm}{\fontsize{32}{36}\selectfont\textcolor{white}{\textbf{((( NAME ))) ((( SURNAME )))}}}\par
+    \vspace{2mm}
+    \hspace{4mm}{\large\textcolor{HeaderLight}{\textit{((( JOB_TITLE )))}}}\par
+    \vspace{4mm}
+    \hspace{4mm}{\textcolor{HeaderContact}{((( CITY )))}}\;
+    {\textcolor{HeaderSep}{|}}\;
+    {\textcolor{HeaderContact}{((( PHONE )))}}\;
+    {\textcolor{HeaderSep}{|}}\;
+    {\textcolor{HeaderContact}{((( EMAIL )))}}
+    \vspace{6mm}
+  \end{minipage}%
+}
+
+\vspace{8mm}
+
+% ── DATE ──────────────────────────────────────────────────────────────────────
+\noindent\textcolor{LiteTxt}{\textit{((( DATE )))}}
+
+\vspace{6mm}
+
+% ── SUBJECT ───────────────────────────────────────────────────────────────────
+\noindent\textcolor{MidTxt}{\textbf{Re: }}\textcolor{DKGreen}{\textbf{((( SUBJECT )))}}
+\vspace{2pt}
+{\color{BorderClr}\hrule height 0.8pt}
+
+\vspace{8mm}
+
+% ── BODY ──────────────────────────────────────────────────────────────────────
+\setlength{\parskip}{8pt}
+\noindent\textcolor{MidTxt}{((( CV_COVER_LETTER )))}
+
+\vspace{10mm}
+\clrule
+
+% ── CLOSING ───────────────────────────────────────────────────────────────────
+\noindent\textcolor{LiteTxt}{\textit{Yours sincerely,}}
+
+\vspace{12mm}
+
+% ── SIGNATURE IMAGE (if present) ──────────────────────────────────────────────
+((* if SIGNATURE_PATH *))
+\noindent\includegraphics[height=18mm]{((( SIGNATURE_PATH )))}\par
+\vspace{4mm}
+((* endif *))
+
+% ── NAME ──────────────────────────────────────────────────────────────────────
+\noindent{\large\textcolor{DKGreen}{\textbf{((( NAME ))) ((( SURNAME )))}}}\par
+\vspace{1pt}
+\noindent\textcolor{LiteTxt}{\textit{((( JOB_TITLE )))}}
+
+\end{document}

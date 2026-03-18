@@ -1,3 +1,4 @@
+
 // =============================================================================
 // FILE: frontend/src/pages/GenerateCV.jsx
 // =============================================================================
@@ -25,8 +26,11 @@ export default function Generate() {
   const [loading, setLoading]               = useState(false);
   const [error, setError]                   = useState("");
   const [copied, setCopied]                 = useState(false);
-  const [downloading, setDownloading]       = useState(false);
-  const [downloadError, setDownloadError]   = useState("");
+  const [downloading, setDownloading]         = useState(false);
+  const [downloadError, setDownloadError]       = useState("");
+  const [downloadingTex, setDownloadingTex]     = useState(false);
+  const [downloadTexError, setDownloadTexError] = useState("");
+ 
   const [saving, setSaving]                 = useState(false);
   const [saved, setSaved]                   = useState(false);
   const [saveError, setSaveError]           = useState("");
@@ -111,15 +115,53 @@ useEffect(() => {
   };
 
 
-  // ── DOWNLOAD HANDLER ─────────────────────────────────────────────────────
+  // ── DOWNLOAD .docx HANDLER ──────────────────────────────────────────────────
   const handleDownload = async () => {
     if (!result) return;
     setDownloading(true);
     setDownloadError("");
-
     try {
       const response = await api.post(
         "/download-cv",
+        { ai_result: result, profile: profile || {} },
+        { responseType: "blob" }
+      );
+      const blob = response.data;
+      const url  = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href  = url;
+      const firstName = profile?.personalInfo?.firstName || "";
+      const lastName  = profile?.personalInfo?.lastName  || "";
+      const fullName  = `${firstName}${lastName ? "_" + lastName : ""}`.trim();
+      const titleSlug = jobTitle.trim().replace(/\s+/g, "_").replace(/[^a-zA-Z0-9_]/g, "").slice(0, 50);
+      const filename  = [fullName, titleSlug, "CV"].filter(Boolean).join("_") + ".docx";
+      link.download   = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      if (err.response?.status === 401) {
+        localStorage.removeItem("token");
+        navigate("/login");
+      } else {
+        setDownloadError("Download failed. Make sure the backend is running.");
+      }
+    } finally {
+      setDownloading(false);
+    }
+  };
+
+
+  // ── DOWNLOAD .tex HANDLER ─────────────────────────────────────────────────
+  const handleDownloadTex = async () => {
+    if (!result) return;
+    setDownloadingTex(true);
+    setDownloadTexError("");
+
+    try {
+      const response = await api.post(
+        "/download-cv-tex",
         { ai_result: result, profile: profile || {} },
         { responseType: "blob" }
       );
@@ -133,7 +175,7 @@ useEffect(() => {
       const lastName  = profile?.personalInfo?.lastName  || "";
       const fullName  = `${firstName}${lastName ? "_" + lastName : ""}`.trim();
       const titleSlug = jobTitle.trim().replace(/\s+/g, "_").replace(/[^a-zA-Z0-9_]/g, "").slice(0, 50);
-      const filename  = [fullName, titleSlug, "CV"].filter(Boolean).join("_") + ".docx";
+      const filename  = [fullName, titleSlug, "CV"].filter(Boolean).join("_") + ".tex";
       link.download   = filename;
 
       document.body.appendChild(link);
@@ -146,10 +188,10 @@ useEffect(() => {
         localStorage.removeItem("token");
         navigate("/login");
       } else {
-        setDownloadError("Download failed. Make sure the backend is running and the template exists.");
+        setDownloadTexError("Failed to download .tex file.");
       }
     } finally {
-      setDownloading(false);
+      setDownloadingTex(false);
     }
   };
 
@@ -1083,7 +1125,7 @@ useEffect(() => {
               justifyContent: "center", alignItems: "flex-start", paddingBottom: "40px",
             }}>
 
-              {/* ── Download CV ── */}
+              {/* ── Download .docx ── */}
               <div style={{ textAlign: "center" }}>
                 <button
                   className="primary-btn"
@@ -1092,25 +1134,68 @@ useEffect(() => {
                   style={{
                     fontSize: "15px", padding: "13px 36px",
                     opacity: downloading ? 0.65 : 1,
-                    cursor: downloading ? "not-allowed" : "pointer",
+                    cursor:  downloading ? "not-allowed" : "pointer",
                     background: downloading ? "#3D7A55" : "#2D5A3D",
-                    display: "flex", flexWrap: "wrap", alignItems: "center", gap: "8px",
+                    display: "flex", alignItems: "center", gap: "8px",
                   }}
                 >
                   {downloading ? (
                     <>
                       <span style={{
                         display: "inline-block", width: "14px", height: "14px",
-                        border: "2px solid #2D5A3D", borderTopColor: "transparent",
+                        border: "2px solid rgba(255,255,255,0.4)", borderTopColor: "white",
                         borderRadius: "50%", animation: "spin 0.7s linear infinite",
                       }} />
                       Preparing...
                     </>
-                  ) : "⬇ Download CV"}
+                  ) : "⬇ Download .docx"}
                 </button>
                 {downloadError && (
                   <p style={{ color: "#8B2020", fontSize: "12px", marginTop: "8px", maxWidth: "260px" }}>
                     {downloadError}
+                  </p>
+                )}
+              </div>
+
+              {/* ── Download .tex + Overleaf suggestion ── */}
+              <div style={{ textAlign: "center" }}>
+                <button
+                  onClick={handleDownloadTex}
+                  disabled={downloadingTex}
+                  style={{
+                    fontSize: "15px", padding: "13px 36px",
+                    opacity:      downloadingTex ? 0.65 : 1,
+                    cursor:       downloadingTex ? "not-allowed" : "pointer",
+                    background:   "#2D5A3D",
+                    border:       "none",
+                    color:        "#EDE8DE",
+                    borderRadius: "6px",
+                    fontFamily:   "'Libre Baskerville', serif",
+                    fontWeight:   900,
+                    display:      "flex", alignItems: "center", gap: "8px",
+                  }}
+                >
+                  {downloadingTex ? (
+                    <>
+                      <span style={{
+                        display: "inline-block", width: "14px", height: "14px",
+                        border: "2px solid rgba(255,255,255,0.4)", borderTopColor: "white",
+                        borderRadius: "50%", animation: "spin 0.7s linear infinite",
+                      }} />
+                      Preparing...
+                    </>
+                  ) : "⬇ Download .tex"}
+                </button>
+                <p style={{ color: "#1E2018", fontSize: "12px", opacity: 0.55, marginTop: "8px", maxWidth: "200px", lineHeight: "1.5" }}>
+                  Edit & compile free on{" "}
+                  <a href="https://www.overleaf.com" target="_blank" rel="noopener noreferrer"
+                    style={{ color: "#2D5A3D", fontWeight: 700, textDecoration: "underline" }}>
+                    overleaf.com
+                  </a>
+                </p>
+                {downloadTexError && (
+                  <p style={{ color: "#8B2020", fontSize: "12px", marginTop: "4px", maxWidth: "260px" }}>
+                    {downloadTexError}
                   </p>
                 )}
               </div>
@@ -1188,3 +1273,5 @@ useEffect(() => {
     </DashboardLayout>
   );
 }
+
+
