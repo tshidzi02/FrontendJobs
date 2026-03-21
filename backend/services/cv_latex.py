@@ -68,7 +68,45 @@ def build_cv_tex(profile: dict, ai_result: dict) -> str:
     education  = ai_result.get("education",         profile.get("education",  []))
     languages  = ai_result.get("languages",          profile.get("languages",  []))
     experience = ai_result.get("experience",         [])
-    projects   = ai_result.get("project_experience", [])
+    # "project_experience" = merged output from cv_generator.py (has url, tech_stack).
+    # "projects"           = raw AI output from /api/generate (no url, uses "name" key).
+    # profile projects     = source of truth for url — always fall back to them so
+    #                        URLs are never lost when bulk-tex bypasses cv_generator.py.
+    _ai_projects   = ai_result.get("project_experience") or ai_result.get("projects") or []
+    _prof_projects = profile.get("projects", [])
+    # Build a url + tech_stack lookup keyed by project title/name from profile
+    _prof_by_name = {}
+    for _p in _prof_projects:
+        if isinstance(_p, dict):
+            _key = (_p.get("name") or _p.get("title") or "").strip().lower()
+            if _key:
+                _prof_by_name[_key] = _p
+    # Merge: use AI bullets/tech but pull url from profile when AI entry lacks one
+    _merged = []
+    for _ap in _ai_projects:
+        if not isinstance(_ap, dict):
+            continue
+        _title = (_ap.get("title") or _ap.get("name") or "").strip()
+        _pp    = _prof_by_name.get(_title.lower(), {})
+        _merged.append({
+            "title":      _title,
+            "url":        _ap.get("url") or _pp.get("url", ""),
+            "tech_stack": _ap.get("tech_stack") or _ap.get("technologies") or _pp.get("technologies") or _pp.get("tech_stack", ""),
+            "bullets":    _ap.get("bullets", []),
+        })
+    # If AI returned nothing but profile has projects, use profile projects directly
+    if not _merged and _prof_projects:
+        _merged = [
+            {
+                "title":      _p.get("name") or _p.get("title", ""),
+                "url":        _p.get("url", ""),
+                "tech_stack": _p.get("technologies") or _p.get("tech_stack", ""),
+                "bullets":    _p.get("bullets", []),
+            }
+            for _p in _prof_projects
+            if isinstance(_p, dict) and _p.get("includeInCV", True)
+        ]
+    projects = _merged
     skills     = ai_result.get("skills",             [])
     references = ai_result.get("REFERENCE",          profile.get("references", "Available upon Request"))
     summary    = ai_result.get("SUMMARY", "")
@@ -167,12 +205,16 @@ def build_cv_tex(profile: dict, ai_result: dict) -> str:
     out(r"\begin{document}")
     out()
 
+
+
     # ── HEADER (centered) ─────────────────────────────────────────────────────
     name  = f"{e(personal.get('firstName',''))} {e(personal.get('lastName',''))}".strip()
     title = e(personal.get("jobTitle", ""))
     city  = e(personal.get("city",     ""))
     phone = e(personal.get("phone",    ""))
     email = e(personal.get("email",    ""))
+    github  = e(personal.get("github",   ""))
+    
 
     out(r"\noindent\hspace{-6mm}%")
     out(r"\colorbox{HeaderBG}{%")
@@ -190,6 +232,8 @@ def build_cv_tex(profile: dict, ai_result: dict) -> str:
     out(f"    \\textcolor{{HeaderContact}}{{{phone}}}\\;%")
     out(r"    \textcolor{HeaderSep}{\vert}\;%")
     out(f"    \\textcolor{{HeaderContact}}{{{email}}}%")
+    out(r"    \textcolor{HeaderSep}{\vert}\;%")
+    out(f"    \\href{{{github}}}{{\\textcolor{{HeaderContact}}{{{github}}}}}%")
     out(r"    \par\vspace{5mm}%")
     out(r"    \end{center}")
     out(r"  \end{minipage}%")
@@ -291,15 +335,18 @@ def build_cv_tex(profile: dict, ai_result: dict) -> str:
             out(f"\\noindent\\textcolor{{DarkTxt}}{{\\textbf{{\\large {degree}}}}}\\par")
             out(r"\vspace{2pt}")
             out(f"\\noindent\\textcolor{{MDGreen}}{{\\textbf{{{institution}}}}}\\;%")
+            out(r"\newline")
             out(f"\\textcolor{{LiteTxt}}{{\\bullet\\; {edu_city}, {edu_country}}}\\par")
             out(r"\vspace{1pt}")
             out(f"\\noindent\\textcolor{{LiteTxt}}{{\\textit{{{grad_month} {grad_year}}}}}")
             out(r"\vspace{2pt}")
             if minimum:
+                out(r"\newline")
                 out(f"\\noindent\\textcolor{{MidTxt}}{{\\textbf{{Minimum Average:}}}}\\;%")
                 out(f"\\textcolor{{DKGreen}}{{{minimum}}}")
                 out(r"\vspace{3pt}")
             if coursework:
+                out(r"\newline")
                 out(r"\noindent\textcolor{DKGreen}{\textbf{Relevant Coursework:}}")
                 out(r"\sectionrule")
                 out(r"\begin{itemize}")
@@ -319,7 +366,8 @@ def build_cv_tex(profile: dict, ai_result: dict) -> str:
             if not isinstance(proj, dict):
                 continue
             ptitle     = e(proj.get("title", proj.get("name", "")))
-            url        = e(proj.get("url", ""))
+            url_raw    = proj.get("url", "").strip()          # raw — used inside \href{}
+            url_display = e(url_raw)                           # escaped — used as display text
             tech_stack = e(proj.get("tech_stack", proj.get("technologies", "")))
             bullets    = [e(b) for b in proj.get("bullets", []) if isinstance(b, str)]
 
@@ -328,8 +376,8 @@ def build_cv_tex(profile: dict, ai_result: dict) -> str:
             out(r"{\color{DKGreen}\rule{4pt}{14pt}}\hspace{6pt}%")
             out(f"\\textcolor{{DarkTxt}}{{\\textbf{{\\large {ptitle}}}}}\\par")
             out(r"\vspace{1pt}")
-            if url:
-                out(f"\\noindent\\hspace{{10pt}}\\textcolor{{MDGreen}}{{\\small {url}}}\\par")
+            if url_raw:
+                out(f"\\noindent\\hspace{{10pt}}\\href{{{url_raw}}}{{\\textcolor{{MDGreen}}{{\\small {url_display}}}}}\\par")
             if tech_stack:
                 out(f"\\noindent\\hspace{{10pt}}\\textcolor{{DKGreen}}{{\\textbf{{\\small {tech_stack}}}}}")
             out(r"\vspace{2pt}")

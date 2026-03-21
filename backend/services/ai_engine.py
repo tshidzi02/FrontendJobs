@@ -278,7 +278,7 @@ Job (summary): {job_description[:600]}
     # =========================================================================
 
     your_skills_category = {
-        "category": "Your Skills",
+        "category": "My Skills",
         "skills_list": [
             {
                 "skill": skill_name,

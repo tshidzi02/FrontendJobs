@@ -293,12 +293,15 @@ export default function Profile() {
     setCopied(key);
     setTimeout(() => setCopied(null), 1800);
   };
+
   const handleCopyAll = (proj) => {
-    const all = proj.bullets.filter(b => b.trim()).map((b, i) => `${i + 1}. ${b}`).join("\n\n");
-    navigator.clipboard.writeText(`${proj.name}\n${proj.technologies}\n\n${all}`);
-    setCopied(`${proj.name}-all`);
-    setTimeout(() => setCopied(null), 1800);
-  };
+  const all = proj.bullets.filter(b => b.trim()).map((b, i) => `${i + 1}. ${b}`).join("\n\n");
+  const urlLine = proj.url ? `\n${proj.url}` : "";
+  navigator.clipboard.writeText(`${proj.name}\n${proj.technologies}${urlLine}\n\n${all}`);
+  setCopied(`${proj.name}-all`);
+  setTimeout(() => setCopied(null), 1800);
+};
+ 
 
 
   // ── LANGUAGES ─────────────────────────────────────────────────────────────

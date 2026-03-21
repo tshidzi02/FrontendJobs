@@ -73,6 +73,8 @@ from services.cover_letter_generator import generate_cover_letter
 from services.cover_letter_docx import generate_cover_letter_docx
 from services.cv_pdf             import generate_cv_pdf
 from services.cover_letter_pdf   import generate_cover_letter_pdf
+from services.cv_latex import build_cv_tex 
+from services.cover_letter_latex import build_cover_letter_tex
 from services.job_search import search_jobs
 from services.tools_ai import (
     generate_interview_prep,
@@ -100,6 +102,7 @@ bcrypt = Bcrypt(app)
 jwt = JWTManager(app)
 db = SQLAlchemy(app)
 migrate = Migrate(app, db)
+
 
 # =============================================================================
 # DATABASE MODELS
@@ -1337,6 +1340,56 @@ def download_cover_letter_tex():
         traceback.print_exc()
         return jsonify({"message": f"TeX generation failed: {str(e)}"}), 500
 
+@app.route("/api/bulk-tex", methods=["POST"])
+@jwt_required()
+def bulk_tex():
+    """
+    Accepts a pre-generated CV ai_result + cover letter text and returns
+    the LaTeX source for both as plain strings.
+
+    Request body:
+    {
+        "ai_result":      { ...same shape as /api/generate response... },
+        "cover_letter":   "Full plain text of the cover letter",
+        "job_title":      "Senior Frontend Developer"
+    }
+
+    Response:
+    {
+        "cv_tex":           "\\documentclass...",
+        "cover_letter_tex": "\\documentclass..."
+    }
+    """
+    email = get_jwt_identity()
+    user  = User.query.filter_by(email=email).first()
+    if not user:
+        return jsonify({"message": "User not found"}), 404
+
+    data          = request.get_json()
+    ai_result     = data.get("ai_result", {})
+    cover_letter  = data.get("cover_letter", "")
+    job_title     = data.get("job_title", "")
+
+    # Load profile from DB — same pattern as /api/download-cv
+    profile_row = Profile.query.filter_by(user_id=user.id).first()
+    profile     = json.loads(profile_row.data) if profile_row else {}
+
+    try:
+        cv_tex = build_cv_tex(profile, ai_result)
+    except Exception as e:
+        return jsonify({"message": f"CV LaTeX build failed: {str(e)}"}), 500
+
+    try:
+        cl_tex = build_cover_letter_tex(profile, cover_letter, job_title)
+    except Exception as e:
+        return jsonify({"message": f"Cover letter LaTeX build failed: {str(e)}"}), 500
+
+    return jsonify({
+        "cv_tex":           cv_tex,
+        "cover_letter_tex": cl_tex,
+    })
+
+
 if __name__ == "__main__":
     app.run(debug=True)
 
@@ -1604,6 +1657,35 @@ print(f"   Saved to: {output_path}")
 print(f"   Fields: {list(profile_data.keys())}")
 print(f"\n📋 Next step — copy to server:")
 print(f'   scp backend/profile_export.json root@143.110.173.170:/var/www/cvapp/backend/')
+
+
+======================================================================
+FILE: ./backend\fix_app.py
+======================================================================
+
+# Run this from your backend folder:
+# python3 fix_app.py
+
+with open("app.py", "r") as f:
+    content = f.read()
+
+# The broken version has the if __name__ block indented inside bulk_tex
+bad  = "    if __name__ == \"__main__\":\n        app.run(debug=True)"
+good = "\nif __name__ == \"__main__\":\n    app.run(debug=True)"
+
+if bad in content:
+    content = content.replace(bad, good)
+    with open("app.py", "w") as f:
+        f.write(content)
+    print("✓ Fixed: if __name__ block moved to top level")
+else:
+    print("⚠ Pattern not found — checking current state...")
+    # Show last 10 lines so you can see what's there
+    lines = content.splitlines()
+    print("Last 10 lines of app.py:")
+    for i, line in enumerate(lines[-10:], len(lines)-9):
+        print(f"  {i}: {repr(line)}")
+
 
 
 ======================================================================
@@ -2269,7 +2351,7 @@ Job (summary): {job_description[:600]}
     # =========================================================================
 
     your_skills_category = {
-        "category": "Your Skills",
+        "category": "My Skills",
         "skills_list": [
             {
                 "skill": skill_name,
@@ -2976,12 +3058,11 @@ RULES:
 3. Paragraph 2: Evidence — 2-3 specific achievements or experiences that directly match the job.
 4. Paragraph 3: Skills alignment — connect 2-3 of their skills to what the job explicitly needs.
 5. Paragraph 4: Closing — confident, forward-looking. Request an interview naturally.
-6. Sign off with: "Yours sincerely,\\n{full_name}"
-7. Do NOT include a date, address block, or "Dear Hiring Manager" header —
+6. Do NOT include a date, address block, or "Dear Hiring Manager" header —
    just start directly with the first paragraph.
-8. Do NOT use placeholder brackets like [Company Name]. If you don't know the
+7. Do NOT use placeholder brackets like [Company Name]. If you don't know the
    company name, write "your team" or "the company" instead.
-9. Plain text only. No markdown. No bullet points. No bold or italic formatting.
+8. Plain text only. No markdown. No bullet points. No bold or italic formatting.
 """
 
     response = client.chat.completions.create(
@@ -3945,15 +4026,18 @@ def build_cv_tex(profile: dict, ai_result: dict) -> str:
             out(f"\\noindent\\textcolor{{DarkTxt}}{{\\textbf{{\\large {degree}}}}}\\par")
             out(r"\vspace{2pt}")
             out(f"\\noindent\\textcolor{{MDGreen}}{{\\textbf{{{institution}}}}}\\;%")
+            out(r"\newline")
             out(f"\\textcolor{{LiteTxt}}{{\\bullet\\; {edu_city}, {edu_country}}}\\par")
             out(r"\vspace{1pt}")
             out(f"\\noindent\\textcolor{{LiteTxt}}{{\\textit{{{grad_month} {grad_year}}}}}")
             out(r"\vspace{2pt}")
             if minimum:
+                out(r"\newline")
                 out(f"\\noindent\\textcolor{{MidTxt}}{{\\textbf{{Minimum Average:}}}}\\;%")
                 out(f"\\textcolor{{DKGreen}}{{{minimum}}}")
                 out(r"\vspace{3pt}")
             if coursework:
+                out(r"\newline")
                 out(r"\noindent\textcolor{DKGreen}{\textbf{Relevant Coursework:}}")
                 out(r"\sectionrule")
                 out(r"\begin{itemize}")
@@ -5642,14 +5726,14 @@ FILE: ./backend\services\generated_files\debug_last_render.tex
 FILE: ./backend\services\generated_files\generated_cover_letter.docx
 ======================================================================
 
-Could not read file: 'utf-8' codec can't decode byte 0x94 in position 10: invalid start byte
+Could not read file: 'utf-8' codec can't decode byte 0xd6 in position 22: invalid continuation byte
 
 
 ======================================================================
 FILE: ./backend\services\generated_files\generated_cv.docx
 ======================================================================
 
-Could not read file: 'utf-8' codec can't decode byte 0xa0 in position 14: invalid start byte
+Could not read file: 'utf-8' codec can't decode byte 0x85 in position 10: invalid start byte
 
 
 ======================================================================
@@ -29108,7 +29192,7 @@ FILE: ./backend\services\templates_cv\cover_letter_template.tex
 FILE: ./backend\services\templates_cv\cv_template.docx
 ======================================================================
 
-Could not read file: 'utf-8' codec can't decode byte 0xfa in position 10: invalid start byte
+Could not read file: 'utf-8' codec can't decode byte 0x91 in position 15: invalid start byte
 
 
 ======================================================================
@@ -33109,6 +33193,9 @@ import ProtectedRoute from "./components/ProtectedRoute";
 import { SidebarProvider } from "./context/SidebarContext";
 import { AuthProvider } from "./context/AuthContext";
 import Profile from "./pages/Profile";
+import BulkGenerate from "./pages/BulkGenerate";
+
+
 
 function BackgroundWrapper({ children }) {
   return (
@@ -33146,6 +33233,7 @@ export default function App() {
               <Route path="/tools/linkedin"  element={<ProtectedRoute><LinkedInOptimiser /></ProtectedRoute>} />
               <Route path="/tools/salary"    element={<ProtectedRoute><SalaryEstimator /></ProtectedRoute>} />
               <Route path="/tools/skills-gap" element={<ProtectedRoute><SkillsGap /></ProtectedRoute>} />
+              <Route path="/bulkgenerate" element={<ProtectedRoute><BulkGenerate /></ProtectedRoute>} />
             </Routes>
           </BackgroundWrapper>
         </SidebarProvider>
@@ -33799,7 +33887,7 @@ function Navbar() {
   const handleLogout = () => { logout(); navigate("/"); };
 
   const dashboardRoutes = [
-    "/dashboard", "/cabinet", "/generate", "/profile",
+    "/dashboard", "/cabinet", "/generate", "/profile","/bulkgenerate",
     "/cover-letter", "/jobs", "/tracker",
     "/tools/interview", "/tools/linkedin", "/tools/salary", "/tools/skills-gap",
   ];
@@ -34272,8 +34360,10 @@ export default function DashboardLayout({ children }) {
 
           <span style={sectionLabel}>CV</span>
           <Link to="/generate"     style={navLinkStyle("/generate")}     onClick={closeSidebar}>✨ Generate CV</Link>
+           <Link to="/cover-letter" style={navLinkStyle("/cover-letter")} onClick={closeSidebar}>✉️ Cover Letter</Link>
+         <Link to="/bulkgenerate"         style={navLinkStyle("/bulkgenerate")}         onClick={closeSidebar}>⚡ Bulk Generate</Link>
           <Link to="/cabinet"      style={navLinkStyle("/cabinet")}      onClick={closeSidebar}>🗂️ CV Cabinet</Link>
-          <Link to="/cover-letter" style={navLinkStyle("/cover-letter")} onClick={closeSidebar}>✉️ Cover Letter</Link>
+         
 
           <span style={sectionLabel}>Jobs</span>
           <Link to="/jobs"         style={navLinkStyle("/jobs")}         onClick={closeSidebar}>🔍 Job Search</Link>
@@ -34309,10 +34399,484 @@ export default function DashboardLayout({ children }) {
 }
 
 
+======================================================================
+FILE: ./frontend\src\pages\BulkGenerate.jsx
+======================================================================
+
+// =============================================================================
+// FILE: frontend/src/pages/BulkGenerate.jsx
+// =============================================================================
+// Personal tool — access at /bulk (not in public nav).
+//
+// FLOW PER JOB:
+//   1. POST /api/generate        → ai_result (CV JSON)
+//   2. POST /api/cover-letter    → cover_letter text
+//   3. POST /api/bulk-tex        → cv_tex + cover_letter_tex strings
+//      (backend uses build_cv_tex + build_cover_letter_tex — same as download)
+//
+// OUTPUT TABS PER JOB:
+//   📄 CV LaTeX            — cv_tex from backend
+//   ✉  Cover Letter LaTeX  — cover_letter_tex from backend
+//   📦 Combined LaTeX      — both joined with \newpage (preamble merged)
+// =============================================================================
+
+import { useState, useEffect, useRef } from "react";
+import { useNavigate } from "react-router-dom";
+import api from "../services/api";
+import DashboardLayout from "../layouts/DashboardLayout";
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// COMBINE: merges two standalone .tex documents into one.
+// ─────────────────────────────────────────────────────────────────────────────
+function buildCombined(cvTex, clTex) {
+  const extractBody = (tex) => {
+    const start = tex.indexOf("\\begin{document}");
+    const end   = tex.lastIndexOf("\\end{document}");
+    if (start === -1 || end === -1) return tex;
+    return tex.slice(start + "\\begin{document}".length, end).trim();
+  };
+
+  const preamble = cvTex.slice(0, cvTex.indexOf("\\begin{document}")).trim();
+  const cvBody   = extractBody(cvTex);
+  const clBody   = extractBody(clTex);
+
+  return [
+    preamble,
+    "",
+    "\\begin{document}",
+    "",
+    "% ═══════════════════════════════════════════════════════════════════════",
+    "% COVER LETTER",
+    "% ═══════════════════════════════════════════════════════════════════════",
+    clBody,
+    "",
+    "\\newpage",
+    "",
+    "% ═══════════════════════════════════════════════════════════════════════",
+    "% CURRICULUM VITAE",
+    "% ═══════════════════════════════════════════════════════════════════════",
+    cvBody,
+    "",
+    "\\end{document}",
+  ].join("\n");
+}
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// HELPERS
+// ─────────────────────────────────────────────────────────────────────────────
+const TONES = ["professional", "enthusiastic", "concise"];
+
+const emptyJob = () => ({
+  id:          Date.now() + Math.random(),
+  title:       "",
+  description: "",
+  tone:        "professional",
+  status:      "idle",
+  activeTab:   "cv",
+  cvTex:       "",
+  clTex:       "",
+  combinedTex: "",
+  atsScore:    null,
+  error:       "",
+});
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// COMPONENT
+// ─────────────────────────────────────────────────────────────────────────────
+export default function BulkGenerate() {
+  const navigate  = useNavigate();
+  const [profile, setProfile] = useState(null);
+  const [jobs,    setJobs]    = useState([emptyJob()]);
+  const [running, setRunning] = useState(false);
+  const [copied,  setCopied]  = useState(null);
+  const bottomRef = useRef(null);
+
+  useEffect(() => {
+    api.get("/profile")
+      .then(r => { if (r.data && Object.keys(r.data).length > 0) setProfile(r.data); })
+      .catch(() => {});
+  }, []);
+
+  const addJob    = () => setJobs(prev => [...prev, emptyJob()]);
+  const removeJob = (id) => setJobs(prev => prev.filter(j => j.id !== id));
+  const patchJob  = (id, patch) =>
+    setJobs(prev => prev.map(j => j.id === id ? { ...j, ...patch } : j));
+
+  const copyText = (text, key) => {
+    navigator.clipboard.writeText(text);
+    setCopied(key);
+    setTimeout(() => setCopied(null), 2000);
+  };
+
+  const downloadTex = (content, filename) => {
+    const blob = new Blob([content], { type: "text/plain" });
+    const url  = URL.createObjectURL(blob);
+    const a    = Object.assign(document.createElement("a"), { href: url, download: filename });
+    document.body.appendChild(a); a.click();
+    document.body.removeChild(a); URL.revokeObjectURL(url);
+  };
+
+  // ── Generate one job (3 sequential API calls) ─────────────────────────────
+  const generateOne = async (job) => {
+    if (!job.title.trim() || !job.description.trim()) return;
+    patchJob(job.id, { status: "generating", error: "" });
+
+    try {
+      // 1 — Generate CV JSON
+      const cvResp = await api.post("/generate", {
+        jobDescription:    job.description,
+        personalInfo:      profile?.personalInfo      || {},
+        baseSkills:        profile?.skills            || [],
+        baseExperience:    profile?.experience        || [],
+        projectExperience: profile?.projects          || [],
+        education:         profile?.education         || [],
+        languages:         profile?.languages         || [],
+        references:        profile?.references        || "Available upon Request",
+      });
+      const aiResult = cvResp.data;
+
+      // 2 — Generate cover letter text
+      const clResp = await api.post("/cover-letter", {
+        jobDescription: job.description,
+        tone:           job.tone,
+      });
+      const coverLetterText = clResp.data.cover_letter || "";
+
+      // 3 — Build LaTeX server-side (uses real cv_latex.py + cover_letter_latex.py)
+      const texResp = await api.post("/bulk-tex", {
+        ai_result:    aiResult,
+        cover_letter: coverLetterText,
+        job_title:    job.title,
+      });
+      const cvTex = texResp.data.cv_tex           || "";
+      const clTex = texResp.data.cover_letter_tex || "";
+
+      patchJob(job.id, {
+        status:      "done",
+        activeTab:   "cv",
+        cvTex,
+        clTex,
+        combinedTex: buildCombined(cvTex, clTex),
+        atsScore:    aiResult?.ats?.final_score ?? null,
+        error:       "",
+      });
+
+    } catch (err) {
+      const msg = err.response?.data?.message || err.message || "Generation failed";
+      patchJob(job.id, { status: "error", error: msg });
+    }
+  };
+
+  const handleGenerateAll = async () => {
+    const pending = jobs.filter(
+      j => j.title.trim() && j.description.trim() && j.status !== "done"
+    );
+    if (!pending.length) return;
+    setRunning(true);
+    for (const job of pending) await generateOne(job);
+    setRunning(false);
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  // ── Styles ─────────────────────────────────────────────────────────────────
+  const cardBorderLeft = (status) =>
+    status === "done"       ? "4px solid #2D5A3D"
+    : status === "error"      ? "4px solid #8B2020"
+    : status === "generating" ? "4px solid #FFB347"
+    : "4px solid rgba(45,90,61,0.15)";
+
+  const inputStyle = {
+    width: "100%", background: "#FFFFFF",
+    border: "1px solid rgba(45,90,61,0.2)", borderRadius: "8px",
+    color: "#1E2018", padding: "11px 14px", fontSize: "13px",
+    fontFamily: "system-ui, sans-serif", outline: "none",
+  };
+
+  const labelStyle = {
+    color: "#2D5A3D", fontFamily: "'Libre Baskerville', serif",
+    fontSize: "11px", letterSpacing: "2px", textTransform: "uppercase",
+    marginBottom: "8px", opacity: 0.8, display: "block",
+  };
+
+  const codeStyle = {
+    background: "#1A1E1A", color: "#A8D5B5",
+    fontFamily: "'Courier New', monospace", fontSize: "11px",
+    lineHeight: "1.6", padding: "16px", borderRadius: "8px",
+    maxHeight: "340px", overflowY: "auto", overflowX: "auto",
+    whiteSpace: "pre", marginBottom: "10px",
+  };
+
+  const btn = (bg = "#2D5A3D", color = "#EDE8DE") => ({
+    background: bg, color, border: "none", borderRadius: "8px",
+    padding: "8px 16px", cursor: "pointer", fontSize: "12px",
+    fontFamily: "'Libre Baskerville', serif", fontWeight: 900,
+  });
+
+  const StatusBadge = ({ status }) => {
+    const map = {
+      idle:       { label: "Pending",       bg: "rgba(30,32,24,0.08)",   color: "#1E2018"  },
+      generating: { label: "⏳ Generating…", bg: "rgba(255,179,71,0.15)", color: "#B8860B"  },
+      done:       { label: "✓ Done",         bg: "rgba(45,90,61,0.12)",   color: "#2D5A3D"  },
+      error:      { label: "✗ Error",        bg: "rgba(139,32,32,0.1)",   color: "#8B2020"  },
+    };
+    const s = map[status] || map.idle;
+    return (
+      <span style={{
+        background: s.bg, color: s.color, padding: "3px 10px",
+        borderRadius: "20px", fontSize: "11px",
+        fontFamily: "'Libre Baskerville', serif",
+      }}>{s.label}</span>
+    );
+  };
+
+  // ── Render ─────────────────────────────────────────────────────────────────
+  return (
+    <DashboardLayout>
+      <div style={{ maxWidth: "min(980px, 100%)", margin: "0 auto" }}>
+
+        {/* Header */}
+        <div style={{ marginBottom: "28px" }}>
+          <h1 style={{
+            fontFamily: "'Libre Baskerville', serif",
+            fontSize: "clamp(20px, 4vw, 30px)",
+            color: "#2D5A3D", letterSpacing: "2px", marginBottom: "6px",
+          }}>
+            ⚡ Bulk Generator
+          </h1>
+          <p style={{ color: "#1E2018", opacity: 0.5, fontSize: "13px" }}>
+            Add multiple jobs — generates a tailored CV + cover letter in LaTeX for each, using your exact templates.
+            {!profile && (
+              <> {" "}
+                <span onClick={() => navigate("/profile")}
+                  style={{ color: "#2D5A3D", cursor: "pointer", textDecoration: "underline" }}>
+                  Set up your profile first.
+                </span>
+              </>
+            )}
+          </p>
+        </div>
+
+        {/* Job cards */}
+        {jobs.map((job, index) => (
+          <div key={job.id} style={{
+            background: "#F5F0E8", border: "1px solid rgba(45,90,61,0.15)",
+            borderLeft: cardBorderLeft(job.status),
+            borderRadius: "14px", padding: "24px", marginBottom: "20px",
+          }}>
+
+            {/* Card header row */}
+            <div style={{
+              display: "flex", justifyContent: "space-between",
+              alignItems: "center", marginBottom: "16px", flexWrap: "wrap", gap: "8px",
+            }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                <span style={{
+                  width: "26px", height: "26px", borderRadius: "50%",
+                  background: "rgba(45,90,61,0.12)", color: "#2D5A3D",
+                  fontFamily: "'Libre Baskerville', serif", fontSize: "12px",
+                  display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+                }}>{index + 1}</span>
+                <StatusBadge status={job.status} />
+              </div>
+              {jobs.length > 1 && job.status === "idle" && (
+                <button onClick={() => removeJob(job.id)} style={{
+                  background: "transparent", border: "none",
+                  color: "#8B2020", cursor: "pointer", fontSize: "20px", opacity: 0.5,
+                }}>×</button>
+              )}
+            </div>
+
+            {/* Input form */}
+            {job.status !== "done" && (
+              <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+                <div>
+                  <label style={labelStyle}>Job Title</label>
+                  <input style={inputStyle}
+                    placeholder="e.g. Frontend Developer at Acme Corp"
+                    value={job.title}
+                    onChange={e => patchJob(job.id, { title: e.target.value })} />
+                </div>
+
+                <div>
+                  <label style={labelStyle}>Job Description</label>
+                  <textarea
+                    style={{ ...inputStyle, resize: "vertical", lineHeight: "1.6" }}
+                    rows={6}
+                    placeholder="Paste the full job description here..."
+                    value={job.description}
+                    onChange={e => patchJob(job.id, { description: e.target.value })} />
+                </div>
+
+                <div>
+                  <label style={labelStyle}>Cover Letter Tone</label>
+                  <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                    {TONES.map(t => (
+                      <button key={t} onClick={() => patchJob(job.id, { tone: t })} style={{
+                        padding: "8px 18px", borderRadius: "8px", cursor: "pointer",
+                        fontFamily: "'Libre Baskerville', serif", fontSize: "12px",
+                        border:     job.tone === t ? "2px solid #2D5A3D" : "2px solid rgba(45,90,61,0.2)",
+                        background: job.tone === t ? "rgba(45,90,61,0.12)" : "transparent",
+                        color:      job.tone === t ? "#2D5A3D" : "#1E2018",
+                        opacity:    job.tone === t ? 1 : 0.55,
+                      }}>
+                        {t.charAt(0).toUpperCase() + t.slice(1)}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {job.status === "generating" && (
+                  <div style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 0" }}>
+                    <span style={{
+                      width: "16px", height: "16px", display: "inline-block",
+                      border: "2px solid #2D5A3D", borderTopColor: "transparent",
+                      borderRadius: "50%", animation: "spin 0.7s linear infinite", flexShrink: 0,
+                    }} />
+                    <span style={{ color: "#2D5A3D", fontSize: "13px", fontFamily: "'Libre Baskerville', serif" }}>
+                      Generating CV + cover letter + LaTeX…
+                    </span>
+                  </div>
+                )}
+
+                {job.status === "error" && (
+                  <p style={{ color: "#8B2020", fontSize: "13px" }}>⚠ {job.error}</p>
+                )}
+              </div>
+            )}
+
+            {/* Results */}
+            {job.status === "done" && (() => {
+              const slug = job.title.replace(/\s+/g, "_").replace(/[^a-zA-Z0-9_]/g, "");
+              const tabs = [
+                { key: "cv",       label: "📄 CV LaTeX",          content: job.cvTex,       file: `CV_${slug}.tex` },
+                { key: "cl",       label: "✉ Cover Letter LaTeX", content: job.clTex,       file: `CoverLetter_${slug}.tex` },
+                { key: "combined", label: "📦 Combined LaTeX",     content: job.combinedTex, file: `Combined_${slug}.tex` },
+              ];
+              const activeTab  = job.activeTab || "cv";
+              const activeData = tabs.find(t => t.key === activeTab) || tabs[0];
+              const copyKey    = `${job.id}-${activeTab}`;
+
+              return (
+                <div>
+                  <p style={{
+                    color: "#1E2018", fontFamily: "'Libre Baskerville', serif",
+                    fontSize: "15px", marginBottom: "16px",
+                  }}>
+                    {job.title}
+                    {job.atsScore !== null && (
+                      <span style={{ fontSize: "12px", opacity: 0.4, marginLeft: "10px" }}>
+                        ATS {job.atsScore}%
+                      </span>
+                    )}
+                  </p>
+
+                  {/* Tabs */}
+                  <div style={{ display: "flex", gap: "8px", marginBottom: "14px", flexWrap: "wrap" }}>
+                    {tabs.map(tab => (
+                      <button key={tab.key}
+                        onClick={() => patchJob(job.id, { activeTab: tab.key })}
+                        style={{
+                          padding: "8px 14px", borderRadius: "8px", cursor: "pointer",
+                          fontFamily: "'Libre Baskerville', serif", fontSize: "12px",
+                          border:     activeTab === tab.key ? "2px solid #2D5A3D" : "2px solid rgba(45,90,61,0.2)",
+                          background: activeTab === tab.key ? "rgba(45,90,61,0.12)" : "transparent",
+                          color:      "#1E2018",
+                          opacity:    activeTab === tab.key ? 1 : 0.6,
+                        }}>
+                        {tab.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Code */}
+                  <pre style={codeStyle}>{activeData.content}</pre>
+
+                  {/* Actions */}
+                  <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                    <button onClick={() => copyText(activeData.content, copyKey)} style={btn()}>
+                      {copied === copyKey ? "✓ Copied!" : "⎘ Copy"}
+                    </button>
+                    <button onClick={() => downloadTex(activeData.content, activeData.file)}
+                      style={btn("rgba(45,90,61,0.1)", "#2D5A3D")}>
+                      ⬇ Download .tex
+                    </button>
+                    <button onClick={() => patchJob(job.id, { status: "idle", activeTab: "cv" })}
+                      style={btn("rgba(139,32,32,0.08)", "#8B2020")}>
+                      ✎ Re-generate
+                    </button>
+                  </div>
+                </div>
+              );
+            })()}
+
+          </div>
+        ))}
+
+
+        {/* Add job */}
+        <button onClick={addJob} style={{
+          background: "transparent",
+          border: "2px dashed rgba(45,90,61,0.3)",
+          color: "#2D5A3D", borderRadius: "12px", padding: "16px",
+          cursor: "pointer", fontSize: "14px",
+          fontFamily: "'Libre Baskerville', serif",
+          width: "100%", marginBottom: "28px",
+          transition: "border-color 0.2s ease",
+        }}
+          onMouseEnter={e => e.currentTarget.style.borderColor = "#2D5A3D"}
+          onMouseLeave={e => e.currentTarget.style.borderColor = "rgba(45,90,61,0.3)"}
+        >
+          + Add Another Job
+        </button>
+
+
+        {/* Sticky generate button */}
+        <div style={{
+          position: "sticky", bottom: "20px", zIndex: 100,
+          display: "flex", justifyContent: "center", paddingBottom: "40px",
+        }}>
+          <button
+            onClick={handleGenerateAll}
+            disabled={running || jobs.every(j => !j.title.trim() || !j.description.trim())}
+            style={{
+              ...btn(running ? "rgba(45,90,61,0.5)" : "#2D5A3D"),
+              borderRadius: "12px", padding: "16px 48px", fontSize: "15px",
+              boxShadow: "0 4px 20px rgba(45,90,61,0.3)",
+              display: "flex", alignItems: "center", gap: "12px",
+              cursor: running ? "not-allowed" : "pointer",
+            }}
+          >
+            {running ? (
+              <>
+                <span style={{
+                  width: "16px", height: "16px", display: "inline-block",
+                  border: "2px solid #EDE8DE", borderTopColor: "transparent",
+                  borderRadius: "50%", animation: "spin 0.7s linear infinite",
+                }} />
+                Generating…
+              </>
+            ) : (
+              `⚡ Generate All (${jobs.filter(j => j.title.trim() && j.description.trim() && j.status !== "done").length} pending)`
+            )}
+          </button>
+        </div>
+
+        <div ref={bottomRef} />
+        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+
+      </div>
+    </DashboardLayout>
+  );
+}
+
 
 ======================================================================
 FILE: ./frontend\src\pages\Cabinet.jsx
 ======================================================================
+
 
 // =============================================================================
 // FILE: frontend/src/pages/Cabinet.jsx
@@ -34368,18 +34932,10 @@ export default function Cabinet() {
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
   const [deletingId, setDeletingId]           = useState(null);
 
-  // .docx download state
-  const [downloadingId, setDownloadingId]     = useState(null);
-  const [downloadError, setDownloadError]     = useState("");
-
-  // ── NEW: PDF download state ───────────────────────────────────────────────
-  const [downloadingPdfId, setDownloadingPdfId] = useState(null);
-  // Tracks which card's PDF button is currently loading.
-  // Separate from downloadingId so both buttons can show independent spinners.
-
-  const [downloadPdfError, setDownloadPdfError] = useState("");
-  const [downloadingTexId, setDownloadingTexId]   = useState(null);
-  const [downloadTexError, setDownloadTexError]   = useState("");
+  const [downloadingId, setDownloadingId]       = useState(null);
+  const [downloadError, setDownloadError]       = useState("");
+  const [downloadingTexId, setDownloadingTexId] = useState(null);
+  const [downloadTexError, setDownloadTexError] = useState("");
 
   const navigate = useNavigate();
 
@@ -34425,31 +34981,26 @@ export default function Cabinet() {
   };
 
 
-  // ── DOWNLOAD .docx HANDLER ────────────────────────────────────────────────
+  // ── DOWNLOAD .docx HANDLER ──────────────────────────────────────────────────
   const handleDownload = async (cv) => {
     setDownloadingId(cv.id);
     setDownloadError("");
-
     try {
       const response = await api.post(
         "/download-cv",
         { ai_result: cv.ai_result, profile: cv.profile_snapshot || {} },
         { responseType: "blob" }
       );
-
       const blob = response.data;
       const url  = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href  = url;
-
       const safeName = cv.job_title.replace(/[^a-zA-Z0-9\s]/g, "").replace(/\s+/g, "_");
       link.download  = `${safeName}_CV.docx`;
-
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
-
     } catch (err) {
       if (err.response?.status === 401) {
         localStorage.removeItem("token");
@@ -34459,57 +35010,6 @@ export default function Cabinet() {
       }
     } finally {
       setDownloadingId(null);
-    }
-  };
-
-
-  // ── NEW: DOWNLOAD PDF HANDLER ─────────────────────────────────────────────
-  const handleDownloadPdf = async (cv) => {
-    // Mirrors handleDownload but calls /api/download-cv-pdf (LaTeX pipeline).
-    // Uses the same ai_result and profile_snapshot stored in the cabinet entry.
-    // Returns a .pdf blob instead of .docx.
-
-    setDownloadingPdfId(cv.id);
-    setDownloadPdfError("");
-
-    try {
-      const response = await api.post(
-        "/download-cv-pdf",
-        { ai_result: cv.ai_result, profile: cv.profile_snapshot || {} },
-        { responseType: "blob" }
-      );
-
-      const blob = response.data;
-      const url  = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href  = url;
-
-      const safeName = cv.job_title.replace(/[^a-zA-Z0-9\s]/g, "").replace(/\s+/g, "_");
-      link.download  = `${safeName}_CV.pdf`;
-
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-
-    } catch (err) {
-      if (err.response?.status === 401) {
-        localStorage.removeItem("token");
-        navigate("/login");
-      } else {
-        // Try to extract the error message from the blob response.
-        // Flask returns JSON {message: "..."} even on errors, but axios wraps
-        // it as a blob because responseType: "blob" was set. We parse it back.
-        try {
-          const text = await err.response?.data?.text();
-          const json = JSON.parse(text || "{}");
-          setDownloadPdfError(json.message || "PDF generation failed.");
-        } catch {
-          setDownloadPdfError("PDF generation failed. Make sure xelatex is installed on the server.");
-        }
-      }
-    } finally {
-      setDownloadingPdfId(null);
     }
   };
 
@@ -34585,12 +35085,7 @@ export default function Cabinet() {
           </p>
         )}
 
-        {/* NEW: PDF error shown at page level */}
-        {downloadPdfError && (
-          <p style={{ color: "#8B2020", fontSize: "13px", marginBottom: "16px" }}>
-            ⚠ {downloadPdfError}
-          </p>
-        )}
+
 
 
         {/* ── LOADING SKELETON ────────────────────────── */}
@@ -34666,8 +35161,7 @@ export default function Cabinet() {
               const summaryPreview = (cv.ai_result?.SUMMARY || "").slice(0, 200);
               const isConfirming   = confirmDeleteId === cv.id;
               const isDeleting     = deletingId     === cv.id;
-              const isDownloading  = downloadingId  === cv.id;
-              const isDownloadingPdf = downloadingPdfId === cv.id;
+              const isDownloading    = downloadingId    === cv.id;
               const isDownloadingTex = downloadingTexId === cv.id;
 
               return (
@@ -34805,17 +35299,11 @@ export default function Cabinet() {
                         fontSize: "13px",
                         fontFamily: "'Libre Baskerville', serif",
                         opacity: isDownloading ? 0.6 : 1,
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "6px",
-                        transition: "background 0.15s ease, border-color 0.15s ease",
+                        display: "flex", alignItems: "center", gap: "6px",
+                        transition: "background 0.15s ease",
                       }}
-                      onMouseEnter={(e) => {
-                        if (!isDownloading) e.currentTarget.style.background = "rgba(45,90,61,0.1)";
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.background = "transparent";
-                      }}
+                      onMouseEnter={(e) => { if (!isDownloading) e.currentTarget.style.background = "rgba(45,90,61,0.1)"; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
                     >
                       {isDownloading ? (
                         <>
@@ -34829,70 +35317,47 @@ export default function Cabinet() {
                       ) : "⬇ Download .docx"}
                     </button>
 
-
-                    {/* ── NEW: Download .pdf button ── */}
-                    <button
-                      onClick={() => handleDownloadPdf(cv)}
-                      disabled={isDownloadingPdf}
-                      style={{
-                        background: "transparent",
-                        border: "1px solid rgba(45,90,61,0.4)",
-                        color: "#2D5A3D",
-                        padding: "8px 18px",
-                        borderRadius: "6px",
-                        cursor: isDownloadingPdf ? "not-allowed" : "pointer",
-                        fontSize: "13px",
-                        fontFamily: "'Libre Baskerville', serif",
-                        opacity: isDownloadingPdf ? 0.6 : 1,
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "6px",
-                        transition: "background 0.15s ease, border-color 0.15s ease",
-                      }}
-                      onMouseEnter={(e) => {
-                        if (!isDownloadingPdf) e.currentTarget.style.background = "rgba(45,90,61,0.1)";
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.background = "transparent";
-                      }}
-                    >
-                      {isDownloadingPdf ? (
-                        <>
-                          <span style={{
-                            display: "inline-block", width: "11px", height: "11px",
-                            border: "2px solid #2D5A3D", borderTopColor: "transparent",
-                            borderRadius: "50%", animation: "spin 0.7s linear infinite",
-                          }} />
-                          Compiling PDF...
-                        </>
-                      ) : "⬇ Download .pdf"}
-                    </button>
-
-                    {/* ── Download .tex button (Overleaf) ── */}
-                    <button
-                      onClick={() => handleDownloadTex(cv)}
-                      disabled={isDownloadingTex}
-                      style={{
-                        background: "transparent",
-                        border: "1px dashed rgba(45,90,61,0.35)",
-                        color: "#2D5A3D",
-                        padding: "8px 18px",
-                        borderRadius: "6px",
-                        cursor: isDownloadingTex ? "not-allowed" : "pointer",
-                        fontSize: "13px",
-                        fontFamily: "'Libre Baskerville', serif",
-                        opacity: isDownloadingTex ? 0.6 : 1,
-                        display: "flex", flexDirection: "column",
-                        alignItems: "center", gap: "2px",
-                        transition: "background 0.15s ease",
-                      }}
-                      onMouseEnter={(e) => { if (!isDownloadingTex) e.currentTarget.style.background = "rgba(45,90,61,0.05)"; }}
-                      onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
-                    >
-                      <span>{isDownloadingTex ? "Preparing..." : "⬇ Download .tex"}</span>
-                      <span style={{ fontSize: "10px", opacity: 0.45 }}>For use in Overleaf</span>
-                    </button>
-
+                    {/* ── Download .tex + Overleaf suggestion ── */}
+                    <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: "4px" }}>
+                      <button
+                        onClick={() => handleDownloadTex(cv)}
+                        disabled={isDownloadingTex}
+                        style={{
+                          background: "#2D5A3D",
+                          border: "none",
+                          color: "#EDE8DE",
+                          padding: "8px 18px",
+                          borderRadius: "6px",
+                          cursor: isDownloadingTex ? "not-allowed" : "pointer",
+                          fontSize: "13px",
+                          fontFamily: "'Libre Baskerville', serif",
+                          fontWeight: 900,
+                          opacity: isDownloadingTex ? 0.6 : 1,
+                          display: "flex", alignItems: "center", gap: "6px",
+                        }}
+                      >
+                        {isDownloadingTex ? (
+                          <>
+                            <span style={{
+                              display: "inline-block", width: "11px", height: "11px",
+                              border: "2px solid rgba(255,255,255,0.4)", borderTopColor: "white",
+                              borderRadius: "50%", animation: "spin 0.7s linear infinite",
+                            }} />
+                            Preparing...
+                          </>
+                        ) : "⬇ Download .tex"}
+                      </button>
+                      <p style={{ fontSize: "11px", color: "#1E2018", opacity: 0.5, margin: 0, lineHeight: "1.4" }}>
+                        Edit & compile free on{" "}
+                        <a href="https://www.overleaf.com" target="_blank" rel="noopener noreferrer"
+                          style={{ color: "#2D5A3D", fontWeight: 700, textDecoration: "underline" }}>
+                          overleaf.com
+                        </a>
+                      </p>
+                      {downloadTexError && (
+                        <p style={{ color: "#8B2020", fontSize: "11px", margin: 0 }}>{downloadTexError}</p>
+                      )}
+                    </div>
 
                     {/* ── Delete button — two-step confirmation ── */}
                     {!isConfirming && !isDeleting && (
@@ -34995,9 +35460,13 @@ export default function Cabinet() {
 }
 
 
+
+
+
 ======================================================================
 FILE: ./frontend\src\pages\CoverLetter.jsx
 ======================================================================
+
 
 
 // =============================================================================
@@ -35072,10 +35541,8 @@ export default function CoverLetter() {
   const [saving, setSaving]                 = useState(false);
   const [saved, setSaved]                   = useState(false);
   const [saveError, setSaveError]           = useState("");
-  const [downloadError, setDownloadError]   = useState("");
-  const [downloadingPDF, setDownloadingPDF]     = useState(false);
-  const [downloadPDFError, setDownloadPDFError] = useState("");
-  const [downloadingTex, setDownloadingTex]     = useState(false);
+  const [downloadError, setDownloadError]     = useState("");
+  const [downloadingTex, setDownloadingTex]   = useState(false);
   const [downloadTexError, setDownloadTexError] = useState("");
   // downloadError: shown on screen when .docx download fails — surfaces the real error message.
 
@@ -35191,20 +35658,7 @@ export default function CoverLetter() {
   };
 
 
-  // ── DOWNLOAD .DOCX HANDLER ───────────────────────────────────────────────
-  // =============================================================================
-// PATCH for frontend/src/pages/CoverLetter.jsx
-// =============================================================================
-// REPLACE the existing handleDownload function with this one.
-//
-// CHANGE: Replaces raw fetch() with hardcoded URL with the api axios instance.
-//   Before: fetch("http://127.0.0.1:5000/api/download-cover-letter", ...)
-//           → breaks in production, duplicates auth token logic
-//   After:  api.post("/download-cover-letter", ..., { responseType: "blob" })
-//           → uses VITE_API_URL env variable, token attached automatically
-//           → consistent with every other download in the app
-// =============================================================================
-
+  // ── DOWNLOAD .DOCX HANDLER ──────────────────────────────────────────────────
   const handleDownload = async (text, jobTitleStr = "Cover_Letter") => {
     setDownloadError("");
     try {
@@ -35213,20 +35667,16 @@ export default function CoverLetter() {
         { cover_letter: text, job_title: jobTitleStr },
         { responseType: "blob" }
       );
-
       const blob = response.data;
       const url  = URL.createObjectURL(blob);
       const link = document.createElement("a");
-      link.href  = url;
-
-      const safeName = jobTitleStr.replace(/[^a-zA-Z0-9\s]/g, "").replace(/\s+/g, "_");
-      link.download  = `${safeName}_Cover_Letter.docx`;
-
+      link.href     = url;
+      const safe = jobTitleStr.replace(/[^a-zA-Z0-9\s]/g, "").replace(/\s+/g, "_").slice(0, 60);
+      link.download = `${safe}_Cover_Letter.docx`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
-
     } catch (err) {
       if (err.response?.status === 401) {
         localStorage.removeItem("token");
@@ -35237,46 +35687,6 @@ export default function CoverLetter() {
     }
   };
 
-
-  const handleDownloadPDF = async (text, jobTitleStr = "Cover_Letter") => {
-    if (!text) return;
-    setDownloadingPDF(true);
-    setDownloadPDFError("");
- 
-    try {
-      const response = await api.post(
-        "/download-cover-letter-pdf",
-        { cover_letter: text, job_title: jobTitleStr },
-        { responseType: "blob" }
-      );
- 
-      const blob = response.data;
-      const url  = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href     = url;
-      link.download = "Cover_Letter.pdf";
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
- 
-    } catch (err) {
-      if (err.response?.status === 401) {
-        localStorage.removeItem("token");
-        navigate("/login");
-      } else {
-        try {
-          const text = await err.response?.data?.text();
-          const json = JSON.parse(text || "{}");
-          setDownloadPDFError(json.message || "PDF download failed.");
-        } catch {
-          setDownloadPDFError("PDF download failed. Make sure xelatex is installed on the server.");
-        }
-      }
-    } finally {
-      setDownloadingPDF(false);
-    }
-  };
 
   const handleDownloadTex = async (text, jobTitleStr = "Cover_Letter") => {
     if (!text) return;
@@ -35645,8 +36055,7 @@ export default function CoverLetter() {
                 {copied ? "✓ Copied!" : "⎘ Copy"}
               </button>
 
-              {/* Download .txt */}
-              {/* Download .docx */}
+              {/* ── Download .docx ── */}
               <button
                 onClick={() => handleDownload(result, jobDescription.split("\n")[0] || "Cover_Letter")}
                 style={{
@@ -35665,74 +36074,47 @@ export default function CoverLetter() {
               >
                 ⬇ Download .docx
               </button>
- 
-              {/* Download .pdf */}
-              <button
-                onClick={() => handleDownloadPDF(result, jobDescription.split("\n")[0] || "Cover_Letter")}
-                disabled={downloadingPDF}
-                style={{
-                  background:   downloadingPDF ? "rgba(45,90,61,0.07)" : "transparent",
-                  border:       "1px solid rgba(45,90,61,0.4)",
-                  color:        "#2D5A3D",
-                  padding:      "11px 24px",
-                  borderRadius: "6px",
-                  cursor:       downloadingPDF ? "not-allowed" : "pointer",
-                  fontSize:     "14px",
-                  fontFamily:   "'Libre Baskerville', serif",
-                  opacity:      downloadingPDF ? 0.65 : 1,
-                  transition:   "background 0.15s ease",
-                  display:      "flex", alignItems: "center", gap: "8px",
-                }}
-                onMouseEnter={(e) => { if (!downloadingPDF) e.currentTarget.style.background = "rgba(45,90,61,0.08)"; }}
-                onMouseLeave={(e) => { if (!downloadingPDF) e.currentTarget.style.background = "transparent"; }}
-              >
-                {downloadingPDF ? (
-                  <>
-                    <span style={{
-                      display: "inline-block", width: "12px", height: "12px",
-                      border: "2px solid rgba(45,90,61,0.3)", borderTopColor: "#2D5A3D",
-                      borderRadius: "50%", animation: "spin 0.7s linear infinite",
-                    }} />
-                    Compiling...
-                  </>
-                ) : "⬇ Download .pdf"}
-              </button>
- 
-              {downloadPDFError && (
-                <p style={{ color: "#8B2020", fontSize: "12px", marginTop: "6px", fontFamily: "system-ui, sans-serif" }}>
-                  ⚠ {downloadPDFError}
-                </p>
-              )}
-
               {downloadError && (
-                <p style={{ color: "#8B2020", fontSize: "12px", marginTop: "6px", fontFamily: "system-ui, sans-serif" }}>
-                  ⚠ {downloadError}
-                </p>
+                <p style={{ color: "#8B2020", fontSize: "12px", marginTop: "6px" }}>⚠ {downloadError}</p>
               )}
 
-              {/* Download .tex (Overleaf) */}
-              <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: "3px" }}>
+              {/* ── Download .tex + Overleaf suggestion ── */}
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: "4px" }}>
                 <button
                   onClick={() => handleDownloadTex(result, jobDescription.split("\n")[0] || "Cover_Letter")}
                   disabled={downloadingTex}
                   style={{
-                    background:   "transparent",
-                    border:       "1px dashed rgba(45,90,61,0.4)",
-                    color:        "#2D5A3D",
+                    background:   "#2D5A3D",
+                    border:       "none",
+                    color:        "#EDE8DE",
                     padding:      "11px 24px",
                     borderRadius: "6px",
                     cursor:       downloadingTex ? "not-allowed" : "pointer",
                     fontSize:     "14px",
                     fontFamily:   "'Libre Baskerville', serif",
+                    fontWeight:   900,
                     opacity:      downloadingTex ? 0.65 : 1,
-                    transition:   "background 0.15s ease",
+                    display:      "flex", alignItems: "center", gap: "8px",
                   }}
-                  onMouseEnter={(e) => { if (!downloadingTex) e.currentTarget.style.background = "rgba(45,90,61,0.05)"; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
                 >
-                  {downloadingTex ? "Preparing..." : "⬇ Download .tex"}
+                  {downloadingTex ? (
+                    <>
+                      <span style={{
+                        display: "inline-block", width: "12px", height: "12px",
+                        border: "2px solid rgba(255,255,255,0.4)", borderTopColor: "white",
+                        borderRadius: "50%", animation: "spin 0.7s linear infinite",
+                      }} />
+                      Preparing...
+                    </>
+                  ) : "⬇ Download .tex"}
                 </button>
-                <span style={{ fontSize: "11px", color: "#1E2018", opacity: 0.4 }}>For use in Overleaf</span>
+                <span style={{ fontSize: "12px", color: "#1E2018", opacity: 0.55, lineHeight: "1.4" }}>
+                  Edit & compile free on{" "}
+                  <a href="https://www.overleaf.com" target="_blank" rel="noopener noreferrer"
+                    style={{ color: "#2D5A3D", fontWeight: 700, textDecoration: "underline" }}>
+                    overleaf.com
+                  </a>
+                </span>
                 {downloadTexError && (
                   <p style={{ color: "#8B2020", fontSize: "12px", marginTop: "3px" }}>⚠ {downloadTexError}</p>
                 )}
@@ -36087,7 +36469,7 @@ export default function CoverLetter() {
                       ⎘ Copy
                     </button>
 
-                    {/* Download */}
+                    {/* Download .docx */}
                     <button
                       onClick={() => handleDownload(cl.cover_letter, cl.job_title)}
                       style={{
@@ -36101,7 +36483,22 @@ export default function CoverLetter() {
                       onMouseEnter={(e) => e.currentTarget.style.background = "rgba(45,90,61,0.08)"}
                       onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
                     >
-                      ⬇
+                      ⬇ .docx
+                    </button>
+
+                    {/* Download .tex */}
+                    <button
+                      onClick={() => handleDownloadTex(cl.cover_letter, cl.job_title)}
+                      style={{
+                        background: "#2D5A3D",
+                        border: "none",
+                        color: "#EDE8DE", padding: "6px 14px",
+                        borderRadius: "6px", cursor: "pointer",
+                        fontSize: "12px", fontFamily: "'Libre Baskerville', serif",
+                        fontWeight: 900,
+                      }}
+                    >
+                      ⬇ .tex
                     </button>
 
                     {/* Delete — two-step */}
@@ -36194,9 +36591,13 @@ export default function CoverLetter() {
 
 
 
+
+
+
 ======================================================================
 FILE: ./frontend\src\pages\Dashboard.jsx
 ======================================================================
+
 
 
 // =============================================================================
@@ -36632,9 +37033,13 @@ export default function Dashboard() {
 
 
 
+
+
+
 ======================================================================
 FILE: ./frontend\src\pages\GenerateCV.jsx
 ======================================================================
+
 
 // =============================================================================
 // FILE: frontend/src/pages/GenerateCV.jsx
@@ -36663,12 +37068,10 @@ export default function Generate() {
   const [loading, setLoading]               = useState(false);
   const [error, setError]                   = useState("");
   const [copied, setCopied]                 = useState(false);
-  const [downloading, setDownloading]       = useState(false);
-  const [downloadError, setDownloadError]   = useState("");
-   const [downloadingPDF, setDownloadingPDF]       = useState(false);
-  const [downloadPDFError, setDownloadPDFError]   = useState("");
-  const [downloadingTex, setDownloadingTex]       = useState(false);
-  const [downloadTexError, setDownloadTexError]   = useState("");
+  const [downloading, setDownloading]         = useState(false);
+  const [downloadError, setDownloadError]       = useState("");
+  const [downloadingTex, setDownloadingTex]     = useState(false);
+  const [downloadTexError, setDownloadTexError] = useState("");
  
   const [saving, setSaving]                 = useState(false);
   const [saved, setSaved]                   = useState(false);
@@ -36754,97 +37157,43 @@ useEffect(() => {
   };
 
 
-  // ── DOWNLOAD HANDLER ─────────────────────────────────────────────────────
+  // ── DOWNLOAD .docx HANDLER ──────────────────────────────────────────────────
   const handleDownload = async () => {
     if (!result) return;
     setDownloading(true);
     setDownloadError("");
-
     try {
       const response = await api.post(
         "/download-cv",
         { ai_result: result, profile: profile || {} },
         { responseType: "blob" }
       );
-
       const blob = response.data;
       const url  = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href  = url;
-
       const firstName = profile?.personalInfo?.firstName || "";
       const lastName  = profile?.personalInfo?.lastName  || "";
       const fullName  = `${firstName}${lastName ? "_" + lastName : ""}`.trim();
       const titleSlug = jobTitle.trim().replace(/\s+/g, "_").replace(/[^a-zA-Z0-9_]/g, "").slice(0, 50);
       const filename  = [fullName, titleSlug, "CV"].filter(Boolean).join("_") + ".docx";
       link.download   = filename;
-
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
-
     } catch (err) {
       if (err.response?.status === 401) {
         localStorage.removeItem("token");
         navigate("/login");
       } else {
-        setDownloadError("Download failed. Make sure the backend is running and the template exists.");
+        setDownloadError("Download failed. Make sure the backend is running.");
       }
     } finally {
       setDownloading(false);
     }
   };
 
-
-  const handleDownloadPDF = async () => {
-    if (!result) return;
-    setDownloadingPDF(true);
-    setDownloadPDFError("");
- 
-    try {
-      const response = await api.post(
-        "/download-cv-pdf",
-        { ai_result: result, profile: profile || {}, jobTitle: jobTitle },
-        { responseType: "blob" }
-      );
- 
-      const blob = response.data;
-      const url  = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href  = url;
- 
-      const firstName = profile?.personalInfo?.firstName || "";
-      const lastName  = profile?.personalInfo?.lastName  || "";
-      const fullName  = `${firstName}${lastName ? "_" + lastName : ""}`.trim();
-      const titleSlug = jobTitle.trim().replace(/\s+/g, "_").replace(/[^a-zA-Z0-9_]/g, "").slice(0, 50);
-      const filename  = [fullName, titleSlug, "CV"].filter(Boolean).join("_") + ".pdf";
-      link.download   = filename;
- 
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
- 
-    } catch (err) {
-      if (err.response?.status === 401) {
-        localStorage.removeItem("token");
-        navigate("/login");
-      } else {
-        // Try to extract error message from blob response
-        try {
-          const text = await err.response?.data?.text();
-          const json = JSON.parse(text || "{}");
-          setDownloadPDFError(json.message || "PDF download failed.");
-        } catch {
-          setDownloadPDFError("PDF download failed. Make sure xelatex is installed on the server.");
-        }
-      }
-    } finally {
-      setDownloadingPDF(false);
-    }
-  };
- 
 
   // ── DOWNLOAD .tex HANDLER ─────────────────────────────────────────────────
   const handleDownloadTex = async () => {
@@ -37818,8 +38167,7 @@ useEffect(() => {
               justifyContent: "center", alignItems: "flex-start", paddingBottom: "40px",
             }}>
 
-              
-              {/* ── Download CV — Word ── */}
+              {/* ── Download .docx ── */}
               <div style={{ textAlign: "center" }}>
                 <button
                   className="primary-btn"
@@ -37827,8 +38175,8 @@ useEffect(() => {
                   disabled={downloading}
                   style={{
                     fontSize: "15px", padding: "13px 36px",
-                    opacity:    downloading ? 0.65 : 1,
-                    cursor:     downloading ? "not-allowed" : "pointer",
+                    opacity: downloading ? 0.65 : 1,
+                    cursor:  downloading ? "not-allowed" : "pointer",
                     background: downloading ? "#3D7A55" : "#2D5A3D",
                     display: "flex", alignItems: "center", gap: "8px",
                   }}
@@ -37850,46 +38198,8 @@ useEffect(() => {
                   </p>
                 )}
               </div>
- 
-              {/* ── Download CV — PDF ── */}
-              <div style={{ textAlign: "center" }}>
-                <button
-                  onClick={handleDownloadPDF}
-                  disabled={downloadingPDF}
-                  style={{
-                    fontSize: "15px", padding: "13px 36px",
-                    opacity:      downloadingPDF ? 0.65 : 1,
-                    cursor:       downloadingPDF ? "not-allowed" : "pointer",
-                    background:   "transparent",
-                    border:       "1px solid rgba(45,90,61,0.5)",
-                    color:        "#2D5A3D",
-                    borderRadius: "6px",
-                    fontFamily:   "'Libre Baskerville', serif",
-                    transition:   "background 0.15s ease",
-                    display:      "flex", alignItems: "center", gap: "8px",
-                  }}
-                  onMouseEnter={(e) => { if (!downloadingPDF) e.currentTarget.style.background = "rgba(45,90,61,0.07)"; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
-                >
-                  {downloadingPDF ? (
-                    <>
-                      <span style={{
-                        display: "inline-block", width: "14px", height: "14px",
-                        border: "2px solid rgba(45,90,61,0.3)", borderTopColor: "#2D5A3D",
-                        borderRadius: "50%", animation: "spin 0.7s linear infinite",
-                      }} />
-                      Compiling PDF...
-                    </>
-                  ) : "⬇ Download .pdf"}
-                </button>
-                {downloadPDFError && (
-                  <p style={{ color: "#8B2020", fontSize: "12px", marginTop: "8px", maxWidth: "260px" }}>
-                    {downloadPDFError}
-                  </p>
-                )}
-              </div>
 
-              {/* ── Download CV — .tex (Overleaf) ── */}
+              {/* ── Download .tex + Overleaf suggestion ── */}
               <div style={{ textAlign: "center" }}>
                 <button
                   onClick={handleDownloadTex}
@@ -37898,21 +38208,32 @@ useEffect(() => {
                     fontSize: "15px", padding: "13px 36px",
                     opacity:      downloadingTex ? 0.65 : 1,
                     cursor:       downloadingTex ? "not-allowed" : "pointer",
-                    background:   "transparent",
-                    border:       "1px dashed rgba(45,90,61,0.4)",
-                    color:        "#2D5A3D",
+                    background:   "#2D5A3D",
+                    border:       "none",
+                    color:        "#EDE8DE",
                     borderRadius: "6px",
                     fontFamily:   "'Libre Baskerville', serif",
-                    transition:   "background 0.15s ease",
+                    fontWeight:   900,
                     display:      "flex", alignItems: "center", gap: "8px",
                   }}
-                  onMouseEnter={(e) => { if (!downloadingTex) e.currentTarget.style.background = "rgba(45,90,61,0.05)"; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
                 >
-                  {downloadingTex ? "Preparing..." : "⬇ Download .tex"}
+                  {downloadingTex ? (
+                    <>
+                      <span style={{
+                        display: "inline-block", width: "14px", height: "14px",
+                        border: "2px solid rgba(255,255,255,0.4)", borderTopColor: "white",
+                        borderRadius: "50%", animation: "spin 0.7s linear infinite",
+                      }} />
+                      Preparing...
+                    </>
+                  ) : "⬇ Download .tex"}
                 </button>
-                <p style={{ color: "#1E2018", fontSize: "11px", opacity: 0.4, marginTop: "5px", maxWidth: "160px" }}>
-                  For use in Overleaf
+                <p style={{ color: "#1E2018", fontSize: "12px", opacity: 0.55, marginTop: "8px", maxWidth: "200px", lineHeight: "1.5" }}>
+                  Edit & compile free on{" "}
+                  <a href="https://www.overleaf.com" target="_blank" rel="noopener noreferrer"
+                    style={{ color: "#2D5A3D", fontWeight: 700, textDecoration: "underline" }}>
+                    overleaf.com
+                  </a>
                 </p>
                 {downloadTexError && (
                   <p style={{ color: "#8B2020", fontSize: "12px", marginTop: "4px", maxWidth: "260px" }}>
@@ -37920,7 +38241,6 @@ useEffect(() => {
                   </p>
                 )}
               </div>
- 
 
               {/* ── Save to Cabinet ── */}
               <div style={{ textAlign: "center" }}>
@@ -37995,6 +38315,9 @@ useEffect(() => {
     </DashboardLayout>
   );
 }
+
+
+
 
 
 ======================================================================

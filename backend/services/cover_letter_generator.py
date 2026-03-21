@@ -152,12 +152,11 @@ RULES:
 3. Paragraph 2: Evidence — 2-3 specific achievements or experiences that directly match the job.
 4. Paragraph 3: Skills alignment — connect 2-3 of their skills to what the job explicitly needs.
 5. Paragraph 4: Closing — confident, forward-looking. Request an interview naturally.
-6. Sign off with: "Yours sincerely,\\n{full_name}"
-7. Do NOT include a date, address block, or "Dear Hiring Manager" header —
+6. Do NOT include a date, address block, or "Dear Hiring Manager" header —
    just start directly with the first paragraph.
-8. Do NOT use placeholder brackets like [Company Name]. If you don't know the
+7. Do NOT use placeholder brackets like [Company Name]. If you don't know the
    company name, write "your team" or "the company" instead.
-9. Plain text only. No markdown. No bullet points. No bold or italic formatting.
+8. Plain text only. No markdown. No bullet points. No bold or italic formatting.
 """
 
     response = client.chat.completions.create(

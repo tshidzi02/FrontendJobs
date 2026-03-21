@@ -1,4 +1,3 @@
-# =============================================================================
 # FILE: backend/app.py  (UPDATED — Lesson 4.1: Cover Letter Generator)
 # =============================================================================
 # WHAT'S NEW vs Lesson 3.4:
@@ -36,6 +35,8 @@ from services.cover_letter_generator import generate_cover_letter
 from services.cover_letter_docx import generate_cover_letter_docx
 from services.cv_pdf             import generate_cv_pdf
 from services.cover_letter_pdf   import generate_cover_letter_pdf
+from services.cv_latex import build_cv_tex 
+from services.cover_letter_latex import build_cover_letter_tex
 from services.job_search import search_jobs
 from services.tools_ai import (
     generate_interview_prep,
@@ -111,6 +112,24 @@ class SavedCoverLetter(db.Model):
     tone         = db.Column(db.String(50), nullable=False, default="professional")
     cover_letter = db.Column(db.Text, nullable=False, default="")
     created_at   = db.Column(db.DateTime, default=db.func.now())
+
+
+
+class SavedBulkItem(db.Model):
+    # Stores one bulk-generated set (CV tex + cover letter tex + combined) per row.
+    # Saved from the Bulk Generator page via POST /api/bulk-save.
+    id               = db.Column(db.Integer, primary_key=True)
+    user_id          = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
+    job_title        = db.Column(db.String(200), nullable=False, default="Untitled Role")
+    ats_score        = db.Column(db.Float,       nullable=False, default=0.0)
+    tone             = db.Column(db.String(50),  nullable=False, default="professional")
+    cv_tex           = db.Column(db.Text, nullable=False, default="")
+    cl_tex           = db.Column(db.Text, nullable=False, default="")
+    combined_tex     = db.Column(db.Text, nullable=False, default="")
+    cover_letter     = db.Column(db.Text, nullable=False, default="")
+    ai_result        = db.Column(db.Text, nullable=False, default="{}")
+    profile_snapshot = db.Column(db.Text, nullable=False, default="{}")
+    created_at       = db.Column(db.DateTime, default=db.func.now())
 
 
 class JobApplication(db.Model):
@@ -1300,6 +1319,130 @@ def download_cover_letter_tex():
     except Exception as e:
         traceback.print_exc()
         return jsonify({"message": f"TeX generation failed: {str(e)}"}), 500
+
+
+# =============================================================================
+# BULK GENERATOR — LATEX BUILD + SAVE TO CABINET
+# =============================================================================
+
+@app.route("/api/bulk-tex", methods=["POST"])
+@jwt_required()
+def bulk_tex():
+    """
+    Accepts a pre-generated CV ai_result + cover letter text and returns
+    the LaTeX source for both as plain strings.
+    """
+    email = get_jwt_identity()
+    user  = User.query.filter_by(email=email).first()
+    if not user:
+        return jsonify({"message": "User not found"}), 404
+
+    data         = request.get_json()
+    ai_result    = data.get("ai_result", {})
+    cover_letter = data.get("cover_letter", "")
+    job_title    = data.get("job_title", "")
+
+    profile_row = Profile.query.filter_by(user_id=user.id).first()
+    profile     = json.loads(profile_row.data) if profile_row else {}
+
+    try:
+        cv_tex = build_cv_tex(profile, ai_result)
+    except Exception as e:
+        return jsonify({"message": f"CV LaTeX build failed: {str(e)}"}), 500
+
+    try:
+        cl_tex = build_cover_letter_tex(profile, cover_letter, job_title)
+    except Exception as e:
+        return jsonify({"message": f"Cover letter LaTeX build failed: {str(e)}"}), 500
+
+    return jsonify({
+        "cv_tex":           cv_tex,
+        "cover_letter_tex": cl_tex,
+    })
+
+
+@app.route("/api/bulk-save", methods=["POST"])
+@jwt_required()
+def bulk_save():
+    """Save one bulk-generated item (CV tex + cover letter tex) to the cabinet."""
+    email = get_jwt_identity()
+    user  = User.query.filter_by(email=email).first()
+    if not user:
+        return jsonify({"message": "User not found"}), 404
+
+    data             = request.get_json() or {}
+    job_title        = data.get("job_title",    "Untitled Role")[:200]
+    tone             = data.get("tone",          "professional")
+    cv_tex           = data.get("cv_tex",        "")
+    cl_tex           = data.get("cl_tex",        "")
+    combined_tex     = data.get("combined_tex",  "")
+    cover_letter     = data.get("cover_letter",  "")
+    ai_result        = data.get("ai_result",     {})
+    profile_snapshot = data.get("profile_snapshot", {})
+    ats_score        = ai_result.get("ats", {}).get("final_score", 0.0) \
+                       if isinstance(ai_result, dict) else 0.0
+
+    item = SavedBulkItem(
+        user_id          = user.id,
+        job_title        = job_title,
+        ats_score        = ats_score,
+        tone             = tone,
+        cv_tex           = cv_tex,
+        cl_tex           = cl_tex,
+        combined_tex     = combined_tex,
+        cover_letter     = cover_letter,
+        ai_result        = json.dumps(ai_result),
+        profile_snapshot = json.dumps(profile_snapshot),
+    )
+    db.session.add(item)
+    db.session.commit()
+    return jsonify({"message": "Saved to cabinet", "id": item.id}), 201
+
+
+@app.route("/api/bulk-saved", methods=["GET"])
+@jwt_required()
+def get_bulk_saved():
+    """Return all bulk-saved items for the logged-in user, newest first."""
+    email = get_jwt_identity()
+    user  = User.query.filter_by(email=email).first()
+    if not user:
+        return jsonify({"message": "User not found"}), 404
+
+    items = SavedBulkItem.query.filter_by(user_id=user.id) \
+                               .order_by(SavedBulkItem.created_at.desc()).all()
+    return jsonify([
+        {
+            "id":           item.id,
+            "job_title":    item.job_title,
+            "ats_score":    item.ats_score,
+            "tone":         item.tone,
+            "cv_tex":       item.cv_tex,
+            "cl_tex":       item.cl_tex,
+            "combined_tex": item.combined_tex,
+            "cover_letter": item.cover_letter,
+            "created_at":   item.created_at.isoformat() if item.created_at else "",
+        }
+        for item in items
+    ])
+
+
+@app.route("/api/bulk-saved/<int:item_id>", methods=["DELETE"])
+@jwt_required()
+def delete_bulk_saved(item_id):
+    """Delete one bulk-saved item. Verifies ownership."""
+    email = get_jwt_identity()
+    user  = User.query.filter_by(email=email).first()
+    if not user:
+        return jsonify({"message": "User not found"}), 404
+
+    item = SavedBulkItem.query.filter_by(id=item_id, user_id=user.id).first()
+    if not item:
+        return jsonify({"message": "Not found"}), 404
+
+    db.session.delete(item)
+    db.session.commit()
+    return jsonify({"message": "Deleted"})
+
 
 if __name__ == "__main__":
     app.run(debug=True)

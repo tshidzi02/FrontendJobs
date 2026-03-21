@@ -127,8 +127,8 @@ export default function DashboardLayout({ children }) {
           <span style={sectionLabel}>CV</span>
           <Link to="/generate"     style={navLinkStyle("/generate")}     onClick={closeSidebar}>✨ Generate CV</Link>
            <Link to="/cover-letter" style={navLinkStyle("/cover-letter")} onClick={closeSidebar}>✉️ Cover Letter</Link>
-          {/*<Link to="/bulkgenerate"         style={navLinkStyle("/bulkgenerate")}         onClick={closeSidebar}>⚡ Bulk Generate</Link>*/}
-          <Link to="/cabinet"      style={navLinkStyle("/cabinet")}      onClick={closeSidebar}>🗂️ CV Cabinet</Link>
+         <Link to="/bulkgenerate"         style={navLinkStyle("/bulkgenerate")}         onClick={closeSidebar}>⚡ Bulk Generate</Link>
+          <Link to="/cabinet"      style={navLinkStyle("/cabinet")}      onClick={closeSidebar}>🗂️ Cabinet</Link>
          
 
           <span style={sectionLabel}>Jobs</span>
