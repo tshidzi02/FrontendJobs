@@ -146,7 +146,7 @@ def _fetch_adzuna(query, location, employment_type, salary_min, salary_max,
                 "posted":      _relative_date(item.get("created", "")),
                 "description": item.get("description", "")[:3000],
                 "url":         item.get("redirect_url", ""),
-                "source":      "Adzuna",
+                #"source":      "Adzuna",
             })
         return jobs
     except Exception as e:
@@ -243,7 +243,7 @@ def search_the_muse(query, location):
                     "posted":      _relative_date(item.get("publication_date", "")),
                     "description": desc,
                     "url":         item.get("refs", {}).get("landing_page", ""),
-                    "source":      "TheMuse",
+                    #"source":      "TheMuse",
                 })
         except Exception as e:
             print(f"[TheMuse p{page}] Error: {e}")
@@ -300,7 +300,7 @@ def search_remoteok(query):
                 "posted":      _relative_date(item.get("epoch", time.time())),
                 "description": _strip_html(item.get("description", ""))[:3000],
                 "url":         item.get("url", ""),
-                "source":      "RemoteOK",
+                #"source":      "RemoteOK",
             })
 
         print(f"[JobSearch] RemoteOK: {len(result)} results")
@@ -406,7 +406,7 @@ def search_jsearch(query, location, employment_type, date_posted):
                     "posted":      posted,
                     "description": (item.get("job_description") or "")[:3000],
                     "url":         item.get("job_apply_link") or item.get("job_google_link", ""),
-                    "source":      "JSearch",
+                    #"source":      "JSearch",
                 })
 
         except Exception as e:

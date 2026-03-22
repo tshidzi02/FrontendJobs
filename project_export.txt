@@ -35,7 +35,6 @@ ALLOWED_ORIGINS=http://143.110.173.170
 FILE: ./backend\app.py
 ======================================================================
 
-# =============================================================================
 # FILE: backend/app.py  (UPDATED — Lesson 4.1: Cover Letter Generator)
 # =============================================================================
 # WHAT'S NEW vs Lesson 3.4:
@@ -150,6 +149,24 @@ class SavedCoverLetter(db.Model):
     tone         = db.Column(db.String(50), nullable=False, default="professional")
     cover_letter = db.Column(db.Text, nullable=False, default="")
     created_at   = db.Column(db.DateTime, default=db.func.now())
+
+
+
+class SavedBulkItem(db.Model):
+    # Stores one bulk-generated set (CV tex + cover letter tex + combined) per row.
+    # Saved from the Bulk Generator page via POST /api/bulk-save.
+    id               = db.Column(db.Integer, primary_key=True)
+    user_id          = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
+    job_title        = db.Column(db.String(200), nullable=False, default="Untitled Role")
+    ats_score        = db.Column(db.Float,       nullable=False, default=0.0)
+    tone             = db.Column(db.String(50),  nullable=False, default="professional")
+    cv_tex           = db.Column(db.Text, nullable=False, default="")
+    cl_tex           = db.Column(db.Text, nullable=False, default="")
+    combined_tex     = db.Column(db.Text, nullable=False, default="")
+    cover_letter     = db.Column(db.Text, nullable=False, default="")
+    ai_result        = db.Column(db.Text, nullable=False, default="{}")
+    profile_snapshot = db.Column(db.Text, nullable=False, default="{}")
+    created_at       = db.Column(db.DateTime, default=db.func.now())
 
 
 class JobApplication(db.Model):
@@ -1340,37 +1357,28 @@ def download_cover_letter_tex():
         traceback.print_exc()
         return jsonify({"message": f"TeX generation failed: {str(e)}"}), 500
 
+
+# =============================================================================
+# BULK GENERATOR — LATEX BUILD + SAVE TO CABINET
+# =============================================================================
+
 @app.route("/api/bulk-tex", methods=["POST"])
 @jwt_required()
 def bulk_tex():
     """
     Accepts a pre-generated CV ai_result + cover letter text and returns
     the LaTeX source for both as plain strings.
-
-    Request body:
-    {
-        "ai_result":      { ...same shape as /api/generate response... },
-        "cover_letter":   "Full plain text of the cover letter",
-        "job_title":      "Senior Frontend Developer"
-    }
-
-    Response:
-    {
-        "cv_tex":           "\\documentclass...",
-        "cover_letter_tex": "\\documentclass..."
-    }
     """
     email = get_jwt_identity()
     user  = User.query.filter_by(email=email).first()
     if not user:
         return jsonify({"message": "User not found"}), 404
 
-    data          = request.get_json()
-    ai_result     = data.get("ai_result", {})
-    cover_letter  = data.get("cover_letter", "")
-    job_title     = data.get("job_title", "")
+    data         = request.get_json()
+    ai_result    = data.get("ai_result", {})
+    cover_letter = data.get("cover_letter", "")
+    job_title    = data.get("job_title", "")
 
-    # Load profile from DB — same pattern as /api/download-cv
     profile_row = Profile.query.filter_by(user_id=user.id).first()
     profile     = json.loads(profile_row.data) if profile_row else {}
 
@@ -1388,6 +1396,89 @@ def bulk_tex():
         "cv_tex":           cv_tex,
         "cover_letter_tex": cl_tex,
     })
+
+
+@app.route("/api/bulk-save", methods=["POST"])
+@jwt_required()
+def bulk_save():
+    """Save one bulk-generated item (CV tex + cover letter tex) to the cabinet."""
+    email = get_jwt_identity()
+    user  = User.query.filter_by(email=email).first()
+    if not user:
+        return jsonify({"message": "User not found"}), 404
+
+    data             = request.get_json() or {}
+    job_title        = data.get("job_title",    "Untitled Role")[:200]
+    tone             = data.get("tone",          "professional")
+    cv_tex           = data.get("cv_tex",        "")
+    cl_tex           = data.get("cl_tex",        "")
+    combined_tex     = data.get("combined_tex",  "")
+    cover_letter     = data.get("cover_letter",  "")
+    ai_result        = data.get("ai_result",     {})
+    profile_snapshot = data.get("profile_snapshot", {})
+    ats_score        = ai_result.get("ats", {}).get("final_score", 0.0) \
+                       if isinstance(ai_result, dict) else 0.0
+
+    item = SavedBulkItem(
+        user_id          = user.id,
+        job_title        = job_title,
+        ats_score        = ats_score,
+        tone             = tone,
+        cv_tex           = cv_tex,
+        cl_tex           = cl_tex,
+        combined_tex     = combined_tex,
+        cover_letter     = cover_letter,
+        ai_result        = json.dumps(ai_result),
+        profile_snapshot = json.dumps(profile_snapshot),
+    )
+    db.session.add(item)
+    db.session.commit()
+    return jsonify({"message": "Saved to cabinet", "id": item.id}), 201
+
+
+@app.route("/api/bulk-saved", methods=["GET"])
+@jwt_required()
+def get_bulk_saved():
+    """Return all bulk-saved items for the logged-in user, newest first."""
+    email = get_jwt_identity()
+    user  = User.query.filter_by(email=email).first()
+    if not user:
+        return jsonify({"message": "User not found"}), 404
+
+    items = SavedBulkItem.query.filter_by(user_id=user.id) \
+                               .order_by(SavedBulkItem.created_at.desc()).all()
+    return jsonify([
+        {
+            "id":           item.id,
+            "job_title":    item.job_title,
+            "ats_score":    item.ats_score,
+            "tone":         item.tone,
+            "cv_tex":       item.cv_tex,
+            "cl_tex":       item.cl_tex,
+            "combined_tex": item.combined_tex,
+            "cover_letter": item.cover_letter,
+            "created_at":   item.created_at.isoformat() if item.created_at else "",
+        }
+        for item in items
+    ])
+
+
+@app.route("/api/bulk-saved/<int:item_id>", methods=["DELETE"])
+@jwt_required()
+def delete_bulk_saved(item_id):
+    """Delete one bulk-saved item. Verifies ownership."""
+    email = get_jwt_identity()
+    user  = User.query.filter_by(email=email).first()
+    if not user:
+        return jsonify({"message": "User not found"}), 404
+
+    item = SavedBulkItem.query.filter_by(id=item_id, user_id=user.id).first()
+    if not item:
+        return jsonify({"message": "Not found"}), 404
+
+    db.session.delete(item)
+    db.session.commit()
+    return jsonify({"message": "Deleted"})
 
 
 if __name__ == "__main__":
@@ -3803,7 +3894,45 @@ def build_cv_tex(profile: dict, ai_result: dict) -> str:
     education  = ai_result.get("education",         profile.get("education",  []))
     languages  = ai_result.get("languages",          profile.get("languages",  []))
     experience = ai_result.get("experience",         [])
-    projects   = ai_result.get("project_experience", [])
+    # "project_experience" = merged output from cv_generator.py (has url, tech_stack).
+    # "projects"           = raw AI output from /api/generate (no url, uses "name" key).
+    # profile projects     = source of truth for url — always fall back to them so
+    #                        URLs are never lost when bulk-tex bypasses cv_generator.py.
+    _ai_projects   = ai_result.get("project_experience") or ai_result.get("projects") or []
+    _prof_projects = profile.get("projects", [])
+    # Build a url + tech_stack lookup keyed by project title/name from profile
+    _prof_by_name = {}
+    for _p in _prof_projects:
+        if isinstance(_p, dict):
+            _key = (_p.get("name") or _p.get("title") or "").strip().lower()
+            if _key:
+                _prof_by_name[_key] = _p
+    # Merge: use AI bullets/tech but pull url from profile when AI entry lacks one
+    _merged = []
+    for _ap in _ai_projects:
+        if not isinstance(_ap, dict):
+            continue
+        _title = (_ap.get("title") or _ap.get("name") or "").strip()
+        _pp    = _prof_by_name.get(_title.lower(), {})
+        _merged.append({
+            "title":      _title,
+            "url":        _ap.get("url") or _pp.get("url", ""),
+            "tech_stack": _ap.get("tech_stack") or _ap.get("technologies") or _pp.get("technologies") or _pp.get("tech_stack", ""),
+            "bullets":    _ap.get("bullets", []),
+        })
+    # If AI returned nothing but profile has projects, use profile projects directly
+    if not _merged and _prof_projects:
+        _merged = [
+            {
+                "title":      _p.get("name") or _p.get("title", ""),
+                "url":        _p.get("url", ""),
+                "tech_stack": _p.get("technologies") or _p.get("tech_stack", ""),
+                "bullets":    _p.get("bullets", []),
+            }
+            for _p in _prof_projects
+            if isinstance(_p, dict) and _p.get("includeInCV", True)
+        ]
+    projects = _merged
     skills     = ai_result.get("skills",             [])
     references = ai_result.get("REFERENCE",          profile.get("references", "Available upon Request"))
     summary    = ai_result.get("SUMMARY", "")
@@ -3902,12 +4031,16 @@ def build_cv_tex(profile: dict, ai_result: dict) -> str:
     out(r"\begin{document}")
     out()
 
+
+
     # ── HEADER (centered) ─────────────────────────────────────────────────────
     name  = f"{e(personal.get('firstName',''))} {e(personal.get('lastName',''))}".strip()
     title = e(personal.get("jobTitle", ""))
     city  = e(personal.get("city",     ""))
     phone = e(personal.get("phone",    ""))
     email = e(personal.get("email",    ""))
+    github  = e(personal.get("github",   ""))
+    
 
     out(r"\noindent\hspace{-6mm}%")
     out(r"\colorbox{HeaderBG}{%")
@@ -3925,6 +4058,8 @@ def build_cv_tex(profile: dict, ai_result: dict) -> str:
     out(f"    \\textcolor{{HeaderContact}}{{{phone}}}\\;%")
     out(r"    \textcolor{HeaderSep}{\vert}\;%")
     out(f"    \\textcolor{{HeaderContact}}{{{email}}}%")
+    out(r"    \textcolor{HeaderSep}{\vert}\;%")
+    out(f"    \\href{{{github}}}{{\\textcolor{{HeaderContact}}{{{github}}}}}%")
     out(r"    \par\vspace{5mm}%")
     out(r"    \end{center}")
     out(r"  \end{minipage}%")
@@ -4057,7 +4192,8 @@ def build_cv_tex(profile: dict, ai_result: dict) -> str:
             if not isinstance(proj, dict):
                 continue
             ptitle     = e(proj.get("title", proj.get("name", "")))
-            url        = e(proj.get("url", ""))
+            url_raw    = proj.get("url", "").strip()          # raw — used inside \href{}
+            url_display = e(url_raw)                           # escaped — used as display text
             tech_stack = e(proj.get("tech_stack", proj.get("technologies", "")))
             bullets    = [e(b) for b in proj.get("bullets", []) if isinstance(b, str)]
 
@@ -4066,8 +4202,8 @@ def build_cv_tex(profile: dict, ai_result: dict) -> str:
             out(r"{\color{DKGreen}\rule{4pt}{14pt}}\hspace{6pt}%")
             out(f"\\textcolor{{DarkTxt}}{{\\textbf{{\\large {ptitle}}}}}\\par")
             out(r"\vspace{1pt}")
-            if url:
-                out(f"\\noindent\\hspace{{10pt}}\\textcolor{{MDGreen}}{{\\small {url}}}\\par")
+            if url_raw:
+                out(f"\\noindent\\hspace{{10pt}}\\href{{{url_raw}}}{{\\textcolor{{MDGreen}}{{\\small {url_display}}}}}\\par")
             if tech_stack:
                 out(f"\\noindent\\hspace{{10pt}}\\textcolor{{DKGreen}}{{\\textbf{{\\small {tech_stack}}}}}")
             out(r"\vspace{2pt}")
@@ -29728,7 +29864,7 @@ FILE: ./frontend\index.html
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>FrontendJobs — AI-Powered Career Platform</title>
 
@@ -33132,6 +33268,17 @@ Could not read file: 'utf-8' codec can't decode byte 0x92 in position 16: invali
 
 
 ======================================================================
+FILE: ./frontend\public\favicon.svg
+======================================================================
+
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <rect width="32" height="32" rx="6" fill="#2D5A3D"/>
+  <text x="16" y="23" text-anchor="middle" font-family="'Courier New', monospace" font-size="18" font-weight="700" fill="#A8CC80">&lt;/&gt;</text>
+</svg>
+
+
+
+======================================================================
 FILE: ./frontend\public\hero-video.mp4
 ======================================================================
 
@@ -34362,7 +34509,7 @@ export default function DashboardLayout({ children }) {
           <Link to="/generate"     style={navLinkStyle("/generate")}     onClick={closeSidebar}>✨ Generate CV</Link>
            <Link to="/cover-letter" style={navLinkStyle("/cover-letter")} onClick={closeSidebar}>✉️ Cover Letter</Link>
          <Link to="/bulkgenerate"         style={navLinkStyle("/bulkgenerate")}         onClick={closeSidebar}>⚡ Bulk Generate</Link>
-          <Link to="/cabinet"      style={navLinkStyle("/cabinet")}      onClick={closeSidebar}>🗂️ CV Cabinet</Link>
+          <Link to="/cabinet"      style={navLinkStyle("/cabinet")}      onClick={closeSidebar}>🗂️ Cabinet</Link>
          
 
           <span style={sectionLabel}>Jobs</span>
@@ -34519,6 +34666,29 @@ export default function BulkGenerate() {
     document.body.removeChild(a); URL.revokeObjectURL(url);
   };
 
+  // ── Save one job to Cabinet ──────────────────────────────────────────────
+  const handleSaveToCabinet = async (job) => {
+    if (!job.cvTex || !job.clTex) return;
+    patchJob(job.id, { saving: true, saveError: "" });
+    try {
+      await api.post("/bulk-save", {
+        job_title:        job.title,
+        tone:             job.tone,
+        cv_tex:           job.cvTex,
+        cl_tex:           job.clTex,
+        combined_tex:     job.combinedTex,
+        cover_letter:     job.coverLetterText || "",
+        ai_result:        job.aiResult        || {},
+        profile_snapshot: profile              || {},
+      });
+      patchJob(job.id, { saving: false, saved: true });
+      setTimeout(() => patchJob(job.id, { saved: false }), 3000);
+    } catch (err) {
+      const msg = err.response?.data?.message || "Save failed. Please try again.";
+      patchJob(job.id, { saving: false, saveError: msg });
+    }
+  };
+
   // ── Generate one job (3 sequential API calls) ─────────────────────────────
   const generateOne = async (job) => {
     if (!job.title.trim() || !job.description.trim()) return;
@@ -34555,13 +34725,17 @@ export default function BulkGenerate() {
       const clTex = texResp.data.cover_letter_tex || "";
 
       patchJob(job.id, {
-        status:      "done",
-        activeTab:   "cv",
+        status:          "done",
+        activeTab:       "cv",
         cvTex,
         clTex,
-        combinedTex: buildCombined(cvTex, clTex),
-        atsScore:    aiResult?.ats?.final_score ?? null,
-        error:       "",
+        combinedTex:     buildCombined(cvTex, clTex),
+        atsScore:        aiResult?.ats?.final_score ?? null,
+        error:           "",
+        aiResult,
+        coverLetterText,
+        saved:           false,
+        saveError:       "",
       });
 
     } catch (err) {
@@ -34795,7 +34969,7 @@ export default function BulkGenerate() {
                   <pre style={codeStyle}>{activeData.content}</pre>
 
                   {/* Actions */}
-                  <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                  <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
                     <button onClick={() => copyText(activeData.content, copyKey)} style={btn()}>
                       {copied === copyKey ? "✓ Copied!" : "⎘ Copy"}
                     </button>
@@ -34803,11 +34977,37 @@ export default function BulkGenerate() {
                       style={btn("rgba(45,90,61,0.1)", "#2D5A3D")}>
                       ⬇ Download .tex
                     </button>
+                    <button
+                      onClick={() => handleSaveToCabinet(job)}
+                      disabled={job.saving || job.saved}
+                      style={{
+                        ...btn(job.saved ? "rgba(45,90,61,0.15)" : "rgba(45,90,61,0.08)", "#2D5A3D"),
+                        border: "1px solid rgba(45,90,61,0.35)",
+                        opacity: job.saving ? 0.6 : 1,
+                        display: "flex", alignItems: "center", gap: "6px",
+                      }}
+                    >
+                      {job.saving ? (
+                        <>
+                          <span style={{
+                            display: "inline-block", width: "10px", height: "10px",
+                            border: "2px solid #2D5A3D", borderTopColor: "transparent",
+                            borderRadius: "50%", animation: "spin 0.7s linear infinite",
+                          }} />
+                          Saving…
+                        </>
+                      ) : job.saved ? "✓ Saved to Cabinet!" : "🗂 Save to Cabinet"}
+                    </button>
                     <button onClick={() => patchJob(job.id, { status: "idle", activeTab: "cv" })}
                       style={btn("rgba(139,32,32,0.08)", "#8B2020")}>
                       ✎ Re-generate
                     </button>
                   </div>
+                  {job.saveError && (
+                    <p style={{ color: "#8B2020", fontSize: "12px", marginTop: "8px" }}>
+                      ⚠ {job.saveError}
+                    </p>
+                  )}
                 </div>
               );
             })()}
@@ -34877,14 +35077,13 @@ export default function BulkGenerate() {
 FILE: ./frontend\src\pages\Cabinet.jsx
 ======================================================================
 
-
 // =============================================================================
 // FILE: frontend/src/pages/Cabinet.jsx
 // =============================================================================
-// WHAT'S NEW:
-//   ✅ PDF download button — calls /api/download-cv-pdf with stored ai_result
-//   ✅ Separate loading state per card for PDF (downloadingPdfId)
-//   ✅ Separate error state for PDF (downloadPdfError)
+// Three tabs:
+//   🗂 CVs          — saved CVs from GenerateCV page  (GET /api/cabinet)
+//   ✉ Cover Letters — saved cover letters             (GET /api/cover-letter/saved)
+//   ⚡ Bulk          — saved bulk generator items      (GET /api/bulk-saved)
 // =============================================================================
 
 import { useState, useEffect } from "react";
@@ -34893,574 +35092,687 @@ import api from "../services/api";
 import DashboardLayout from "../layouts/DashboardLayout";
 
 
-// ── HELPER: format ISO timestamp to "15 Mar 2024" ────────────────────────────
+// ── HELPERS ───────────────────────────────────────────────────────────────────
+
 function formatDate(isoString) {
-  const date = new Date(isoString);
-  return date.toLocaleDateString("en-GB", {
-    day:   "numeric",
-    month: "short",
-    year:  "numeric",
+  if (!isoString) return "";
+  return new Date(isoString).toLocaleDateString("en-GB", {
+    day: "numeric", month: "short", year: "numeric",
   });
 }
 
-
-// ── HELPER: count total skills from structured or flat format ────────────────
 function countSkills(skills) {
   if (!skills || skills.length === 0) return 0;
-  if (typeof skills[0] === "object" && skills[0].skills_list) {
-    return skills.reduce((total, cat) => total + (cat.skills_list?.length || 0), 0);
-  }
+  if (typeof skills[0] === "object" && skills[0].skills_list)
+    return skills.reduce((t, c) => t + (c.skills_list?.length || 0), 0);
   return skills.length;
 }
 
-
-// ── SCORE COLOUR HELPER ───────────────────────────────────────────────────────
 function scoreColor(score) {
   if (score >= 70) return "#2D5A3D";
-  if (score >= 40) return "#FFB347";
+  if (score >= 40) return "#B8860B";
   return "#8B2020";
 }
 
+function scoreBg(score) {
+  if (score >= 70) return "rgba(45,90,61,0.1)";
+  if (score >= 40) return "rgba(184,134,11,0.1)";
+  return "rgba(139,32,32,0.1)";
+}
+
+const TONE_COLOR = {
+  professional: { bg: "rgba(45,90,61,0.08)",  border: "rgba(45,90,61,0.3)",  text: "#2D5A3D" },
+  enthusiastic: { bg: "rgba(184,134,11,0.08)", border: "rgba(184,134,11,0.3)",text: "#B8860B" },
+  concise:      { bg: "rgba(80,80,160,0.08)",  border: "rgba(80,80,160,0.3)", text: "#505090" },
+};
+
+// ── SHARED STYLES ─────────────────────────────────────────────────────────────
+
+const cardStyle = {
+  background: "#F0EAD8",
+  borderRadius: "12px",
+  padding: "24px 28px",
+  marginBottom: "14px",
+  border: "1px solid rgba(45,90,61,0.1)",
+  transition: "border-color 0.2s ease",
+};
+
+const actionBtn = (bg = "transparent", color = "#2D5A3D", border = "rgba(45,90,61,0.35)") => ({
+  background: bg,
+  border: `1px solid ${border}`,
+  color,
+  padding: "7px 16px",
+  borderRadius: "6px",
+  cursor: "pointer",
+  fontSize: "12px",
+  fontFamily: "'Libre Baskerville', serif",
+  display: "flex",
+  alignItems: "center",
+  gap: "5px",
+  transition: "background 0.15s ease",
+});
+
+const Spinner = () => (
+  <span style={{
+    display: "inline-block", width: "10px", height: "10px",
+    border: "2px solid currentColor", borderTopColor: "transparent",
+    borderRadius: "50%", animation: "spin 0.7s linear infinite",
+  }} />
+);
+
+
+// =============================================================================
+// COMPONENT
+// =============================================================================
 
 export default function Cabinet() {
 
-  // ── STATE ────────────────────────────────────────────────────────────────
-  const [cvs, setCvs]         = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError]     = useState("");
-
-  const [confirmDeleteId, setConfirmDeleteId] = useState(null);
-  const [deletingId, setDeletingId]           = useState(null);
-
-  const [downloadingId, setDownloadingId]       = useState(null);
-  const [downloadError, setDownloadError]       = useState("");
-  const [downloadingTexId, setDownloadingTexId] = useState(null);
-  const [downloadTexError, setDownloadTexError] = useState("");
-
   const navigate = useNavigate();
 
+  // ── active tab ───────────────────────────────────────────────────────────
+  const [activeTab, setActiveTab] = useState("cvs");
 
-  // ── LOAD CVs ON MOUNT ────────────────────────────────────────────────────
+  // ── CVs tab state ────────────────────────────────────────────────────────
+  const [cvs, setCvs]                               = useState([]);
+  const [cvsLoading, setCvsLoading]                 = useState(true);
+  const [cvsError, setCvsError]                     = useState("");
+  const [cvConfirmId, setCvConfirmId]               = useState(null);
+  const [cvDeletingId, setCvDeletingId]             = useState(null);
+  const [cvDownloadingId, setCvDownloadingId]       = useState(null);
+  const [cvDownloadingTexId, setCvDownloadingTexId] = useState(null);
+  const [cvDownloadError, setCvDownloadError]       = useState("");
+
+  // ── Cover Letters tab state ───────────────────────────────────────────────
+  const [cls, setCls]                                   = useState([]);
+  const [clsLoading, setClsLoading]                     = useState(true);
+  const [clsError, setClsError]                         = useState("");
+  const [clExpandedId, setClExpandedId]                 = useState(null);
+  const [clConfirmId, setClConfirmId]                   = useState(null);
+  const [clDeletingId, setClDeletingId]                 = useState(null);
+  const [clDownloadingId, setClDownloadingId]           = useState(null);
+  const [clDownloadingTexId, setClDownloadingTexId]     = useState(null);
+  const [clDownloadError, setClDownloadError]           = useState("");
+  const [clCopied, setClCopied]                         = useState(null);
+
+  // ── Bulk tab state ────────────────────────────────────────────────────────
+  const [bulk, setBulk]                       = useState([]);
+  const [bulkLoading, setBulkLoading]         = useState(true);
+  const [bulkError, setBulkError]             = useState("");
+  const [bulkConfirmId, setBulkConfirmId]     = useState(null);
+  const [bulkDeletingId, setBulkDeletingId]   = useState(null);
+  const [bulkActiveTab, setBulkActiveTab]     = useState({});
+  const [bulkCopied, setBulkCopied]           = useState(null);
+
+
+  // ── LOAD ALL ON MOUNT ────────────────────────────────────────────────────
   useEffect(() => {
-    const loadCabinet = async () => {
-      try {
-        const response = await api.get("/cabinet");
-        setCvs(response.data);
-      } catch (err) {
-        if (err.response?.status === 401) {
-          localStorage.removeItem("token");
-          navigate("/login");
-        } else {
-          setError("Failed to load your saved CVs. Please refresh.");
-        }
-      } finally {
-        setLoading(false);
+    const handle401 = (err) => {
+      if (err.response?.status === 401) {
+        localStorage.removeItem("token");
+        navigate("/login");
+        return true;
       }
+      return false;
     };
-    loadCabinet();
+
+    api.get("/cabinet")
+      .then(r => setCvs(r.data))
+      .catch(err => { if (!handle401(err)) setCvsError("Failed to load CVs."); })
+      .finally(() => setCvsLoading(false));
+
+    api.get("/cover-letter/saved")
+      .then(r => setCls(r.data))
+      .catch(err => { if (!handle401(err)) setClsError("Failed to load cover letters."); })
+      .finally(() => setClsLoading(false));
+
+    api.get("/bulk-saved")
+      .then(r => setBulk(r.data))
+      .catch(err => { if (!handle401(err)) setBulkError("Failed to load bulk items."); })
+      .finally(() => setBulkLoading(false));
   }, [navigate]);
 
 
-  // ── DELETE HANDLER ────────────────────────────────────────────────────────
-  const handleDelete = async (cvId) => {
-    setDeletingId(cvId);
-    setConfirmDeleteId(null);
+  // ==========================================================================
+  // CV HANDLERS
+  // ==========================================================================
+
+  const handleCvDelete = async (id) => {
+    setCvDeletingId(id); setCvConfirmId(null);
     try {
-      await api.delete(`/cabinet/${cvId}`);
-      setCvs(prev => prev.filter(cv => cv.id !== cvId));
+      await api.delete(`/cabinet/${id}`);
+      setCvs(prev => prev.filter(c => c.id !== id));
     } catch (err) {
-      if (err.response?.status === 401) {
-        localStorage.removeItem("token");
-        navigate("/login");
-      } else {
-        setError("Delete failed. Please try again.");
-      }
-    } finally {
-      setDeletingId(null);
-    }
+      if (err.response?.status === 401) { localStorage.removeItem("token"); navigate("/login"); }
+      else setCvsError("Delete failed.");
+    } finally { setCvDeletingId(null); }
   };
 
-
-  // ── DOWNLOAD .docx HANDLER ──────────────────────────────────────────────────
-  const handleDownload = async (cv) => {
-    setDownloadingId(cv.id);
-    setDownloadError("");
+  const handleCvDownload = async (cv) => {
+    setCvDownloadingId(cv.id); setCvDownloadError("");
     try {
-      const response = await api.post(
-        "/download-cv",
+      const resp = await api.post("/download-cv",
         { ai_result: cv.ai_result, profile: cv.profile_snapshot || {} },
-        { responseType: "blob" }
-      );
-      const blob = response.data;
-      const url  = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href  = url;
-      const safeName = cv.job_title.replace(/[^a-zA-Z0-9\s]/g, "").replace(/\s+/g, "_");
-      link.download  = `${safeName}_CV.docx`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
+        { responseType: "blob" });
+      const url = URL.createObjectURL(resp.data);
+      const a   = Object.assign(document.createElement("a"), {
+        href: url,
+        download: cv.job_title.replace(/[^a-zA-Z0-9\s]/g, "").replace(/\s+/g, "_") + "_CV.docx",
+      });
+      document.body.appendChild(a); a.click();
+      document.body.removeChild(a); URL.revokeObjectURL(url);
     } catch (err) {
-      if (err.response?.status === 401) {
-        localStorage.removeItem("token");
-        navigate("/login");
-      } else {
-        setDownloadError("Download failed. Make sure the backend is running.");
-      }
-    } finally {
-      setDownloadingId(null);
-    }
+      if (err.response?.status === 401) { localStorage.removeItem("token"); navigate("/login"); }
+      else setCvDownloadError("Download failed.");
+    } finally { setCvDownloadingId(null); }
   };
 
-
-  // ── DOWNLOAD .tex HANDLER ────────────────────────────────────────────────
-  const handleDownloadTex = async (cv) => {
-    setDownloadingTexId(cv.id);
-    setDownloadTexError("");
+  const handleCvDownloadTex = async (cv) => {
+    setCvDownloadingTexId(cv.id);
     try {
-      const response = await api.post(
-        "/download-cv-tex",
+      const resp = await api.post("/download-cv-tex",
         { ai_result: cv.ai_result, profile: cv.profile_snapshot || {} },
-        { responseType: "blob" }
-      );
-      const blob = response.data;
-      const url  = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href  = url;
-      const safeName = cv.job_title.replace(/[^a-zA-Z0-9\s]/g, "").replace(/\s+/g, "_");
-      link.download  = `${safeName}_CV.tex`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-    } catch (err) {
-      if (err.response?.status === 401) {
-        localStorage.removeItem("token");
-        navigate("/login");
-      } else {
-        setDownloadTexError("TeX download failed.");
-      }
-    } finally {
-      setDownloadingTexId(null);
-    }
+        { responseType: "blob" });
+      const url = URL.createObjectURL(resp.data);
+      const a   = Object.assign(document.createElement("a"), {
+        href: url,
+        download: cv.job_title.replace(/[^a-zA-Z0-9\s]/g, "").replace(/\s+/g, "_") + "_CV.tex",
+      });
+      document.body.appendChild(a); a.click();
+      document.body.removeChild(a); URL.revokeObjectURL(url);
+    } catch { setCvDownloadError("TeX download failed."); }
+    finally { setCvDownloadingTexId(null); }
   };
 
 
-  // ── RENDER ───────────────────────────────────────────────────────────────
+  // ==========================================================================
+  // COVER LETTER HANDLERS
+  // ==========================================================================
+
+  const handleClDelete = async (id) => {
+    setClDeletingId(id); setClConfirmId(null);
+    try {
+      await api.delete(`/cover-letter/${id}`);
+      setCls(prev => prev.filter(c => c.id !== id));
+    } catch (err) {
+      if (err.response?.status === 401) { localStorage.removeItem("token"); navigate("/login"); }
+      else setClsError("Delete failed.");
+    } finally { setClDeletingId(null); }
+  };
+
+  const handleClDownload = async (cl) => {
+    setClDownloadingId(cl.id); setClDownloadError("");
+    try {
+      const resp = await api.post("/download-cover-letter",
+        { cover_letter: cl.cover_letter, job_title: cl.job_title },
+        { responseType: "blob" });
+      const url = URL.createObjectURL(resp.data);
+      const a   = Object.assign(document.createElement("a"), {
+        href: url,
+        download: cl.job_title.replace(/[^a-zA-Z0-9\s]/g, "").replace(/\s+/g, "_") + "_Cover_Letter.docx",
+      });
+      document.body.appendChild(a); a.click();
+      document.body.removeChild(a); URL.revokeObjectURL(url);
+    } catch { setClDownloadError("Download failed."); }
+    finally { setClDownloadingId(null); }
+  };
+
+  const handleClDownloadTex = async (cl) => {
+    setClDownloadingTexId(cl.id);
+    try {
+      const resp = await api.post("/download-cover-letter-tex",
+        { cover_letter: cl.cover_letter, job_title: cl.job_title },
+        { responseType: "blob" });
+      const url = URL.createObjectURL(resp.data);
+      const a   = Object.assign(document.createElement("a"), {
+        href: url, download: "Cover_Letter.tex",
+      });
+      document.body.appendChild(a); a.click();
+      document.body.removeChild(a); URL.revokeObjectURL(url);
+    } catch { setClDownloadError("TeX download failed."); }
+    finally { setClDownloadingTexId(null); }
+  };
+
+  const handleClCopy = (text, id) => {
+    navigator.clipboard.writeText(text);
+    setClCopied(id);
+    setTimeout(() => setClCopied(null), 2000);
+  };
+
+
+  // ==========================================================================
+  // BULK HANDLERS
+  // ==========================================================================
+
+  const handleBulkDelete = async (id) => {
+    setBulkDeletingId(id); setBulkConfirmId(null);
+    try {
+      await api.delete(`/bulk-saved/${id}`);
+      setBulk(prev => prev.filter(b => b.id !== id));
+    } catch (err) {
+      if (err.response?.status === 401) { localStorage.removeItem("token"); navigate("/login"); }
+      else setBulkError("Delete failed.");
+    } finally { setBulkDeletingId(null); }
+  };
+
+  const bulkDownloadTex = (texContent, filename) => {
+    const blob = new Blob([texContent], { type: "text/plain" });
+    const url  = URL.createObjectURL(blob);
+    const a    = Object.assign(document.createElement("a"), { href: url, download: filename });
+    document.body.appendChild(a); a.click();
+    document.body.removeChild(a); URL.revokeObjectURL(url);
+  };
+
+  const getBulkTab  = (id)      => bulkActiveTab[id] || "cv";
+  const setBulkTabF = (id, tab) => setBulkActiveTab(prev => ({ ...prev, [id]: tab }));
+
+  const handleBulkCopy = (text, key) => {
+    navigator.clipboard.writeText(text);
+    setBulkCopied(key);
+    setTimeout(() => setBulkCopied(null), 2000);
+  };
+
+
+  // ==========================================================================
+  // RENDER HELPERS
+  // ==========================================================================
+
+  const TabButton = ({ id, label, count }) => (
+    <button
+      onClick={() => setActiveTab(id)}
+      style={{
+        padding: "10px 22px", borderRadius: "8px", cursor: "pointer",
+        fontFamily: "'Libre Baskerville', serif", fontSize: "13px",
+        border:     activeTab === id ? "2px solid #2D5A3D" : "2px solid rgba(45,90,61,0.15)",
+        background: activeTab === id ? "rgba(45,90,61,0.1)" : "transparent",
+        color:      activeTab === id ? "#2D5A3D" : "#1E2018",
+        opacity:    activeTab === id ? 1 : 0.6,
+        display: "flex", alignItems: "center", gap: "8px",
+      }}
+    >
+      {label}
+      {count > 0 && (
+        <span style={{
+          background: activeTab === id ? "#2D5A3D" : "rgba(45,90,61,0.2)",
+          color:      activeTab === id ? "#EDE8DE" : "#2D5A3D",
+          borderRadius: "10px", padding: "1px 7px", fontSize: "11px",
+        }}>{count}</span>
+      )}
+    </button>
+  );
+
+
+  // ==========================================================================
+  // RENDER
+  // ==========================================================================
+
   return (
     <DashboardLayout>
-
       <div style={{ maxWidth: "min(1000px, 100%)", margin: "0 auto" }}>
 
-        {/* ── PAGE HEADER ─────────────────────────────── */}
-        <div style={{ marginBottom: "32px" }}>
+        {/* ── PAGE HEADER ────────────────────────────────────────────────── */}
+        <div style={{ marginBottom: "28px" }}>
           <h1 style={{
             fontFamily: "'Libre Baskerville', serif",
             fontSize: "clamp(20px, 4vw, 32px)",
-            color: "#2D5A3D",
-            letterSpacing: "2px",
-            marginBottom: "8px",
+            color: "#2D5A3D", letterSpacing: "2px", marginBottom: "8px",
           }}>
-            CV Cabinet
+            Cabinet
           </h1>
           <p style={{ color: "#1E2018", opacity: 0.5, fontSize: "13px" }}>
-            {cvs.length > 0
-              ? `${cvs.length} saved CV${cvs.length === 1 ? "" : "s"} — newest first`
-              : "Your generated CVs are saved here automatically."}
+            All your saved CVs, cover letters, and bulk-generated applications in one place.
           </p>
         </div>
 
-
-        {/* ── ERROR STATES ────────────────────────────── */}
-        {error && (
-          <p style={{ color: "#8B2020", fontSize: "14px", marginBottom: "20px" }}>
-            ⚠ {error}
-          </p>
-        )}
-
-        {downloadError && (
-          <p style={{ color: "#8B2020", fontSize: "13px", marginBottom: "16px" }}>
-            ⚠ {downloadError}
-          </p>
-        )}
+        {/* ── TABS ───────────────────────────────────────────────────────── */}
+        <div style={{ display: "flex", gap: "10px", marginBottom: "28px", flexWrap: "wrap" }}>
+          <TabButton id="cvs"  label="🗂 CVs"           count={cvs.length}  />
+          <TabButton id="cls"  label="✉ Cover Letters"  count={cls.length}  />
+          <TabButton id="bulk" label="⚡ Bulk"           count={bulk.length} />
+        </div>
 
 
-
-
-        {/* ── LOADING SKELETON ────────────────────────── */}
-        {loading && (
+        {/* ============================================================== */}
+        {/* TAB: CVs                                                        */}
+        {/* ============================================================== */}
+        {activeTab === "cvs" && (
           <div>
-            {[1, 2, 3].map((i) => (
-              <div key={i} style={{
-                background: "#F0EAD8",
-                borderRadius: "12px",
-                padding: "28px",
-                marginBottom: "16px",
-                border: "1px solid rgba(45,90,61,0.08)",
-              }}>
-                {[60, 90, 45].map((width, idx) => (
-                  <div key={idx} style={{
-                    height: "13px",
-                    background: "rgba(45,90,61,0.07)",
-                    borderRadius: "6px",
-                    marginBottom: "12px",
-                    width: `${width}%`,
-                    animation: "pulse 1.5s ease-in-out infinite",
-                    animationDelay: `${idx * 0.15}s`,
-                  }} />
-                ))}
-              </div>
-            ))}
-          </div>
-        )}
+            {cvsError      && <ErrMsg msg={cvsError} />}
+            {cvDownloadError && <ErrMsg msg={cvDownloadError} />}
+            {cvsLoading    && <LoadingSkeleton />}
 
+            {!cvsLoading && cvs.length === 0 && (
+              <EmptyState icon="🗂️" title="No CVs saved yet"
+                body="Generate a tailored CV and click Save to Cabinet — it will appear here."
+                btnLabel="Generate a CV" onBtn={() => navigate("/generate")} />
+            )}
 
-        {/* ── EMPTY STATE ─────────────────────────────── */}
-        {!loading && cvs.length === 0 && (
-          <div style={{
-            background: "#F0EAD8",
-            borderRadius: "12px",
-            padding: "60px 40px",
-            textAlign: "center",
-            border: "1px dashed rgba(45,90,61,0.3)",
-            marginBottom: "24px",
-          }}>
-            <div style={{ fontSize: "clamp(24px, 5vw, 48px)", marginBottom: "20px" }}>🗂️</div>
-            <h3 style={{
-              color: "#2D5A3D",
-              fontFamily: "'Libre Baskerville', serif",
-              fontSize: "20px",
-              marginBottom: "12px",
-            }}>
-              No CVs saved yet
-            </h3>
-            <p style={{
-              color: "#1E2018", opacity: 0.6, fontSize: "14px",
-              maxWidth: "380px", margin: "0 auto 28px auto", lineHeight: "1.7",
-            }}>
-              Generate a tailored CV for a job and it will be automatically saved here.
-            </p>
-            <button
-              className="primary-btn"
-              onClick={() => navigate("/generate")}
-              style={{ fontSize: "15px", padding: "12px 28px" }}
-            >
-              Generate Your First CV
-            </button>
-          </div>
-        )}
-
-
-        {/* ── CV CARDS LIST ────────────────────────────── */}
-        {!loading && cvs.length > 0 && (
-          <div>
-            {cvs.map((cv) => {
-
+            {!cvsLoading && cvs.map(cv => {
               const skillCount     = countSkills(cv.ai_result?.skills);
-              const summaryPreview = (cv.ai_result?.SUMMARY || "").slice(0, 200);
-              const isConfirming   = confirmDeleteId === cv.id;
-              const isDeleting     = deletingId     === cv.id;
-              const isDownloading    = downloadingId    === cv.id;
-              const isDownloadingTex = downloadingTexId === cv.id;
+              const summaryPreview = (cv.ai_result?.SUMMARY || "").slice(0, 180);
+              const isConfirm      = cvConfirmId       === cv.id;
+              const isDeleting     = cvDeletingId      === cv.id;
+              const isDlDocx       = cvDownloadingId   === cv.id;
+              const isDlTex        = cvDownloadingTexId === cv.id;
 
               return (
-                <div
-                  key={cv.id}
-                  style={{
-                    background: "#F0EAD8",
-                    borderRadius: "12px",
-                    padding: "28px",
-                    marginBottom: "16px",
-                    border: "1px solid rgba(45,90,61,0.1)",
-                    transition: "border-color 0.2s ease",
-                  }}
-                  onMouseEnter={(e) => e.currentTarget.style.borderColor = "rgba(45,90,61,0.25)"}
-                  onMouseLeave={(e) => e.currentTarget.style.borderColor = "rgba(45,90,61,0.1)"}
+                <div key={cv.id} style={cardStyle}
+                  onMouseEnter={e => e.currentTarget.style.borderColor = "rgba(45,90,61,0.25)"}
+                  onMouseLeave={e => e.currentTarget.style.borderColor = "rgba(45,90,61,0.1)"}
                 >
-
-                  {/* ── Card Header: title + ATS score ── */}
-                  <div style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "flex-start",
-                    flexWrap: "wrap",
-                    gap: "12px",
-                    marginBottom: "16px",
-                  }}>
-
-                    <div style={{ flex: 1 }}>
-                      <h3 style={{
-                        color: "#1E2018",
-                        fontFamily: "'Libre Baskerville', serif",
-                        fontSize: "16px",
-                        marginBottom: "6px",
-                      }}>
-                        {cv.job_title}
-                      </h3>
-                      <p style={{ color: "#1E2018", fontSize: "12px", opacity: 0.4 }}>
-                        Saved {formatDate(cv.created_at)}
-                      </p>
+                  {/* Header */}
+                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", flexWrap:"wrap", gap:"12px", marginBottom:"14px" }}>
+                    <div style={{ flex:1 }}>
+                      <h3 style={{ color:"#1E2018", fontFamily:"'Libre Baskerville',serif", fontSize:"15px", marginBottom:"4px" }}>{cv.job_title}</h3>
+                      <p style={{ color:"#1E2018", fontSize:"11px", opacity:0.4 }}>Saved {formatDate(cv.created_at)}</p>
                     </div>
-
-                    {/* ATS Score badge */}
-                    <div style={{
-                      background: "#FFFFFF",
-                      borderRadius: "10px",
-                      padding: "10px 16px",
-                      textAlign: "center",
-                      minWidth: "80px",
-                      flexShrink: 0,
-                    }}>
-                      <p style={{
-                        color: "#1E2018", fontSize: "10px", opacity: 0.4,
-                        marginBottom: "4px", fontFamily: "'Libre Baskerville', serif",
-                        letterSpacing: "1px", textTransform: "uppercase",
-                      }}>
-                        ATS
-                      </p>
-                      <p style={{
-                        color: scoreColor(cv.ats_score),
-                        fontFamily: "'Libre Baskerville', serif",
-                        fontSize: "26px",
-                        lineHeight: 1,
-                      }}>
-                        {cv.ats_score}%
-                      </p>
+                    <div style={{ background:scoreBg(cv.ats_score), borderRadius:"8px", padding:"8px 14px", textAlign:"center", minWidth:"72px", flexShrink:0 }}>
+                      <p style={{ color:"#1E2018", fontSize:"9px", opacity:0.5, marginBottom:"2px", letterSpacing:"1px", textTransform:"uppercase", fontFamily:"'Libre Baskerville',serif" }}>ATS</p>
+                      <p style={{ color:scoreColor(cv.ats_score), fontFamily:"'Libre Baskerville',serif", fontSize:"22px", lineHeight:1 }}>{cv.ats_score}%</p>
                     </div>
-
                   </div>
 
-
-                  {/* ── Summary Preview ──────────────────── */}
                   {summaryPreview && (
-                    <p style={{
-                      color: "#1E2018",
-                      fontSize: "13px",
-                      opacity: 0.6,
-                      lineHeight: "1.65",
-                      marginBottom: "16px",
-                    }}>
-                      {summaryPreview}{cv.ai_result?.SUMMARY?.length > 200 ? "..." : ""}
+                    <p style={{ color:"#1E2018", fontSize:"13px", opacity:0.55, lineHeight:"1.65", marginBottom:"14px" }}>
+                      {summaryPreview}{cv.ai_result?.SUMMARY?.length > 180 ? "…" : ""}
                     </p>
                   )}
 
-
-                  {/* ── Meta pills: skill count + roles ──── */}
-                  <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginBottom: "20px" }}>
-                    {skillCount > 0 && (
-                      <span style={{
-                        background: "rgba(45,90,61,0.07)",
-                        border: "1px solid rgba(45,90,61,0.2)",
-                        color: "#2D5A3D",
-                        padding: "3px 10px",
-                        borderRadius: "20px",
-                        fontSize: "11px",
-                        fontFamily: "'Libre Baskerville', serif",
-                      }}>
-                        {skillCount} skills
-                      </span>
-                    )}
-                    {cv.ai_result?.experience?.length > 0 && (
-                      <span style={{
-                        background: "rgba(45,90,61,0.07)",
-                        border: "1px solid rgba(45,90,61,0.2)",
-                        color: "#2D5A3D",
-                        padding: "3px 10px",
-                        borderRadius: "20px",
-                        fontSize: "11px",
-                        fontFamily: "'Libre Baskerville', serif",
-                      }}>
-                        {cv.ai_result.experience.length} roles
-                      </span>
-                    )}
+                  <div style={{ display:"flex", gap:"6px", flexWrap:"wrap", marginBottom:"18px" }}>
+                    {skillCount > 0 && <Pill>{skillCount} skills</Pill>}
+                    {cv.ai_result?.experience?.length > 0 && <Pill>{cv.ai_result.experience.length} roles</Pill>}
                   </div>
 
-
-                  {/* ── Action buttons ───────────────────── */}
-                  <div style={{
-                    display: "flex",
-                    gap: "10px",
-                    flexWrap: "wrap",
-                    alignItems: "center",
-                  }}>
-
-                    {/* ── Download .docx button ── */}
-                    <button
-                      onClick={() => handleDownload(cv)}
-                      disabled={isDownloading}
-                      style={{
-                        background: "transparent",
-                        border: "1px solid rgba(45,90,61,0.4)",
-                        color: "#2D5A3D",
-                        padding: "8px 18px",
-                        borderRadius: "6px",
-                        cursor: isDownloading ? "not-allowed" : "pointer",
-                        fontSize: "13px",
-                        fontFamily: "'Libre Baskerville', serif",
-                        opacity: isDownloading ? 0.6 : 1,
-                        display: "flex", alignItems: "center", gap: "6px",
-                        transition: "background 0.15s ease",
-                      }}
-                      onMouseEnter={(e) => { if (!isDownloading) e.currentTarget.style.background = "rgba(45,90,61,0.1)"; }}
-                      onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
-                    >
-                      {isDownloading ? (
-                        <>
-                          <span style={{
-                            display: "inline-block", width: "11px", height: "11px",
-                            border: "2px solid #2D5A3D", borderTopColor: "transparent",
-                            borderRadius: "50%", animation: "spin 0.7s linear infinite",
-                          }} />
-                          Preparing...
-                        </>
-                      ) : "⬇ Download .docx"}
+                  <div style={{ display:"flex", gap:"8px", flexWrap:"wrap", alignItems:"center" }}>
+                    <button onClick={() => handleCvDownload(cv)} disabled={isDlDocx}
+                      style={actionBtn()} title="Download Word document"
+                      onMouseEnter={e => e.currentTarget.style.background = "rgba(45,90,61,0.08)"}
+                      onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+                      {isDlDocx ? <><Spinner /> Preparing…</> : "⬇ .docx"}
                     </button>
-
-                    {/* ── Download .tex + Overleaf suggestion ── */}
-                    <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: "4px" }}>
-                      <button
-                        onClick={() => handleDownloadTex(cv)}
-                        disabled={isDownloadingTex}
-                        style={{
-                          background: "#2D5A3D",
-                          border: "none",
-                          color: "#EDE8DE",
-                          padding: "8px 18px",
-                          borderRadius: "6px",
-                          cursor: isDownloadingTex ? "not-allowed" : "pointer",
-                          fontSize: "13px",
-                          fontFamily: "'Libre Baskerville', serif",
-                          fontWeight: 900,
-                          opacity: isDownloadingTex ? 0.6 : 1,
-                          display: "flex", alignItems: "center", gap: "6px",
-                        }}
-                      >
-                        {isDownloadingTex ? (
-                          <>
-                            <span style={{
-                              display: "inline-block", width: "11px", height: "11px",
-                              border: "2px solid rgba(255,255,255,0.4)", borderTopColor: "white",
-                              borderRadius: "50%", animation: "spin 0.7s linear infinite",
-                            }} />
-                            Preparing...
-                          </>
-                        ) : "⬇ Download .tex"}
-                      </button>
-                      <p style={{ fontSize: "11px", color: "#1E2018", opacity: 0.5, margin: 0, lineHeight: "1.4" }}>
-                        Edit & compile free on{" "}
-                        <a href="https://www.overleaf.com" target="_blank" rel="noopener noreferrer"
-                          style={{ color: "#2D5A3D", fontWeight: 700, textDecoration: "underline" }}>
-                          overleaf.com
-                        </a>
-                      </p>
-                      {downloadTexError && (
-                        <p style={{ color: "#8B2020", fontSize: "11px", margin: 0 }}>{downloadTexError}</p>
-                      )}
-                    </div>
-
-                    {/* ── Delete button — two-step confirmation ── */}
-                    {!isConfirming && !isDeleting && (
-                      <button
-                        onClick={() => setConfirmDeleteId(cv.id)}
-                        style={{
-                          background: "transparent",
-                          border: "1px solid rgba(255,107,107,0.3)",
-                          color: "#8B2020",
-                          padding: "8px 18px",
-                          borderRadius: "6px",
-                          cursor: "pointer",
-                          fontSize: "13px",
-                          fontFamily: "'Libre Baskerville', serif",
-                          opacity: 0.7,
-                          transition: "opacity 0.15s ease, background 0.15s ease",
-                        }}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.opacity = "1";
-                          e.currentTarget.style.background = "rgba(255,107,107,0.07)";
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.opacity = "0.7";
-                          e.currentTarget.style.background = "transparent";
-                        }}
-                      >
-                        Delete
-                      </button>
-                    )}
-
-                    {isConfirming && (
-                      <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "8px" }}>
-                        <span style={{ color: "#1E2018", fontSize: "12px", opacity: 0.6 }}>
-                          Are you sure?
-                        </span>
-                        <button
-                          onClick={() => handleDelete(cv.id)}
-                          style={{
-                            background: "rgba(255,107,107,0.15)",
-                            border: "1px solid rgba(255,107,107,0.5)",
-                            color: "#8B2020",
-                            padding: "6px 14px",
-                            borderRadius: "6px",
-                            cursor: "pointer",
-                            fontSize: "12px",
-                            fontFamily: "'Libre Baskerville', serif",
-                          }}
-                        >
-                          Yes, delete
-                        </button>
-                        <button
-                          onClick={() => setConfirmDeleteId(null)}
-                          style={{
-                            background: "transparent",
-                            border: "1px solid rgba(255,255,255,0.15)",
-                            color: "#1E2018",
-                            padding: "6px 14px",
-                            borderRadius: "6px",
-                            cursor: "pointer",
-                            fontSize: "12px",
-                            fontFamily: "'Libre Baskerville', serif",
-                            opacity: 0.5,
-                          }}
-                        >
-                          Cancel
-                        </button>
-                      </div>
-                    )}
-
-                    {isDeleting && (
-                      <span style={{ color: "#1E2018", fontSize: "12px", opacity: 0.5 }}>
-                        Deleting...
-                      </span>
-                    )}
-
+                    <button onClick={() => handleCvDownloadTex(cv)} disabled={isDlTex}
+                      style={actionBtn("#2D5A3D","#EDE8DE","#2D5A3D")}>
+                      {isDlTex ? <><Spinner /> Preparing…</> : "⬇ .tex"}
+                    </button>
+                    <ConfirmDelete isConfirm={isConfirm} isDeleting={isDeleting}
+                      onRequest={() => setCvConfirmId(cv.id)}
+                      onConfirm={() => handleCvDelete(cv.id)}
+                      onCancel={() => setCvConfirmId(null)} />
                   </div>
-
                 </div>
               );
             })}
 
+            {!cvsLoading && cvs.length > 0 && (
+              <CentreBtn onClick={() => navigate("/generate")}>✨ Generate Another CV</CentreBtn>
+            )}
+          </div>
+        )}
 
-            {/* ── Generate Another button ──────────────── */}
-            <div style={{ textAlign: "center", paddingTop: "16px", paddingBottom: "40px" }}>
-              <button
-                className="primary-btn"
-                onClick={() => navigate("/generate")}
-                style={{ fontSize: "15px", padding: "12px 28px" }}
-              >
-                ✨ Generate Another CV
-              </button>
-            </div>
 
+        {/* ============================================================== */}
+        {/* TAB: COVER LETTERS                                              */}
+        {/* ============================================================== */}
+        {activeTab === "cls" && (
+          <div>
+            {clsError        && <ErrMsg msg={clsError} />}
+            {clDownloadError && <ErrMsg msg={clDownloadError} />}
+            {clsLoading      && <LoadingSkeleton />}
+
+            {!clsLoading && cls.length === 0 && (
+              <EmptyState icon="✉" title="No cover letters saved yet"
+                body="Generate a cover letter and save it — it will appear here."
+                btnLabel="Generate a Cover Letter" onBtn={() => navigate("/cover-letter")} />
+            )}
+
+            {!clsLoading && cls.map(cl => {
+              const isExpanded = clExpandedId     === cl.id;
+              const isConfirm  = clConfirmId      === cl.id;
+              const isDeleting = clDeletingId     === cl.id;
+              const isDlDocx   = clDownloadingId    === cl.id;
+              const isDlTex    = clDownloadingTexId === cl.id;
+              const tone       = TONE_COLOR[cl.tone] || TONE_COLOR.professional;
+              const preview    = (cl.cover_letter || "").slice(0, 200);
+
+              return (
+                <div key={cl.id} style={cardStyle}
+                  onMouseEnter={e => e.currentTarget.style.borderColor = "rgba(45,90,61,0.25)"}
+                  onMouseLeave={e => e.currentTarget.style.borderColor = "rgba(45,90,61,0.1)"}
+                >
+                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", flexWrap:"wrap", gap:"10px", marginBottom:"12px" }}>
+                    <div style={{ flex:1 }}>
+                      <h3 style={{ color:"#1E2018", fontFamily:"'Libre Baskerville',serif", fontSize:"15px", marginBottom:"4px" }}>{cl.job_title}</h3>
+                      <p style={{ color:"#1E2018", fontSize:"11px", opacity:0.4 }}>Saved {formatDate(cl.created_at)}</p>
+                    </div>
+                    <span style={{ background:tone.bg, border:`1px solid ${tone.border}`, color:tone.text, padding:"4px 12px", borderRadius:"20px", fontSize:"11px", fontFamily:"'Libre Baskerville',serif", flexShrink:0 }}>
+                      {cl.tone}
+                    </span>
+                  </div>
+
+                  <p style={{ color:"#1E2018", fontSize:"13px", opacity:0.6, lineHeight:"1.65", marginBottom:"10px", whiteSpace:"pre-wrap" }}>
+                    {isExpanded ? cl.cover_letter : preview + (cl.cover_letter?.length > 200 ? "…" : "")}
+                  </p>
+                  {cl.cover_letter?.length > 200 && (
+                    <button onClick={() => setClExpandedId(isExpanded ? null : cl.id)}
+                      style={{ background:"none", border:"none", color:"#2D5A3D", fontSize:"12px", cursor:"pointer", padding:0, marginBottom:"14px", fontFamily:"'Libre Baskerville',serif" }}>
+                      {isExpanded ? "▲ Show less" : "▼ Show full letter"}
+                    </button>
+                  )}
+
+                  <div style={{ display:"flex", gap:"8px", flexWrap:"wrap", alignItems:"center" }}>
+                    <button onClick={() => handleClCopy(cl.cover_letter, cl.id)}
+                      style={actionBtn()}
+                      onMouseEnter={e => e.currentTarget.style.background = "rgba(45,90,61,0.08)"}
+                      onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+                      {clCopied === cl.id ? "✓ Copied!" : "⎘ Copy"}
+                    </button>
+                    <button onClick={() => handleClDownload(cl)} disabled={isDlDocx}
+                      style={actionBtn()}
+                      onMouseEnter={e => e.currentTarget.style.background = "rgba(45,90,61,0.08)"}
+                      onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+                      {isDlDocx ? <><Spinner /> Preparing…</> : "⬇ .docx"}
+                    </button>
+                    <button onClick={() => handleClDownloadTex(cl)} disabled={isDlTex}
+                      style={actionBtn("#2D5A3D","#EDE8DE","#2D5A3D")}>
+                      {isDlTex ? <><Spinner /> Preparing…</> : "⬇ .tex"}
+                    </button>
+                    <ConfirmDelete isConfirm={isConfirm} isDeleting={isDeleting}
+                      onRequest={() => setClConfirmId(cl.id)}
+                      onConfirm={() => handleClDelete(cl.id)}
+                      onCancel={() => setClConfirmId(null)} />
+                  </div>
+                </div>
+              );
+            })}
+
+            {!clsLoading && cls.length > 0 && (
+              <CentreBtn onClick={() => navigate("/cover-letter")}>✨ Generate Another Cover Letter</CentreBtn>
+            )}
+          </div>
+        )}
+
+
+        {/* ============================================================== */}
+        {/* TAB: BULK                                                       */}
+        {/* ============================================================== */}
+        {activeTab === "bulk" && (
+          <div>
+            {bulkError   && <ErrMsg msg={bulkError} />}
+            {bulkLoading && <LoadingSkeleton />}
+
+            {!bulkLoading && bulk.length === 0 && (
+              <EmptyState icon="⚡" title="No bulk items saved yet"
+                body="Use the Bulk Generator to create multiple tailored CVs + cover letters and save them here."
+                btnLabel="Go to Bulk Generator" onBtn={() => navigate("/bulk")} />
+            )}
+
+            {!bulkLoading && bulk.map(item => {
+              const tab      = getBulkTab(item.id);
+              const slug     = item.job_title.replace(/\s+/g, "_").replace(/[^a-zA-Z0-9_]/g, "");
+              const subTabs  = [
+                { key:"cv",       label:"📄 CV LaTeX",          content:item.cv_tex,       file:`CV_${slug}.tex`          },
+                { key:"cl",       label:"✉ Cover Letter LaTeX", content:item.cl_tex,       file:`CoverLetter_${slug}.tex` },
+                { key:"combined", label:"📦 Combined LaTeX",     content:item.combined_tex, file:`Combined_${slug}.tex`    },
+              ];
+              const active    = subTabs.find(t => t.key === tab) || subTabs[0];
+              const copyKey   = `bulk-${item.id}-${tab}`;
+              const isConfirm = bulkConfirmId  === item.id;
+              const isDeleting= bulkDeletingId === item.id;
+              const tone      = TONE_COLOR[item.tone] || TONE_COLOR.professional;
+
+              return (
+                <div key={item.id} style={cardStyle}
+                  onMouseEnter={e => e.currentTarget.style.borderColor = "rgba(45,90,61,0.25)"}
+                  onMouseLeave={e => e.currentTarget.style.borderColor = "rgba(45,90,61,0.1)"}
+                >
+                  {/* Header */}
+                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", flexWrap:"wrap", gap:"10px", marginBottom:"14px" }}>
+                    <div style={{ flex:1 }}>
+                      <h3 style={{ color:"#1E2018", fontFamily:"'Libre Baskerville',serif", fontSize:"15px", marginBottom:"4px" }}>{item.job_title}</h3>
+                      <p style={{ color:"#1E2018", fontSize:"11px", opacity:0.4 }}>Saved {formatDate(item.created_at)}</p>
+                    </div>
+                    <div style={{ display:"flex", gap:"8px", alignItems:"center", flexShrink:0 }}>
+                      <span style={{ background:tone.bg, border:`1px solid ${tone.border}`, color:tone.text, padding:"4px 10px", borderRadius:"20px", fontSize:"11px", fontFamily:"'Libre Baskerville',serif" }}>
+                        {item.tone}
+                      </span>
+                      {item.ats_score > 0 && (
+                        <div style={{ background:scoreBg(item.ats_score), borderRadius:"8px", padding:"6px 12px", textAlign:"center" }}>
+                          <p style={{ color:"#1E2018", fontSize:"9px", opacity:0.5, marginBottom:"1px", letterSpacing:"1px", textTransform:"uppercase", fontFamily:"'Libre Baskerville',serif" }}>ATS</p>
+                          <p style={{ color:scoreColor(item.ats_score), fontFamily:"'Libre Baskerville',serif", fontSize:"18px", lineHeight:1 }}>{item.ats_score}%</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Sub-tabs */}
+                  <div style={{ display:"flex", gap:"6px", marginBottom:"12px", flexWrap:"wrap" }}>
+                    {subTabs.map(t => (
+                      <button key={t.key} onClick={() => setBulkTabF(item.id, t.key)} style={{
+                        padding:"6px 12px", borderRadius:"6px", cursor:"pointer",
+                        fontFamily:"'Libre Baskerville',serif", fontSize:"11px",
+                        border:     tab===t.key ? "2px solid #2D5A3D" : "1px solid rgba(45,90,61,0.2)",
+                        background: tab===t.key ? "rgba(45,90,61,0.1)" : "transparent",
+                        color:      tab===t.key ? "#2D5A3D" : "#1E2018",
+                        opacity:    tab===t.key ? 1 : 0.55,
+                      }}>{t.label}</button>
+                    ))}
+                  </div>
+
+                  {/* Code preview */}
+                  <pre style={{
+                    background:"#1A1E1A", color:"#A8D5B5",
+                    fontFamily:"'Courier New',monospace", fontSize:"11px",
+                    lineHeight:"1.6", padding:"14px", borderRadius:"8px",
+                    maxHeight:"220px", overflowY:"auto", overflowX:"auto",
+                    whiteSpace:"pre", marginBottom:"12px",
+                  }}>{active.content || "(empty)"}</pre>
+
+                  {/* Actions */}
+                  <div style={{ display:"flex", gap:"8px", flexWrap:"wrap", alignItems:"center" }}>
+                    <button onClick={() => handleBulkCopy(active.content, copyKey)}
+                      style={actionBtn()}
+                      onMouseEnter={e => e.currentTarget.style.background = "rgba(45,90,61,0.08)"}
+                      onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+                      {bulkCopied === copyKey ? "✓ Copied!" : "⎘ Copy"}
+                    </button>
+                    <button onClick={() => bulkDownloadTex(active.content, active.file)}
+                      style={actionBtn("#2D5A3D","#EDE8DE","#2D5A3D")}>
+                      ⬇ Download .tex
+                    </button>
+                    <ConfirmDelete isConfirm={isConfirm} isDeleting={isDeleting}
+                      onRequest={() => setBulkConfirmId(item.id)}
+                      onConfirm={() => handleBulkDelete(item.id)}
+                      onCancel={() => setBulkConfirmId(null)} />
+                  </div>
+                </div>
+              );
+            })}
+
+            {!bulkLoading && bulk.length > 0 && (
+              <CentreBtn onClick={() => navigate("/bulk")}>⚡ Go to Bulk Generator</CentreBtn>
+            )}
           </div>
         )}
 
       </div>
+
+      <style>{`
+        @keyframes spin    { to { transform: rotate(360deg); } }
+        @keyframes pulse   { 0%,100%{opacity:1} 50%{opacity:0.4} }
+      `}</style>
     </DashboardLayout>
   );
 }
 
 
+// =============================================================================
+// SHARED SUB-COMPONENTS
+// =============================================================================
 
+function ErrMsg({ msg }) {
+  return <p style={{ color:"#8B2020", fontSize:"13px", marginBottom:"16px" }}>⚠ {msg}</p>;
+}
+
+function Pill({ children }) {
+  return (
+    <span style={{
+      background:"rgba(45,90,61,0.07)", border:"1px solid rgba(45,90,61,0.2)",
+      color:"#2D5A3D", padding:"3px 10px", borderRadius:"20px",
+      fontSize:"11px", fontFamily:"'Libre Baskerville',serif",
+    }}>{children}</span>
+  );
+}
+
+function LoadingSkeleton() {
+  return (
+    <div>
+      {[1,2,3].map(i => (
+        <div key={i} style={{ background:"#F0EAD8", borderRadius:"12px", padding:"28px", marginBottom:"14px", border:"1px solid rgba(45,90,61,0.08)" }}>
+          {[60,90,45].map((w,idx) => (
+            <div key={idx} style={{ height:"12px", background:"rgba(45,90,61,0.07)", borderRadius:"6px", marginBottom:"12px", width:`${w}%`, animation:"pulse 1.5s ease-in-out infinite", animationDelay:`${idx*0.15}s` }} />
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function EmptyState({ icon, title, body, btnLabel, onBtn }) {
+  return (
+    <div style={{ background:"#F0EAD8", borderRadius:"12px", padding:"60px 40px", textAlign:"center", border:"1px dashed rgba(45,90,61,0.3)", marginBottom:"24px" }}>
+      <div style={{ fontSize:"clamp(24px,5vw,44px)", marginBottom:"16px" }}>{icon}</div>
+      <h3 style={{ color:"#2D5A3D", fontFamily:"'Libre Baskerville',serif", fontSize:"18px", marginBottom:"10px" }}>{title}</h3>
+      <p style={{ color:"#1E2018", opacity:0.55, fontSize:"13px", maxWidth:"360px", margin:"0 auto 22px auto", lineHeight:"1.7" }}>{body}</p>
+      <button className="primary-btn" onClick={onBtn} style={{ fontSize:"14px", padding:"11px 26px" }}>{btnLabel}</button>
+    </div>
+  );
+}
+
+function CentreBtn({ onClick, children }) {
+  return (
+    <div style={{ textAlign:"center", paddingTop:"16px", paddingBottom:"40px" }}>
+      <button className="primary-btn" onClick={onClick} style={{ fontSize:"14px", padding:"11px 26px" }}>{children}</button>
+    </div>
+  );
+}
+
+function ConfirmDelete({ isConfirm, isDeleting, onRequest, onConfirm, onCancel }) {
+  if (isDeleting) return <span style={{ color:"#1E2018", fontSize:"12px", opacity:0.5 }}>Deleting…</span>;
+  if (isConfirm) return (
+    <div style={{ display:"flex", alignItems:"center", gap:"8px", flexWrap:"wrap" }}>
+      <span style={{ color:"#1E2018", fontSize:"12px", opacity:0.6 }}>Are you sure?</span>
+      <button onClick={onConfirm} style={{ background:"rgba(139,32,32,0.12)", border:"1px solid rgba(139,32,32,0.4)", color:"#8B2020", padding:"5px 12px", borderRadius:"6px", cursor:"pointer", fontSize:"12px", fontFamily:"'Libre Baskerville',serif" }}>Yes, delete</button>
+      <button onClick={onCancel}  style={{ background:"transparent", border:"1px solid rgba(30,32,24,0.2)", color:"#1E2018", padding:"5px 12px", borderRadius:"6px", cursor:"pointer", fontSize:"12px", fontFamily:"'Libre Baskerville',serif", opacity:0.5 }}>Cancel</button>
+    </div>
+  );
+  return (
+    <button onClick={onRequest}
+      style={{ background:"transparent", border:"1px solid rgba(139,32,32,0.3)", color:"#8B2020", padding:"7px 16px", borderRadius:"6px", cursor:"pointer", fontSize:"12px", fontFamily:"'Libre Baskerville',serif", opacity:0.7, transition:"opacity 0.15s, background 0.15s" }}
+      onMouseEnter={e => { e.currentTarget.style.opacity="1"; e.currentTarget.style.background="rgba(139,32,32,0.07)"; }}
+      onMouseLeave={e => { e.currentTarget.style.opacity="0.7"; e.currentTarget.style.background="transparent"; }}>
+      Delete
+    </button>
+  );
+}
 
 
 ======================================================================
@@ -40645,12 +40957,15 @@ export default function Profile() {
     setCopied(key);
     setTimeout(() => setCopied(null), 1800);
   };
+
   const handleCopyAll = (proj) => {
-    const all = proj.bullets.filter(b => b.trim()).map((b, i) => `${i + 1}. ${b}`).join("\n\n");
-    navigator.clipboard.writeText(`${proj.name}\n${proj.technologies}\n\n${all}`);
-    setCopied(`${proj.name}-all`);
-    setTimeout(() => setCopied(null), 1800);
-  };
+  const all = proj.bullets.filter(b => b.trim()).map((b, i) => `${i + 1}. ${b}`).join("\n\n");
+  const urlLine = proj.url ? `\n${proj.url}` : "";
+  navigator.clipboard.writeText(`${proj.name}\n${proj.technologies}${urlLine}\n\n${all}`);
+  setCopied(`${proj.name}-all`);
+  setTimeout(() => setCopied(null), 1800);
+};
+ 
 
 
   // ── LANGUAGES ─────────────────────────────────────────────────────────────

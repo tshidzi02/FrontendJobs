@@ -20,7 +20,7 @@ client = OpenAI()
 
 def generate_interview_prep(job_description, profile):
     """
-    Generate 10 interview Q&A pairs tailored to the job description and profile.
+    Generate 50 interview Q&A pairs tailored to the job description and profile.
     Returns: { questions: [ { question, answer, category, difficulty }, ... ] }
     Categories: Behavioural | Technical | Situational | Role-Specific
     Difficulty: Easy | Medium | Hard
@@ -37,7 +37,7 @@ Education: {json.dumps(profile.get('education', []))}
     prompt = f"""
 You are an expert interview coach preparing a candidate for a job interview.
 
-Generate exactly 10 interview questions with model answers based on the job description and candidate profile below.
+Generate exactly 50 interview questions with model answers based on the job description and candidate profile below.
 
 Cover a mix of:
 - Behavioural questions (STAR format answers)
