@@ -62,6 +62,7 @@ import os
 import json
 import traceback
 import json as _json
+import io     
 
 from config import Config
 from services.ai_engine import generate_cv_content
@@ -81,6 +82,13 @@ from services.tools_ai import (
     estimate_salary,
     generate_skills_gap,
 )
+from services.smart_jobs_service import (
+    fetch_all_jobs,
+    rank_jobs,
+    build_search_query,
+    generate_batch_zip
+)
+ 
 from google.oauth2 import id_token
 from google.auth.transport import requests as google_requests
 from openai import OpenAI
@@ -94,7 +102,10 @@ app = Flask(__name__)
 app.config.from_object(Config)
 
 # Force SQLite - ignore any environment DATABASE_URL
+app.config["JWT_SECRET_KEY"] = "change-this-to-long-random-secret"
 app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///users.db"
+app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+app.config["MAX_CONTENT_LENGTH"] = 32 * 1024 * 1024
 CORS(app, origins=["https://frontendjobs.online", "http://localhost:5173", "http://127.0.0.1:5173"])
 
 bcrypt = Bcrypt(app)
@@ -187,6 +198,28 @@ class JobApplication(db.Model):
     url        = db.Column(db.String(500), nullable=False, default="")
     created_at = db.Column(db.DateTime, default=db.func.now())
     updated_at = db.Column(db.DateTime, default=db.func.now(), onupdate=db.func.now())
+
+class SmartJobApplication(db.Model):
+    """
+    Persists a user's job search results and application pipeline.
+    status flow: ranked → generated → verified → applied
+    """
+    id           = db.Column(db.Integer, primary_key=True)
+    user_email   = db.Column(db.String(120), nullable=False, index=True)
+    job_id       = db.Column(db.String(200), nullable=False)
+    title        = db.Column(db.String(300))
+    company      = db.Column(db.String(200))
+    location     = db.Column(db.String(200))
+    salary       = db.Column(db.String(200))
+    work_type    = db.Column(db.String(100))
+    apply_url    = db.Column(db.String(500))
+    match_score  = db.Column(db.Float, default=0)
+    status       = db.Column(db.String(50), default="ranked")
+    description  = db.Column(db.Text)
+    company_logo = db.Column(db.String(500))
+    posted_at    = db.Column(db.String(100))
+    created_at   = db.Column(db.DateTime, server_default=db.func.now())
+ 
 
 
 
@@ -1197,18 +1230,7 @@ Return ONLY the JSON object, nothing else."""
         traceback.print_exc()
         return jsonify({"error": f"{type(e).__name__}: {str(e)}"}), 500
 
-# =============================================================================
-# ADD TO: backend/app.py
-# =============================================================================
-# Step 1 — Add these two imports at the top of app.py with the other service imports:
-#
-#   from services.cv_latex          import generate_cv_pdf
-#   from services.cover_letter_latex import generate_cover_letter_pdf
-#
-# Step 2 — Paste the two routes below directly after their .docx counterparts:
-#   • /api/download-cv-pdf      goes right after /api/download-cv
-#   • /api/download-cover-letter-pdf  goes right after /api/download-cover-letter
-# =============================================================================
+
 
 
 # ── DOWNLOAD CV as PDF (LaTeX) ─────────────────────────────────────────────────
@@ -1480,6 +1502,199 @@ def delete_bulk_saved(item_id):
     db.session.commit()
     return jsonify({"message": "Deleted"})
 
+
+# =========================
+# ROUTES — SMART JOBS
+# =========================
+ 
+@app.route("/api/smart-jobs/search", methods=["POST"])
+@jwt_required()
+def smart_jobs_search():
+    """
+    Fetch jobs from JSearch, rank against user profile, persist to DB.
+    Body: { profile: {...}, query: "optional", page: 1 }
+    """
+    current_user = get_jwt_identity()
+    data = request.get_json()
+ 
+    profile = data.get("profile", {})
+    user_query = data.get("query", "")
+    page = int(data.get("page", 1))
+ 
+    if not profile:
+        return jsonify({"message": "Profile data required"}), 400
+ 
+    search_query = build_search_query(profile, user_query)
+    jobs, total = fetch_all_jobs(search_query, page=page)
+
+    if not jobs:
+        return jsonify({
+            "jobs": [],
+            "total": 0,
+            "query": search_query,
+            "message": "No jobs found. Check your API keys or try a different query."
+        })
+
+    ranked_jobs = rank_jobs(jobs, profile)
+ 
+    # Persist new jobs to DB (skip duplicates)
+    for job in ranked_jobs:
+        existing = SmartJobApplication.query.filter_by(
+            user_email=current_user,
+            job_id=job["job_id"]
+        ).first()
+ 
+        if not existing:
+            db.session.add(SmartJobApplication(
+                user_email=current_user,
+                job_id=job["job_id"],
+                title=job["title"],
+                company=job["company"],
+                location=job["location"],
+                salary=job["salary"],
+                work_type=job["work_type"],
+                apply_url=job["apply_url"],
+                match_score=job["match_score"],
+                status="ranked",
+                description=job["description"],
+                company_logo=job["company_logo"],
+                posted_at=job["posted_at"]
+            ))
+ 
+    db.session.commit()
+ 
+    return jsonify({
+        "jobs": ranked_jobs,
+        "total": total,
+        "query": search_query
+    })
+ 
+ 
+@app.route("/api/smart-jobs/generate-batch", methods=["POST"])
+@jwt_required()
+def smart_jobs_generate_batch():
+    """
+    Generate a ZIP of tailored LaTeX CV+CoverLetter files for selected jobs.
+    Body: { profile: {...}, jobs: [...] }
+    Returns: ZIP file download
+    """
+    current_user = get_jwt_identity()
+    data = request.get_json()
+ 
+    profile = data.get("profile", {})
+    jobs = data.get("jobs", [])
+ 
+    if not profile:
+        return jsonify({"message": "Profile data required"}), 400
+    if not jobs:
+        return jsonify({"message": "No jobs provided"}), 400
+ 
+    # Cap at 5 per batch — each job makes 2 AI calls (~15-30s each)
+    jobs = jobs[:5]
+ 
+    try:
+        zip_bytes = generate_batch_zip(profile, jobs)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({"message": f"Generation error: {str(e)}"}), 500
+ 
+    if not zip_bytes:
+        return jsonify({"message": "ZIP generation produced no output"}), 500
+ 
+    # Mark jobs as generated in DB
+    for job in jobs:
+        record = SmartJobApplication.query.filter_by(
+            user_email=current_user,
+            job_id=job.get("job_id", "")
+        ).first()
+        if record:
+            record.status = "generated"
+ 
+    db.session.commit()
+ 
+    zip_io = io.BytesIO(zip_bytes)
+    zip_io.seek(0)
+ 
+    return send_file(
+        zip_io,
+        mimetype="application/zip",
+        as_attachment=True,
+        download_name="FrontendJobs_Applications.zip"
+    )
+ 
+ 
+@app.route("/api/smart-jobs/status", methods=["PATCH"])
+@jwt_required()
+def smart_jobs_update_status():
+    """
+    Update the status of a job application.
+    Body: { job_id: "...", status: "verified" | "applied" | "ranked" | "generated" }
+    """
+    current_user = get_jwt_identity()
+    data = request.get_json()
+ 
+    job_id = data.get("job_id")
+    new_status = data.get("status")
+ 
+    valid_statuses = ["ranked", "generated", "verified", "applied"]
+    if new_status not in valid_statuses:
+        return jsonify({"message": f"Invalid status. Must be one of: {valid_statuses}"}), 400
+ 
+    record = SmartJobApplication.query.filter_by(
+        user_email=current_user,
+        job_id=job_id
+    ).first()
+ 
+    if not record:
+        return jsonify({"message": "Job not found"}), 404
+ 
+    record.status = new_status
+    db.session.commit()
+ 
+    return jsonify({"message": "Status updated", "job_id": job_id, "status": new_status})
+ 
+ 
+@app.route("/api/smart-jobs/queue", methods=["GET"])
+@jwt_required()
+def smart_jobs_queue():
+    """
+    Get all saved job applications for this user, bucketed by status.
+    """
+    current_user = get_jwt_identity()
+ 
+    records = SmartJobApplication.query.filter_by(
+        user_email=current_user
+    ).order_by(
+        SmartJobApplication.match_score.desc()
+    ).all()
+ 
+    def to_dict(r):
+        return {
+            "job_id": r.job_id,
+            "title": r.title,
+            "company": r.company,
+            "location": r.location,
+            "salary": r.salary,
+            "work_type": r.work_type,
+            "apply_url": r.apply_url,
+            "match_score": r.match_score,
+            "status": r.status,
+            "description": r.description,
+            "company_logo": r.company_logo,
+            "posted_at": r.posted_at,
+        }
+ 
+    all_jobs = [to_dict(r) for r in records]
+ 
+    return jsonify({
+        "ranked":    [j for j in all_jobs if j["status"] == "ranked"],
+        "generated": [j for j in all_jobs if j["status"] == "generated"],
+        "verified":  [j for j in all_jobs if j["status"] == "verified"],
+        "applied":   [j for j in all_jobs if j["status"] == "applied"],
+        "total": len(all_jobs)
+    })
+ 
 
 if __name__ == "__main__":
     app.run(debug=True)
@@ -2193,8 +2408,17 @@ def generate_cv_content(
 
     # Store URL map keyed by project name so we can re-attach after AI call
     # (AI is not told about URLs — it only enhances bullets and titles)
+    # Supports both new `urls` (array) and legacy `url` (single string).
+    def _extract_urls(p):
+        raw = p.get("urls")
+        if raw and isinstance(raw, list) and any(raw):
+            return [u for u in raw if isinstance(u, str) and u.strip()]
+        if p.get("url"):
+            return [p["url"]]
+        return []
+
     project_url_map = {
-        p.get("name", p.get("title", "")): p.get("url", "")
+        p.get("name", p.get("title", "")): _extract_urls(p)
         for p in filtered_projects
     }
 
@@ -2468,7 +2692,7 @@ Job (summary): {job_description[:600]}
     for proj in ai_projects:
         if isinstance(proj, dict):
             name = proj.get("title", "")
-            proj["url"] = project_url_map.get(name, "")
+            proj["urls"] = project_url_map.get(name, [])
 
     # =========================================================================
     # ASSEMBLE FINAL RESULT
@@ -3695,7 +3919,9 @@ def generate_cv(profile, ai_result):
 
         title      = prof_proj.get("name", prof_proj.get("title", ""))
         tech_stack = prof_proj.get("technologies", prof_proj.get("tech_stack", ""))
-        url        = prof_proj.get("url", "")
+        # Support both new `urls` (array) and legacy `url` (string)
+        raw_urls   = prof_proj.get("urls") or ([prof_proj["url"]] if prof_proj.get("url") else [])
+        urls       = [u.strip() for u in raw_urls if isinstance(u, str) and u.strip()]
 
         # Get profile's original bullets (non-empty only)
         profile_bullets = [b for b in prof_proj.get("bullets", []) if isinstance(b, str) and b.strip()]
@@ -3727,7 +3953,7 @@ def generate_cv(profile, ai_result):
         projects_context.append({
             "title":      title,
             "tech_stack": tech_stack,
-            "url":        url,
+            "urls":       urls,
             "bullets":    final_bullets,
         })
 
@@ -3737,7 +3963,8 @@ def generate_cv(profile, ai_result):
             {
                 "title":      proj.get("title", ""),
                 "tech_stack": proj.get("tech_stack", ""),
-                "url":        proj.get("url", ""),
+                "urls":       ([u.strip() for u in proj.get("urls", []) if u.strip()]
+                               or ([proj["url"]] if proj.get("url") else [])),
                 "bullets":    [b for b in proj.get("bullets", []) if b.strip()],
             }
             for proj in ai_projects
@@ -3907,25 +4134,47 @@ def build_cv_tex(profile: dict, ai_result: dict) -> str:
             _key = (_p.get("name") or _p.get("title") or "").strip().lower()
             if _key:
                 _prof_by_name[_key] = _p
-    # Merge: use AI bullets/tech but pull url from profile when AI entry lacks one
+    # Merge: use AI bullets/tech but pull urls from profile when AI entry lacks them
     _merged = []
     for _ap in _ai_projects:
         if not isinstance(_ap, dict):
             continue
         _title = (_ap.get("title") or _ap.get("name") or "").strip()
         _pp    = _prof_by_name.get(_title.lower(), {})
+
+        # Resolve urls: new array format, then legacy single url, then profile fallback
+        def _resolve_urls(src_dict, fallback_dict):
+            raw = src_dict.get("urls")
+            if raw and isinstance(raw, list) and any(raw):
+                return [u for u in raw if isinstance(u, str) and u.strip()]
+            if src_dict.get("url"):
+                return [src_dict["url"]]
+            raw2 = fallback_dict.get("urls")
+            if raw2 and isinstance(raw2, list) and any(raw2):
+                return [u for u in raw2 if isinstance(u, str) and u.strip()]
+            if fallback_dict.get("url"):
+                return [fallback_dict["url"]]
+            return []
+
         _merged.append({
             "title":      _title,
-            "url":        _ap.get("url") or _pp.get("url", ""),
+            "urls":       _resolve_urls(_ap, _pp),
             "tech_stack": _ap.get("tech_stack") or _ap.get("technologies") or _pp.get("technologies") or _pp.get("tech_stack", ""),
             "bullets":    _ap.get("bullets", []),
         })
     # If AI returned nothing but profile has projects, use profile projects directly
     if not _merged and _prof_projects:
+        def _prof_urls(p):
+            raw = p.get("urls")
+            if raw and isinstance(raw, list) and any(raw):
+                return [u for u in raw if isinstance(u, str) and u.strip()]
+            if p.get("url"):
+                return [p["url"]]
+            return []
         _merged = [
             {
                 "title":      _p.get("name") or _p.get("title", ""),
-                "url":        _p.get("url", ""),
+                "urls":       _prof_urls(_p),
                 "tech_stack": _p.get("technologies") or _p.get("tech_stack", ""),
                 "bullets":    _p.get("bullets", []),
             }
@@ -4192,8 +4441,9 @@ def build_cv_tex(profile: dict, ai_result: dict) -> str:
             if not isinstance(proj, dict):
                 continue
             ptitle     = e(proj.get("title", proj.get("name", "")))
-            url_raw    = proj.get("url", "").strip()          # raw — used inside \href{}
-            url_display = e(url_raw)                           # escaped — used as display text
+            # Support both new `urls` (array) and legacy `url` (string)
+            raw_urls   = proj.get("urls") or ([proj["url"]] if proj.get("url") else [])
+            urls_clean = [u.strip() for u in raw_urls if isinstance(u, str) and u.strip()]
             tech_stack = e(proj.get("tech_stack", proj.get("technologies", "")))
             bullets    = [e(b) for b in proj.get("bullets", []) if isinstance(b, str)]
 
@@ -4202,7 +4452,8 @@ def build_cv_tex(profile: dict, ai_result: dict) -> str:
             out(r"{\color{DKGreen}\rule{4pt}{14pt}}\hspace{6pt}%")
             out(f"\\textcolor{{DarkTxt}}{{\\textbf{{\\large {ptitle}}}}}\\par")
             out(r"\vspace{1pt}")
-            if url_raw:
+            for url_raw in urls_clean:
+                url_display = e(url_raw)
                 out(f"\\noindent\\hspace{{10pt}}\\href{{{url_raw}}}{{\\textcolor{{MDGreen}}{{\\small {url_display}}}}}\\par")
             if tech_stack:
                 out(f"\\noindent\\hspace{{10pt}}\\textcolor{{DKGreen}}{{\\textbf{{\\small {tech_stack}}}}}")
@@ -4519,7 +4770,7 @@ def _fetch_adzuna(query, location, employment_type, salary_min, salary_max,
                 "posted":      _relative_date(item.get("created", "")),
                 "description": item.get("description", "")[:3000],
                 "url":         item.get("redirect_url", ""),
-                "source":      "Adzuna",
+                #"source":      "Adzuna",
             })
         return jobs
     except Exception as e:
@@ -4616,7 +4867,7 @@ def search_the_muse(query, location):
                     "posted":      _relative_date(item.get("publication_date", "")),
                     "description": desc,
                     "url":         item.get("refs", {}).get("landing_page", ""),
-                    "source":      "TheMuse",
+                    #"source":      "TheMuse",
                 })
         except Exception as e:
             print(f"[TheMuse p{page}] Error: {e}")
@@ -4673,7 +4924,7 @@ def search_remoteok(query):
                 "posted":      _relative_date(item.get("epoch", time.time())),
                 "description": _strip_html(item.get("description", ""))[:3000],
                 "url":         item.get("url", ""),
-                "source":      "RemoteOK",
+                #"source":      "RemoteOK",
             })
 
         print(f"[JobSearch] RemoteOK: {len(result)} results")
@@ -4779,7 +5030,7 @@ def search_jsearch(query, location, employment_type, date_posted):
                     "posted":      posted,
                     "description": (item.get("job_description") or "")[:3000],
                     "url":         item.get("job_apply_link") or item.get("job_google_link", ""),
-                    "source":      "JSearch",
+                    #"source":      "JSearch",
                 })
 
         except Exception as e:
@@ -5103,6 +5354,440 @@ def semantic_match_score(job_description, cv_text):
 
 
 ======================================================================
+FILE: ./backend\services\smart_jobs_service.py
+======================================================================
+
+# ============================================================
+# services/smart_jobs_service.py
+# Smart Job Search + LaTeX CV+CoverLetter Generator
+#
+# Job fetching now uses ALL 4 APIs via the existing search_jobs()
+# from job_search.py (JSearch + Adzuna + TheMuse + RemoteOK)
+# running in parallel — same engine as the regular Job Search page.
+# ============================================================
+
+import os
+import json
+import zipfile
+import tempfile
+import numpy as np
+from openai import OpenAI
+from services.job_search import search_jobs
+
+client = OpenAI()
+
+
+# ============================================================
+# 1. FETCH + NORMALISE JOBS FROM ALL 4 APIS
+# ============================================================
+
+def fetch_all_jobs(query, location="", page=1):
+    """
+    Calls search_jobs() which queries JSearch + Adzuna + TheMuse + RemoteOK
+    in parallel (same as the regular Job Search page) and returns a
+    deduplicated list of up to 100+ results.
+
+    We paginate in batches of 20 using the `page` parameter.
+    """
+    raw_jobs = search_jobs(
+        query=query,
+        location=location,
+        employment_type="",
+        salary_min=None,
+        salary_max=None,
+        date_posted="",
+        remote_only=False,
+    )
+
+    normalised = [normalise_job(job) for job in raw_jobs]
+
+    # Return 20 per page
+    start = (page - 1) * 20
+    end   = start + 20
+    return normalised[start:end], len(normalised)
+
+
+def normalise_job(raw):
+    """
+    Convert a job from job_search.py's unified format into Smart Jobs format.
+    job_search.py returns: id, title, company, location, type, salary,
+                           posted, description, url, source
+    """
+    job_id  = raw.get("id", "") or raw.get("job_id", "")
+    salary  = raw.get("salary", "") or "Not disclosed"
+    if not salary.strip():
+        salary = "Not disclosed"
+
+    work_type = raw.get("type", "")
+    if not work_type:
+        work_type = "Remote" if raw.get("job_is_remote") else "Onsite"
+
+    # Get description — Adzuna free tier often returns empty strings
+    description = (
+        raw.get("description", "")
+        or raw.get("job_description", "")
+        or ""
+    ).strip()
+
+    # If description is empty, build a minimal one from available fields
+    # so AI ranking still has something to work with
+    if not description:
+        title   = raw.get("title", "") or raw.get("job_title", "")
+        company = raw.get("company", "") or raw.get("employer_name", "")
+        loc     = raw.get("location", "")
+        description = f"{title} at {company} — {loc}. Full description available on the job listing page.".strip(" —.")
+
+    return {
+        "job_id":          job_id,
+        "title":           raw.get("title", "") or raw.get("job_title", ""),
+        "company":         raw.get("company", "") or raw.get("employer_name", ""),
+        "location":        raw.get("location", ""),
+        "salary":          salary,
+        "work_type":       work_type,
+        "employment_type": raw.get("employment_type", ""),
+        "description":     description,
+        "apply_url":       raw.get("url", "") or raw.get("apply_url", "") or raw.get("job_apply_link", ""),
+        "posted_at":       raw.get("posted", "") or raw.get("posted_at", ""),
+        "company_logo":    raw.get("employer_logo", ""),
+        "source":          raw.get("source", ""),
+        "match_score":     0,
+        "status":          "ranked",
+    }
+
+
+# ============================================================
+# 2. RANK JOBS AGAINST PROFILE
+# ============================================================
+
+def build_profile_text(profile):
+    parts = []
+    if profile.get("summary"):
+        parts.append(profile["summary"])
+
+    skills = profile.get("skills", [])
+    if skills:
+        if isinstance(skills[0], str):
+            parts.append("Skills: " + ", ".join(skills))
+        else:
+            for cat in skills:
+                skill_names = [s.get("skill", "") for s in cat.get("skills_list", [])]
+                parts.append(", ".join(skill_names))
+
+    for exp in profile.get("experience", []):
+        parts.append(f"{exp.get('role', '')} at {exp.get('company', '')}")
+        for b in exp.get("bullets", []):
+            parts.append(b)
+
+    for proj in profile.get("projects", []):
+        parts.append(f"Project: {proj.get('name', '')} - {proj.get('description', '')}")
+
+    return " ".join(parts)
+
+
+def get_embedding(text):
+    response = client.embeddings.create(
+        model="text-embedding-3-small",
+        input=text[:8000]
+    )
+    return response.data[0].embedding
+
+
+def cosine_similarity(v1, v2):
+    v1 = np.array(v1)
+    v2 = np.array(v2)
+    return float(np.dot(v1, v2) / (np.linalg.norm(v1) * np.linalg.norm(v2)))
+
+
+def rank_jobs(jobs, profile):
+    """Score each job against the user profile. Returns sorted best → worst."""
+    profile_text = build_profile_text(profile)
+    if not profile_text.strip():
+        return jobs
+
+    try:
+        profile_embedding = get_embedding(profile_text)
+    except Exception as e:
+        print(f"[Ranking Error] Could not embed profile: {e}")
+        return jobs
+
+    for job in jobs:
+        try:
+            jd_text = f"{job['title']} {job['company']} {job['description'][:3000]}"
+            job_embedding = get_embedding(jd_text)
+            job["match_score"] = round(cosine_similarity(profile_embedding, job_embedding) * 100, 1)
+        except Exception as e:
+            print(f"[Ranking Error] Job {job.get('job_id')}: {e}")
+            job["match_score"] = 0
+
+    return sorted(jobs, key=lambda j: j["match_score"], reverse=True)
+
+
+# ============================================================
+# 3. BUILD SEARCH QUERY FROM PROFILE
+# ============================================================
+
+def build_search_query(profile, user_query=None):
+    if user_query:
+        return user_query
+
+    experience = profile.get("experience", [])
+    if experience:
+        role = experience[0].get("role", "")
+        if role:
+            return role
+
+    skills = profile.get("skills", [])
+    if skills and isinstance(skills[0], str):
+        return skills[0]
+
+    return "Software Developer"
+
+
+# ============================================================
+# 4. GENERATE LATEX CV + COVER LETTER FOR ONE JOB
+# ============================================================
+
+def generate_latex_for_job(profile, job):
+    prompt_cv = f"""
+You are a professional CV writer. Given a candidate profile and a job description,
+return ONLY a JSON object with these fields:
+
+{{
+  "summary": "2-3 sentence professional summary tailored to this job",
+  "skills": ["skill1", "skill2", ...],
+  "experience": [
+    {{
+      "role": "Job Title",
+      "company": "Company Name",
+      "dates": "Start - End",
+      "bullets": ["bullet1", "bullet2", ...]
+    }}
+  ],
+  "projects": [
+    {{
+      "name": "Project Name",
+      "description": "Short description",
+      "bullets": ["bullet1", ...]
+    }}
+  ]
+}}
+
+Keep all original companies and roles. Only enhance bullet points.
+Return STRICT JSON only. No markdown, no preamble.
+
+PROFILE:
+{json.dumps(profile, indent=2)}
+
+JOB DESCRIPTION:
+{job['description'][:3000]}
+"""
+
+    prompt_cover = f"""
+Write a professional cover letter for this job application.
+Return ONLY the body text (no address, no date, no salutation header — just 3-4 paragraphs).
+
+CANDIDATE PROFILE:
+Name: {profile.get('full_name', 'Candidate')}
+Summary: {profile.get('summary', '')}
+Skills: {', '.join(profile.get('skills', []) if profile.get('skills') and isinstance(profile['skills'][0], str) else [])}
+
+JOB:
+Title: {job['title']}
+Company: {job['company']}
+Description: {job['description'][:2000]}
+"""
+
+    try:
+        raw = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[{"role": "user", "content": prompt_cv}],
+            temperature=0.5
+        ).choices[0].message.content
+        try:
+            cv_data = json.loads(raw)
+        except json.JSONDecodeError:
+            cv_data = json.loads(raw[raw.find("{"):raw.rfind("}")+1])
+    except Exception as e:
+        print(f"[LaTeX Gen] CV AI error: {e}")
+        cv_data = profile
+
+    try:
+        cover_letter_body = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[{"role": "user", "content": prompt_cover}],
+            temperature=0.6
+        ).choices[0].message.content.strip()
+    except Exception as e:
+        print(f"[LaTeX Gen] Cover letter AI error: {e}")
+        cover_letter_body = "I am excited to apply for this position and believe my experience makes me an excellent candidate."
+
+    return build_latex_document(profile, cv_data, job, cover_letter_body)
+
+
+def escape_latex(text):
+    if not text:
+        return ""
+    text = str(text)
+    for old, new in [
+        ("&", "\\&"), ("%", "\\%"), ("$", "\\$"), ("#", "\\#"),
+        ("_", "\\_"), ("{", "\\{"), ("}", "\\}"),
+        ("~", "\\textasciitilde{}"), ("^", "\\textasciicircum{}"),
+    ]:
+        text = text.replace(old, new)
+    return text
+
+
+def build_latex_document(profile, cv_data, job, cover_letter_body):
+    full_name        = escape_latex(profile.get("full_name", "Your Name"))
+    email            = escape_latex(profile.get("email", ""))
+    phone            = escape_latex(profile.get("phone", ""))
+    loc              = escape_latex(profile.get("location", ""))
+    linkedin         = escape_latex(profile.get("linkedin", ""))
+    website          = escape_latex(profile.get("website", ""))
+    job_title_target = escape_latex(job.get("title", ""))
+    company_name     = escape_latex(job.get("company", ""))
+
+    contact_line = " $\\bullet$ ".join([x for x in [email, phone, loc, linkedin, website] if x])
+
+    # Skills
+    skills_raw = cv_data.get("skills", profile.get("skills", []))
+    if skills_raw and isinstance(skills_raw[0], str):
+        skills_tex = ", ".join([escape_latex(s) for s in skills_raw])
+    else:
+        flat = []
+        for cat in skills_raw:
+            if isinstance(cat, dict):
+                for s in cat.get("skills_list", []):
+                    flat.append(escape_latex(s.get("skill", "")))
+        skills_tex = ", ".join(flat)
+
+    # Experience
+    exp_tex = ""
+    for exp in cv_data.get("experience", []):
+        bullets = "\n".join([f"    \\item {escape_latex(b)}" for b in exp.get("bullets", [])])
+        exp_tex += f"""
+\\noindent\\textbf{{{escape_latex(exp.get('role',''))}}} \\hfill \\textit{{{escape_latex(exp.get('dates',''))}}}\\\\
+\\textit{{{escape_latex(exp.get('company',''))}}}
+\\begin{{itemize}}[leftmargin=*, topsep=2pt, itemsep=1pt, parsep=0pt]
+{bullets}
+\\end{{itemize}}
+\\vspace{{4pt}}
+"""
+
+    # Projects
+    proj_tex = ""
+    for proj in cv_data.get("projects", []):
+        bullets = "\n".join([f"    \\item {escape_latex(b)}" for b in proj.get("bullets", [])])
+        proj_tex += f"""
+\\noindent\\textbf{{{escape_latex(proj.get('name',''))}}} --- \\textit{{{escape_latex(proj.get('description',''))}}}
+\\begin{{itemize}}[leftmargin=*, topsep=2pt, itemsep=1pt, parsep=0pt]
+{bullets}
+\\end{{itemize}}
+\\vspace{{4pt}}
+"""
+
+    summary = escape_latex(cv_data.get("summary", profile.get("summary", "")))
+
+    # Education
+    edu_tex = ""
+    for edu in profile.get("education", []):
+        edu_tex += f"\\noindent\\textbf{{{escape_latex(edu.get('degree',''))}}} --- {escape_latex(edu.get('school',''))} \\hfill \\textit{{{escape_latex(edu.get('dates',''))}}}\\\\\n"
+    education_section = f"\\section{{Education}}\n{edu_tex}" if edu_tex.strip() else ""
+
+    # Cover letter
+    cl_paragraphs = ""
+    for para in cover_letter_body.strip().split("\n\n"):
+        para = para.strip()
+        if para:
+            cl_paragraphs += f"\n{escape_latex(para)}\n\n\\medskip\n"
+
+    return f"""\\documentclass[11pt,a4paper]{{article}}
+\\usepackage[margin=2cm]{{geometry}}
+\\usepackage{{fontenc}}\\usepackage{{inputenc}}\\usepackage{{parskip}}
+\\usepackage{{titlesec}}\\usepackage{{enumitem}}\\usepackage{{hyperref}}
+\\usepackage{{xcolor}}\\usepackage{{array}}\\usepackage{{tabularx}}
+
+\\definecolor{{accent}}{{HTML}}{{2D5A3D}}
+\\definecolor{{dark}}{{HTML}}{{1E2018}}
+\\definecolor{{muted}}{{HTML}}{{6B6252}}
+
+\\hypersetup{{colorlinks=true, urlcolor=accent, linkcolor=dark}}
+\\titleformat{{\\section}}{{\\large\\bfseries\\color{{dark}}}}{{}}{{0em}}{{}}[\\titlerule]
+\\titlespacing{{\\section}}{{0pt}}{{8pt}}{{4pt}}
+\\pagestyle{{empty}}
+
+\\begin{{document}}
+
+\\begin{{center}}
+    {{\\Huge\\bfseries\\color{{dark}} {full_name}}}\\\\[4pt]
+    {{\\large\\color{{muted}} {job_title_target}}}\\\\[4pt]
+    {{\\small {contact_line}}}
+\\end{{center}}
+\\vspace{{8pt}}
+
+\\section{{Professional Summary}}
+{summary}
+
+\\section{{Skills}}
+{skills_tex}
+
+\\section{{Work Experience}}
+{exp_tex}
+
+\\section{{Projects}}
+{proj_tex}
+
+{education_section}
+
+\\newpage
+
+\\begin{{center}}
+    {{\\Huge\\bfseries\\color{{dark}} {full_name}}}\\\\[4pt]
+    {{\\small {contact_line}}}
+\\end{{center}}
+\\vspace{{16pt}}
+
+\\noindent Dear Hiring Manager at \\textbf{{{company_name}}},
+
+\\medskip
+{cl_paragraphs}
+
+\\noindent Sincerely,\\\\[16pt]
+\\noindent \\textbf{{{full_name}}}
+
+\\end{{document}}
+"""
+
+
+# ============================================================
+# 5. GENERATE ZIP OF ALL LATEX FILES
+# ============================================================
+
+def generate_batch_zip(profile, jobs):
+    """Generate a ZIP containing one .tex file per job. Returns bytes."""
+    zip_buffer = tempfile.NamedTemporaryFile(delete=False, suffix=".zip")
+    zip_buffer.close()
+
+    with zipfile.ZipFile(zip_buffer.name, "w", zipfile.ZIP_DEFLATED) as zf:
+        for i, job in enumerate(jobs):
+            try:
+                latex        = generate_latex_for_job(profile, job)
+                company_safe = "".join(c if c.isalnum() else "_" for c in job.get("company", "Company"))
+                title_safe   = "".join(c if c.isalnum() else "_" for c in job.get("title", "Role"))
+                filename     = f"{i+1:02d}_{company_safe}_{title_safe}_CV_CoverLetter.tex"
+                zf.writestr(filename, latex)
+                print(f"[ZIP] Generated: {filename}")
+            except Exception as e:
+                print(f"[ZIP Error] Job {i+1}: {e}")
+
+    with open(zip_buffer.name, "rb") as f:
+        zip_bytes = f.read()
+
+    os.unlink(zip_buffer.name)
+    return zip_bytes
+
+
+======================================================================
 FILE: ./backend\services\tools_ai.py
 ======================================================================
 
@@ -5128,7 +5813,7 @@ client = OpenAI()
 
 def generate_interview_prep(job_description, profile):
     """
-    Generate 10 interview Q&A pairs tailored to the job description and profile.
+    Generate 50 interview Q&A pairs tailored to the job description and profile.
     Returns: { questions: [ { question, answer, category, difficulty }, ... ] }
     Categories: Behavioural | Technical | Situational | Role-Specific
     Difficulty: Easy | Medium | Hard
@@ -5145,7 +5830,7 @@ Education: {json.dumps(profile.get('education', []))}
     prompt = f"""
 You are an expert interview coach preparing a candidate for a job interview.
 
-Generate exactly 10 interview questions with model answers based on the job description and candidate profile below.
+Generate exactly 50 interview questions with model answers based on the job description and candidate profile below.
 
 Cover a mix of:
 - Behavioural questions (STAR format answers)
@@ -29705,6 +30390,13 @@ Could not read file: 'utf-8' codec can't decode byte 0xa6 in position 10: invali
 
 
 ======================================================================
+FILE: ./backend\services\__pycache__\smart_jobs_service.cpython-311.pyc
+======================================================================
+
+Could not read file: 'utf-8' codec can't decode byte 0xa7 in position 0: invalid start byte
+
+
+======================================================================
 FILE: ./backend\services\__pycache__\tools_ai.cpython-311.pyc
 ======================================================================
 
@@ -33341,6 +34033,7 @@ import { SidebarProvider } from "./context/SidebarContext";
 import { AuthProvider } from "./context/AuthContext";
 import Profile from "./pages/Profile";
 import BulkGenerate from "./pages/BulkGenerate";
+import SmartJobsPage from "./pages/SmartJobsPage";
 
 
 
@@ -33381,6 +34074,7 @@ export default function App() {
               <Route path="/tools/salary"    element={<ProtectedRoute><SalaryEstimator /></ProtectedRoute>} />
               <Route path="/tools/skills-gap" element={<ProtectedRoute><SkillsGap /></ProtectedRoute>} />
               <Route path="/bulkgenerate" element={<ProtectedRoute><BulkGenerate /></ProtectedRoute>} />
+              <Route path="/smart-jobs" element={<ProtectedRoute><SmartJobsPage /></ProtectedRoute>} />
             </Routes>
           </BackgroundWrapper>
         </SidebarProvider>
@@ -34035,7 +34729,7 @@ function Navbar() {
 
   const dashboardRoutes = [
     "/dashboard", "/cabinet", "/generate", "/profile","/bulkgenerate",
-    "/cover-letter", "/jobs", "/tracker",
+    "/cover-letter", "/jobs", "/smart-jobs","/tracker",
     "/tools/interview", "/tools/linkedin", "/tools/salary", "/tools/skills-gap",
   ];
   const isDashboardRoute = dashboardRoutes.includes(location.pathname);
@@ -34514,6 +35208,7 @@ export default function DashboardLayout({ children }) {
 
           <span style={sectionLabel}>Jobs</span>
           <Link to="/jobs"         style={navLinkStyle("/jobs")}         onClick={closeSidebar}>🔍 Job Search</Link>
+          <Link to="/smart-jobs"  style={navLinkStyle("/smart-jobs")}  onClick={closeSidebar}>⚡ Smart Jobs</Link>
           <Link to="/tracker"      style={navLinkStyle("/tracker")}      onClick={closeSidebar}>📋 App Tracker</Link>
 
           <span style={sectionLabel}>AI Tools</span>
@@ -34521,6 +35216,7 @@ export default function DashboardLayout({ children }) {
           <Link to="/tools/linkedin"   style={navLinkStyle("/tools/linkedin")}   onClick={closeSidebar}>💼 LinkedIn Bio</Link>
           <Link to="/tools/salary"     style={navLinkStyle("/tools/salary")}     onClick={closeSidebar}>💰 Salary Estimator</Link>
           <Link to="/tools/skills-gap" style={navLinkStyle("/tools/skills-gap")} onClick={closeSidebar}>📊 Skills Gap</Link>
+
         </nav>
 
         {/* Logout */}
@@ -38905,9 +39601,8 @@ export default function Home() {
 FILE: ./frontend\src\pages\InterviewPrep.jsx
 ======================================================================
 
-
 // =============================================================================
-// FILE: frontend/src/pages/InterviewPrep.jsx  (NEW — Phase 7)
+// FILE: frontend/src/pages/InterviewPrep.jsx
 // =============================================================================
 
 import { useState, useEffect } from "react";
@@ -38916,30 +39611,331 @@ import api from "../services/api";
 import DashboardLayout from "../layouts/DashboardLayout";
 
 const CATEGORY_COLORS = {
-  "Behavioural":  "#2D5A3D",
-  "Technical":    "#60A5FA",
-  "Situational":  "#A78BFA",
-  "Role-Specific":"#FFB347",
+  "Behavioural":   { text: "#2D5A3D", bg: "#E8F0EB", border: "rgba(45,90,61,0.25)" },
+  "Technical":     { text: "#2D4A6A", bg: "#EAF0F8", border: "rgba(45,74,106,0.25)" },
+  "Situational":   { text: "#6B3D7A", bg: "#F2EAF8", border: "rgba(107,61,122,0.25)" },
+  "Role-Specific": { text: "#7A5C1E", bg: "#F8F2E0", border: "rgba(122,92,30,0.25)" },
 };
 
 const DIFFICULTY_COLORS = {
-  "Easy":   "#4ADE80",
-  "Medium": "#FFB347",
-  "Hard":   "#8B2020",
+  "Easy":   { text: "#2D5A3D", bg: "#E8F0EB" },
+  "Medium": { text: "#7A5C1E", bg: "#F8F2E0" },
+  "Hard":   { text: "#8B2020", bg: "#FBF0F0" },
 };
 
+// ── BADGE ─────────────────────────────────────────────────────────────────────
 function Badge({ label, colorMap }) {
-  const color = colorMap[label] || "#1E2018";
+  const c = colorMap[label] || { text: "#6B6252", bg: "#EDE8DE", border: "#DDD5C4" };
   return (
     <span style={{
-      fontSize: "10px", fontFamily: "'Libre Baskerville', serif", fontWeight: 900,
-      letterSpacing: "0.5px", textTransform: "uppercase",
-      color, background: `${color}18`, border: `1px solid ${color}40`,
-      borderRadius: "4px", padding: "2px 8px",
+      fontSize: "10px", fontFamily: "var(--font-body)", fontWeight: 600,
+      letterSpacing: "0.06em", textTransform: "uppercase",
+      color: c.text, background: c.bg, border: `1px solid ${c.border}`,
+      borderRadius: "3px", padding: "2px 8px",
     }}>
       {label}
     </span>
   );
+}
+
+// ── PDF EXPORT ────────────────────────────────────────────────────────────────
+async function exportToPDF(questions, jobDescription) {
+  const { jsPDF } = await import("https://cdn.jsdelivr.net/npm/jspdf@2.5.1/+esm");
+
+  const doc    = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+  const PW     = 210;   // page width
+  const PH     = 297;   // page height
+  const ML     = 14;    // margin left
+  const MR     = 14;    // margin right
+  const CW     = PW - ML - MR;  // content width = 182
+
+  // ── helpers ────────────────────────────────────────────────────────────────
+  const h2r = (hex) => {
+    const c = hex.replace("#","");
+    return [parseInt(c.slice(0,2),16), parseInt(c.slice(2,4),16), parseInt(c.slice(4,6),16)];
+  };
+
+  // measure how tall wrapped text will be (lineH in mm)
+  const wrapH = (text, maxW, size, lineH) => {
+    doc.setFontSize(size);
+    return doc.splitTextToSize(String(text), maxW).length * lineH;
+  };
+
+  // draw text and return the Y after the last line
+  const drawText = (text, x, y, maxW, size, lineH, bold=false) => {
+    doc.setFont("helvetica", bold ? "bold" : "normal");
+    doc.setFontSize(size);
+    const lines = doc.splitTextToSize(String(text), maxW);
+    doc.text(lines, x, y);
+    return y + (lines.length - 1) * lineH;  // returns Y of last line baseline
+  };
+
+  // palette
+  const C = {
+    cream  : h2r("#F4EFE6"),
+    surface: h2r("#FDFAF5"),
+    surf2  : h2r("#EDE8DE"),
+    green  : h2r("#2D5A3D"),
+    gmute  : h2r("#E8F0EB"),
+    ink    : h2r("#1E2018"),
+    muted  : h2r("#6B6252"),
+    border : h2r("#DDD5C4"),
+  };
+
+  // ── COVER PAGE ──────────────────────────────────────────────────────────────
+  doc.setFillColor(...C.cream);
+  doc.rect(0, 0, PW, PH, "F");
+
+  // Green header band
+  doc.setFillColor(...C.green);
+  doc.rect(0, 0, PW, 50, "F");
+
+  doc.setFont("helvetica","bold");
+  doc.setFontSize(26);
+  doc.setTextColor(...C.surface);
+  doc.text("INTERVIEW PREP", ML, 26);
+
+  doc.setFont("helvetica","normal");
+  doc.setFontSize(9.5);
+  doc.setTextColor(...C.gmute);
+  doc.text("FrontendJobs.online", ML, 38);
+
+  // JD preview
+  doc.setFillColor(...C.surface);
+  doc.setDrawColor(...C.border);
+  doc.setLineWidth(0.3);
+  doc.roundedRect(ML, 60, CW, 30, 3, 3, "FD");
+
+  doc.setFont("helvetica","bold");
+  doc.setFontSize(7);
+  doc.setTextColor(...C.muted);
+  doc.text("JOB DESCRIPTION", ML + 8, 69);
+
+  // doc.setFont("helvetica","normal");
+  // doc.setFontSize(8.5);
+  // doc.setTextColor(...C.ink);
+  // const jdText = jobDescription
+  //   ? jobDescription.slice(0, 120).trim() + (jobDescription.length > 120 ? "…" : "")
+  //   : "No job description provided.";
+  // const jdLines = doc.splitTextToSize(jdText, CW - 16);
+  // doc.text(jdLines, ML + 8, 76);
+
+  // Stats
+  const categories = [...new Set(questions.map(q => q.category))];
+  const statW = (CW - 8) / 3;
+  const statY = 102;
+  [
+    { v: String(questions.length),  l: "Questions"  },
+    { v: String(categories.length), l: "Categories" },
+    { v: new Date().toLocaleDateString("en-ZA",{ day:"numeric", month:"short" }), l: "Generated" },
+  ].forEach(({ v, l }, i) => {
+    const sx = ML + i * (statW + 4);
+    doc.setFillColor(...C.surface);
+    doc.setDrawColor(...C.border);
+    doc.roundedRect(sx, statY, statW, 22, 3, 3, "FD");
+    doc.setFont("helvetica","bold");
+    doc.setFontSize(13);
+    doc.setTextColor(...C.green);
+    doc.text(v, sx + statW / 2, statY + 10, { align:"center" });
+    doc.setFont("helvetica","normal");
+    doc.setFontSize(7);
+    doc.setTextColor(...C.muted);
+    doc.text(l.toUpperCase(), sx + statW / 2, statY + 17, { align:"center" });
+  });
+
+  // Category pills
+  let px = ML;
+  const py = 136;
+  categories.forEach(cat => {
+    const cc = CATEGORY_COLORS[cat] || { text:"#6B6252", bg:"#EDE8DE" };
+    doc.setFont("helvetica","bold");
+    doc.setFontSize(7);
+    const w = doc.getTextWidth(cat) + 10;
+    doc.setFillColor(...h2r(cc.bg));
+    doc.setDrawColor(...h2r(cc.text));
+    doc.setLineWidth(0.3);
+    doc.roundedRect(px, py, w, 8, 2, 2, "FD");
+    doc.setTextColor(...h2r(cc.text));
+    doc.text(cat, px + w / 2, py + 5.2, { align:"center" });
+    px += w + 4;
+  });
+
+  // Cover footer
+  doc.setDrawColor(...C.border);
+  doc.setLineWidth(0.2);
+  doc.line(ML, PH - 16, PW - MR, PH - 16);
+  doc.setFont("helvetica","normal");
+  doc.setFontSize(7.5);
+  doc.setTextColor(...C.muted);
+  doc.text(
+    `Generated by FrontendJobs.online  ·  ${new Date().toLocaleDateString("en-ZA",{ day:"numeric", month:"long", year:"numeric" })}`,
+    PW / 2, PH - 10, { align:"center" }
+  );
+
+  // ── QUESTION CARDS ──────────────────────────────────────────────────────────
+  //
+  // Layout constants (all in mm)
+  const ACCENT_W  = 4;     // left accent bar width
+  const ACCENT_GAP= 3;     // gap between accent bar right edge and text
+  const TX        = ML + ACCENT_W + ACCENT_GAP;  // text left edge = 21
+  const TW        = CW - ACCENT_W - ACCENT_GAP - 4;  // text width = 171
+  const PAD_TOP   = 8;     // space from card top to first element
+  const PAD_BOT   = 8;     // space from last element to card bottom
+  const ROW_GAP   = 3;     // vertical gap between rows
+  const LH_SMALL  = 4.2;   // line height for 7–8pt text
+  const LH_Q      = 5.6;   // line height for 11.5pt question
+  const LH_A      = 4.6;   // line height for 8.5pt answer
+  const DIV_GAP   = 4;     // space above/below divider line
+
+  // Pre-calculate each card height so we can fit 2 per page accurately
+  const cards = questions.map((q, idx) => {
+    const qH = wrapH(q.question, TW, 11.5, LH_Q);
+    const aH = wrapH(q.answer,   TW, 8.5,  LH_A);
+
+    // Row heights:
+    // PAD_TOP
+    // num row: 4mm
+    // ROW_GAP
+    // pill row: 5mm  (category pill height)
+    // ROW_GAP
+    // "QUESTION" label: 4mm
+    // ROW_GAP * 0.5
+    // question text block: qH
+    // DIV_GAP
+    // divider line: 0
+    // DIV_GAP
+    // "MODEL ANSWER" label: 4mm
+    // ROW_GAP
+    // answer text block: aH
+    // PAD_BOT
+    const h = PAD_TOP + 4 + ROW_GAP + 5 + ROW_GAP + 4 + ROW_GAP * 0.5 + qH + DIV_GAP + DIV_GAP + 4 + ROW_GAP + aH + PAD_BOT;
+    return { q, num: idx + 1, qH, aH, cardH: Math.ceil(h) };
+  });
+
+  const PER_PAGE   = 2;
+  const CARD_GAP   = 10;
+  const PAGE_MT    = 12;
+  const PAGE_MB    = 16;
+
+  for (let p = 0; p < Math.ceil(cards.length / PER_PAGE); p++) {
+    doc.addPage();
+
+    doc.setFillColor(...C.cream);
+    doc.rect(0, 0, PW, PH, "F");
+
+    const slice  = cards.slice(p * PER_PAGE, p * PER_PAGE + PER_PAGE);
+    const totalH = slice.reduce((s,c) => s + c.cardH, 0) + (slice.length - 1) * CARD_GAP;
+    // centre cards vertically, leaving footer room
+    const startY = Math.max(PAGE_MT, (PH - PAGE_MB - PAGE_MT - totalH) / 2 + PAGE_MT);
+
+    slice.forEach(({ q, num, qH, aH, cardH }, ci) => {
+      const cy0 = startY + ci * (cardH + CARD_GAP);  // card top Y
+
+      const catC = CATEGORY_COLORS[q.category]   || { text:"#6B6252", bg:"#EDE8DE" };
+      const difC = DIFFICULTY_COLORS[q.difficulty] || { text:"#6B6252", bg:"#EDE8DE" };
+
+      // ── Card background ────────────────────────────────────────────────────
+      doc.setFillColor(...C.surface);
+      doc.setDrawColor(...C.border);
+      doc.setLineWidth(0.35);
+      doc.roundedRect(ML, cy0, CW, cardH, 3, 3, "FD");
+
+      // ── Left accent bar ────────────────────────────────────────────────────
+      doc.setFillColor(...h2r(catC.text));
+      doc.roundedRect(ML, cy0, ACCENT_W, cardH, 2, 2, "F");
+
+      // ── Row 1: card number (left) + difficulty pill (right) ────────────────
+      const r1y = cy0 + PAD_TOP;   // baseline of number text
+
+      doc.setFont("helvetica","bold");
+      doc.setFontSize(7.5);
+      doc.setTextColor(...C.muted);
+      doc.text(`#${String(num).padStart(2,"0")}`, TX, r1y);
+
+      // Difficulty pill — right-aligned inside card
+      const difLabel = q.difficulty || "";
+      doc.setFont("helvetica","bold");
+      doc.setFontSize(7);
+      const difW  = doc.getTextWidth(difLabel) + 8;
+      const difX  = ML + CW - 4 - difW;           // right edge of card minus small padding
+      const pilH  = 5.5;
+      const pilY  = r1y - 4;                       // top of pill (text baseline - 4)
+      doc.setFillColor(...h2r(difC.bg));
+      doc.setDrawColor(...h2r(difC.text));
+      doc.setLineWidth(0.25);
+      doc.roundedRect(difX, pilY, difW, pilH, 1.5, 1.5, "FD");
+      doc.setTextColor(...h2r(difC.text));
+      doc.text(difLabel, difX + difW / 2, pilY + 3.7, { align:"center" });
+
+      // ── Row 2: category pill ───────────────────────────────────────────────
+      const r2y = r1y + ROW_GAP + 5;   // top of row 2 area
+
+      const catLabel = q.category || "";
+      doc.setFont("helvetica","bold");
+      doc.setFontSize(7);
+      const catW = doc.getTextWidth(catLabel) + 10;
+      const catPilY = r2y - 4.5;
+      doc.setFillColor(...h2r(catC.bg));
+      doc.setDrawColor(...h2r(catC.text));
+      doc.setLineWidth(0.25);
+      doc.roundedRect(TX, catPilY, catW, pilH, 1.5, 1.5, "FD");
+      doc.setTextColor(...h2r(catC.text));
+      doc.text(catLabel, TX + catW / 2, catPilY + 3.7, { align:"center" });
+
+      // ── Row 3: "QUESTION" label ────────────────────────────────────────────
+      const r3y = r2y + ROW_GAP + 4;
+
+      doc.setFont("helvetica","bold");
+      doc.setFontSize(7);
+      doc.setTextColor(...C.muted);
+      doc.text("QUESTION", TX, r3y);
+
+      // ── Row 4: question text ───────────────────────────────────────────────
+      const r4y = r3y + ROW_GAP * 0.5 + LH_Q;   // first line baseline
+
+      doc.setFont("helvetica","bold");
+      doc.setFontSize(11.5);
+      doc.setTextColor(...C.ink);
+      const qLines = doc.splitTextToSize(q.question, TW);
+      doc.text(qLines, TX, r4y);
+
+      // ── Divider ────────────────────────────────────────────────────────────
+      const divY = r4y + (qLines.length - 1) * LH_Q + DIV_GAP;
+
+      doc.setDrawColor(...C.border);
+      doc.setLineWidth(0.25);
+      doc.line(TX, divY, ML + CW - 4, divY);
+
+      // ── Row 5: "MODEL ANSWER" label ───────────────────────────────────────
+      const r5y = divY + DIV_GAP + 4;
+
+      doc.setFont("helvetica","bold");
+      doc.setFontSize(7);
+      doc.setTextColor(...h2r(catC.text));
+      doc.text("MODEL ANSWER", TX, r5y);
+
+      // ── Row 6: answer text ─────────────────────────────────────────────────
+      const r6y = r5y + ROW_GAP + LH_A;   // first line baseline
+
+      doc.setFont("helvetica","normal");
+      doc.setFontSize(8.5);
+      doc.setTextColor(...C.muted);
+      const aLines = doc.splitTextToSize(q.answer, TW);
+      doc.text(aLines, TX, r6y);
+    });
+
+    // ── Page footer ────────────────────────────────────────────────────────
+    const footY = PH - 10;
+    doc.setDrawColor(...C.border);
+    doc.setLineWidth(0.2);
+    doc.line(ML, footY - 4, PW - MR, footY - 4);
+    doc.setFont("helvetica","normal");
+    doc.setFontSize(7.5);
+    doc.setTextColor(...C.muted);
+    doc.text(`FrontendJobs.online  ·  Page ${p + 2}`, PW / 2, footY, { align:"center" });
+  }
+
+  doc.save("Interview_Prep_Questions.pdf");
 }
 
 // ── FLASHCARD MODE ────────────────────────────────────────────────────────────
@@ -38947,105 +39943,62 @@ function Flashcard({ questions }) {
   const [idx, setIdx]         = useState(0);
   const [flipped, setFlipped] = useState(false);
 
-  const current = questions[idx];
+  const current  = questions[idx];
   const progress = ((idx + 1) / questions.length) * 100;
 
   return (
     <div style={{ maxWidth: "min(680px, 100%)", margin: "0 auto" }}>
-
-      {/* Progress bar */}
-      <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "12px", marginBottom: "28px" }}>
-        <div style={{ flex: 1, height: "4px", background: "rgba(0,0,0,0.1)", borderRadius: "2px" }}>
-          <div style={{ width: `${progress}%`, height: "100%", background: "#2D5A3D", borderRadius: "2px", transition: "width 0.3s ease" }} />
+      <div style={{ display:"flex", alignItems:"center", gap:"12px", marginBottom:"28px", flexWrap:"wrap" }}>
+        <div style={{ flex:1, height:"3px", background:"var(--color-border)", borderRadius:"2px" }}>
+          <div style={{ width:`${progress}%`, height:"100%", background:"var(--color-accent)", borderRadius:"2px", transition:"width 0.3s ease" }} />
         </div>
-        <span style={{ color: "#1E2018", fontSize: "12px", opacity: 0.5, fontFamily: "'Libre Baskerville', serif", whiteSpace: "nowrap" }}>
+        <span style={{ color:"var(--color-text-muted)", fontSize:"12px", fontFamily:"var(--font-body)", whiteSpace:"nowrap" }}>
           {idx + 1} / {questions.length}
         </span>
       </div>
 
-      {/* Card */}
       <div
         onClick={() => setFlipped(f => !f)}
         style={{
-          minHeight:    "280px",
-          background:   flipped ? "rgba(45,90,61,0.06)" : "#F0EAD8",
-          border:       `1px solid ${flipped ? "rgba(45,90,61,0.4)" : "rgba(45,90,61,0.15)"}`,
-          borderRadius: "20px",
-          padding:      "40px",
-          cursor:       "pointer",
-          transition:   "all 0.3s ease",
-          display:      "flex",
-          flexDirection:"column",
-          justifyContent: "space-between",
-          userSelect:   "none",
+          minHeight:"260px", background: flipped ? "var(--color-accent-mute)" : "var(--color-surface)",
+          border:`1.5px solid ${flipped ? "rgba(45,90,61,0.35)" : "var(--color-border)"}`,
+          borderRadius:"var(--radius-lg)", padding:"36px 40px", cursor:"pointer",
+          transition:"all 0.25s ease", display:"flex", flexDirection:"column",
+          justifyContent:"space-between", userSelect:"none",
+          boxShadow: flipped ? "var(--shadow-md)" : "var(--shadow-sm)",
         }}
       >
-        <div style={{ display: "flex", gap: "8px", marginBottom: "24px", flexWrap: "wrap" }}>
-          <Badge label={current.category}  colorMap={CATEGORY_COLORS} />
+        <div style={{ display:"flex", gap:"8px", marginBottom:"20px", flexWrap:"wrap" }}>
+          <Badge label={current.category}   colorMap={CATEGORY_COLORS} />
           <Badge label={current.difficulty} colorMap={DIFFICULTY_COLORS} />
         </div>
-
         {!flipped ? (
           <div>
-            <p style={{ color: "#1E2018", opacity: 0.35, fontSize: "11px", letterSpacing: "2px", textTransform: "uppercase", fontFamily: "'Libre Baskerville', serif", marginBottom: "16px" }}>
-              Question
-            </p>
-            <p style={{ color: "#1E2018", fontFamily: "'Libre Baskerville', serif", fontWeight: 900, fontSize: "18px", lineHeight: 1.6 }}>
-              {current.question}
-            </p>
+            <p style={{ color:"var(--color-text-muted)", fontSize:"10px", letterSpacing:"0.1em", textTransform:"uppercase", fontFamily:"var(--font-body)", fontWeight:600, marginBottom:"14px" }}>Question</p>
+            <p style={{ color:"var(--color-text)", fontFamily:"var(--font-display)", fontWeight:700, fontSize:"17px", lineHeight:1.6 }}>{current.question}</p>
           </div>
         ) : (
           <div>
-            <p style={{ color: "#2D5A3D", opacity: 0.7, fontSize: "11px", letterSpacing: "2px", textTransform: "uppercase", fontFamily: "'Libre Baskerville', serif", marginBottom: "16px" }}>
-              Model Answer
-            </p>
-            <p style={{ color: "#1E2018", fontSize: "14px", lineHeight: 1.8, fontFamily: "system-ui, sans-serif" }}>
-              {current.answer}
-            </p>
+            <p style={{ color:"var(--color-accent)", fontSize:"10px", letterSpacing:"0.1em", textTransform:"uppercase", fontFamily:"var(--font-body)", fontWeight:600, marginBottom:"14px" }}>Model Answer</p>
+            <p style={{ color:"var(--color-text)", fontSize:"14px", lineHeight:1.8, fontFamily:"var(--font-body)" }}>{current.answer}</p>
           </div>
         )}
-
-        <p style={{ color: "#1E2018", opacity: 0.25, fontSize: "11px", textAlign: "center", marginTop: "24px", fontFamily: "system-ui" }}>
+        <p style={{ color:"var(--color-text-muted)", fontSize:"11px", textAlign:"center", marginTop:"24px", fontFamily:"var(--font-body)", opacity:0.7 }}>
           {flipped ? "Click to see question" : "Click to reveal answer"}
         </p>
       </div>
 
-      {/* Navigation */}
-      <div style={{ display: "flex", flexWrap: "wrap", gap: "12px", marginTop: "20px", justifyContent: "center" }}>
-        <button
-          onClick={() => { setIdx(i => Math.max(0, i - 1)); setFlipped(false); }}
-          disabled={idx === 0}
-          style={{
-            padding: "10px 24px", borderRadius: "8px", cursor: idx === 0 ? "not-allowed" : "pointer",
-            background: "transparent", border: "1px solid rgba(45,90,61,0.2)",
-            color: "#1E2018", fontFamily: "'Libre Baskerville', serif", fontWeight: 900,
-            opacity: idx === 0 ? 0.3 : 1, fontSize: "13px",
-          }}
-        >
-          ← Prev
-        </button>
-        <button
-          onClick={() => { setFlipped(f => !f); }}
-          style={{
-            padding: "10px 20px", borderRadius: "8px", cursor: "pointer",
-            background: "rgba(45,90,61,0.08)", border: "1px solid rgba(45,90,61,0.2)",
-            color: "#2D5A3D", fontFamily: "'Libre Baskerville', serif", fontWeight: 900, fontSize: "13px",
-          }}
-        >
-          Flip
-        </button>
-        <button
-          onClick={() => { setIdx(i => Math.min(questions.length - 1, i + 1)); setFlipped(false); }}
-          disabled={idx === questions.length - 1}
-          style={{
-            padding: "10px 24px", borderRadius: "8px", cursor: idx === questions.length - 1 ? "not-allowed" : "pointer",
-            background: "transparent", border: "1px solid rgba(45,90,61,0.2)",
-            color: "#1E2018", fontFamily: "'Libre Baskerville', serif", fontWeight: 900,
-            opacity: idx === questions.length - 1 ? 0.3 : 1, fontSize: "13px",
-          }}
-        >
-          Next →
-        </button>
+      <div style={{ display:"flex", gap:"10px", marginTop:"18px", justifyContent:"center", flexWrap:"wrap" }}>
+        {[
+          { label:"← Prev", action:() => { setIdx(i => Math.max(0,i-1)); setFlipped(false); }, disabled: idx===0 },
+          { label:"Flip",   action:() => setFlipped(f => !f), disabled: false },
+          { label:"Next →", action:() => { setIdx(i => Math.min(questions.length-1,i+1)); setFlipped(false); }, disabled: idx===questions.length-1 },
+        ].map(({ label, action, disabled }) => (
+          <button key={label} onClick={action} disabled={disabled} className="secondary-btn"
+            style={{ opacity: disabled ? 0.35 : 1, cursor: disabled ? "not-allowed" : "pointer", fontSize:"13px", padding:"9px 20px" }}>
+            {label}
+          </button>
+        ))}
       </div>
     </div>
   );
@@ -39054,53 +40007,30 @@ function Flashcard({ questions }) {
 // ── Q&A LIST MODE ─────────────────────────────────────────────────────────────
 function QAList({ questions }) {
   const [open, setOpen] = useState(null);
-
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+    <div style={{ display:"flex", flexDirection:"column", gap:"8px" }}>
       {questions.map((q, i) => (
-        <div
-          key={i}
-          style={{
-            background:   open === i ? "rgba(45,90,61,0.05)" : "#F0EAD8",
-            border:       `1px solid ${open === i ? "rgba(45,90,61,0.35)" : "rgba(45,90,61,0.1)"}`,
-            borderRadius: "12px",
-            overflow:     "hidden",
-            transition:   "all 0.2s ease",
-          }}
-        >
-          <div
-            onClick={() => setOpen(open === i ? null : i)}
-            style={{
-              padding:  "18px 22px",
-              cursor:   "pointer",
-              display:  "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              gap:      "16px",
-            }}
-          >
-            <div style={{ flex: 1 }}>
-              <div style={{ display: "flex", gap: "8px", marginBottom: "8px", flexWrap: "wrap" }}>
+        <div key={i} style={{
+          background: open===i ? "var(--color-accent-mute)" : "var(--color-surface)",
+          border:`1px solid ${open===i ? "rgba(45,90,61,0.3)" : "var(--color-border)"}`,
+          borderRadius:"var(--radius-lg)", overflow:"hidden", transition:"all 0.2s ease",
+          boxShadow: open===i ? "var(--shadow-sm)" : "none",
+        }}>
+          <div onClick={() => setOpen(open===i ? null : i)}
+            style={{ padding:"18px 22px", cursor:"pointer", display:"flex", justifyContent:"space-between", alignItems:"center", gap:"16px" }}>
+            <div style={{ flex:1 }}>
+              <div style={{ display:"flex", gap:"8px", marginBottom:"10px", flexWrap:"wrap" }}>
                 <Badge label={q.category}   colorMap={CATEGORY_COLORS} />
                 <Badge label={q.difficulty} colorMap={DIFFICULTY_COLORS} />
               </div>
-              <p style={{ color: "#1E2018", fontFamily: "'Libre Baskerville', serif", fontWeight: 900, fontSize: "14px", lineHeight: 1.5 }}>
-                {q.question}
-              </p>
+              <p style={{ color:"var(--color-text)", fontFamily:"var(--font-display)", fontWeight:700, fontSize:"14px", lineHeight:1.5 }}>{q.question}</p>
             </div>
-            <span style={{ color: "#2D5A3D", fontSize: "18px", flexShrink: 0, transform: open === i ? "rotate(180deg)" : "none", transition: "transform 0.2s ease" }}>
-              ↓
-            </span>
+            <span style={{ color:"var(--color-accent)", fontSize:"16px", flexShrink:0, transform: open===i ? "rotate(180deg)" : "none", transition:"transform 0.2s ease" }}>↓</span>
           </div>
-
-          {open === i && (
-            <div style={{ padding: "0 22px 20px", borderTop: "1px solid rgba(45,90,61,0.1)" }}>
-              <p style={{ color: "#2D5A3D", fontSize: "10px", letterSpacing: "2px", textTransform: "uppercase", fontFamily: "'Libre Baskerville', serif", margin: "16px 0 10px" }}>
-                Model Answer
-              </p>
-              <p style={{ color: "#1E2018", fontSize: "14px", lineHeight: 1.8, fontFamily: "system-ui, sans-serif", opacity: 0.85 }}>
-                {q.answer}
-              </p>
+          {open===i && (
+            <div style={{ padding:"0 22px 20px", borderTop:"1px solid var(--color-border)" }}>
+              <p style={{ color:"var(--color-accent)", fontSize:"10px", letterSpacing:"0.1em", textTransform:"uppercase", fontFamily:"var(--font-body)", fontWeight:600, margin:"16px 0 10px" }}>Model Answer</p>
+              <p style={{ color:"var(--color-text)", fontSize:"14px", lineHeight:1.8, fontFamily:"var(--font-body)" }}>{q.answer}</p>
             </div>
           )}
         </div>
@@ -39109,16 +40039,39 @@ function QAList({ questions }) {
   );
 }
 
+// ── EXPORT BUTTON ─────────────────────────────────────────────────────────────
+function ExportButton({ questions }) {
+  const [exporting, setExporting] = useState(false);
+  const handle = async () => {
+    setExporting(true);
+    try { await exportToPDF(questions); }
+    catch(e) { console.error(e); alert("PDF export failed. Please try again."); }
+    finally  { setExporting(false); }
+  };
+  return (
+    <>
+      <style>{`@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}`}</style>
+      <button onClick={handle} disabled={exporting} className="primary-btn"
+        style={{ opacity: exporting ? 0.7 : 1, cursor: exporting ? "not-allowed" : "pointer", fontSize:"13px", padding:"9px 18px" }}>
+        {exporting
+          ? <><span style={{ animation:"spin 1s linear infinite", display:"inline-block" }}>⏳</span>&nbsp;Generating…</>
+          : <>📄 Export PDF</>
+        }
+      </button>
+    </>
+  );
+}
+
 // ── MAIN PAGE ─────────────────────────────────────────────────────────────────
 export default function InterviewPrep() {
   const navigate = useNavigate();
-  const [profile, setProfile]           = useState(null);
+  const [profile, setProfile]               = useState(null);
   const [jobDescription, setJobDescription] = useState("");
-  const [questions, setQuestions]       = useState([]);
-  const [loading, setLoading]           = useState(false);
-  const [error, setError]               = useState("");
-  const [mode, setMode]                 = useState("list"); // "list" | "flashcard"
-  const [filter, setFilter]             = useState("All");
+  const [questions, setQuestions]           = useState([]);
+  const [loading, setLoading]               = useState(false);
+  const [error, setError]                   = useState("");
+  const [mode, setMode]                     = useState("list");
+  const [filter, setFilter]                 = useState("All");
 
   useEffect(() => {
     api.get("/profile").then(r => setProfile(r.data)).catch(() => {});
@@ -39143,51 +40096,41 @@ export default function InterviewPrep() {
 
   return (
     <DashboardLayout>
-      <div style={{ maxWidth: "min(900px, 100%)", paddingBottom: "clamp(40px, 6vw, 80px)" }}>
+      <div style={{ maxWidth:"min(900px, 100%)", paddingBottom:"clamp(40px, 6vw, 80px)" }}>
 
         {/* Header */}
-        <div style={{ marginBottom: "32px" }}>
-          <h1 style={{ fontFamily: "'Libre Baskerville', serif", fontSize: "clamp(20px, 4vw, 32px)", color: "#2D5A3D", letterSpacing: "2px", marginBottom: "6px" }}>
-            INTERVIEW PREP
-          </h1>
-          <p style={{ color: "#1E2018", fontSize: "13px", opacity: 0.5 }}>
-            AI-generated questions and model answers tailored to your target role
+        <div style={{ marginBottom:"32px" }}>
+          <p className="section-label">Tools</p>
+          <h1 style={{ fontFamily:"var(--font-display)", color:"var(--color-text)", marginBottom:"6px" }}>Interview Prep</h1>
+          <p style={{ color:"var(--color-text-muted)", fontSize:"14px", fontFamily:"var(--font-body)" }}>
+            AI-generated questions and model answers tailored to your target role.
           </p>
         </div>
 
-        {/* Input */}
-        <div style={{ background: "#F0EAD8", borderRadius: "16px", padding: "28px", marginBottom: "28px", border: "1px solid rgba(45,90,61,0.1)" }}>
-          <label style={{ color: "#1E2018", fontSize: "11px", opacity: 0.5, letterSpacing: "2px", textTransform: "uppercase", fontFamily: "'Libre Baskerville', serif", display: "block", marginBottom: "10px" }}>
+        {/* Input card */}
+        <div style={{ background:"var(--color-surface)", border:"1px solid var(--color-border)", borderRadius:"var(--radius-lg)", padding:"28px", marginBottom:"28px", boxShadow:"var(--shadow-sm)" }}>
+          <label style={{ fontFamily:"var(--font-body)", fontSize:"0.8rem", fontWeight:600, letterSpacing:"0.06em", textTransform:"uppercase", color:"var(--color-text)", marginBottom:"8px", display:"block" }}>
             Job Description
           </label>
           <textarea
             value={jobDescription}
             onChange={e => setJobDescription(e.target.value)}
-            placeholder="Paste the job description here..."
-            style={{
-              width: "100%", minHeight: "140px", padding: "14px",
-              background: "#FFFFFF", border: "1px solid rgba(45,90,61,0.2)",
-              borderRadius: "10px", color: "#1E2018", fontSize: "13px",
-              fontFamily: "system-ui, sans-serif", lineHeight: 1.6,
-              resize: "vertical", outline: "none", boxSizing: "border-box",
-            }}
+            placeholder="Paste the job description here…"
+            className="input-field"
+            style={{ minHeight:"140px", marginBottom:"4px" }}
           />
-          {error && <p style={{ color: "#8B2020", fontSize: "13px", margin: "10px 0 0" }}>{error}</p>}
-          <button
-            onClick={handleGenerate}
-            disabled={loading}
-            className="primary-btn"
-            style={{ marginTop: "16px", fontSize: "14px", padding: "12px 28px", opacity: loading ? 0.6 : 1 }}
-          >
-            {loading ? "Generating questions..." : "✨ Generate Interview Questions"}
+          {error && <p style={{ color:"var(--color-error)", fontSize:"13px", margin:"6px 0 0", fontFamily:"var(--font-body)" }}>{error}</p>}
+          <button onClick={handleGenerate} disabled={loading} className="primary-btn"
+            style={{ marginTop:"16px", opacity: loading ? 0.65 : 1, cursor: loading ? "not-allowed" : "pointer" }}>
+            {loading ? "Generating questions…" : "✨ Generate Interview Questions"}
           </button>
         </div>
 
-        {/* Loading skeleton */}
+        {/* Skeleton */}
         {loading && (
-          <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+          <div style={{ display:"flex", flexDirection:"column", gap:"8px" }}>
             {[1,2,3,4,5].map(i => (
-              <div key={i} style={{ height: "72px", background: "#F0EAD8", borderRadius: "12px", opacity: 1 - i * 0.12 }} />
+              <div key={i} style={{ height:"72px", background:"var(--color-surface-2)", borderRadius:"var(--radius-lg)", opacity: 1 - i * 0.14 }} />
             ))}
           </div>
         )}
@@ -39195,47 +40138,42 @@ export default function InterviewPrep() {
         {/* Results */}
         {questions.length > 0 && !loading && (
           <div>
-            {/* Controls row */}
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px", flexWrap: "wrap", gap: "12px" }}>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"18px", flexWrap:"wrap", gap:"12px" }}>
+
               {/* Category filter */}
-              <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+              <div style={{ display:"flex", gap:"6px", flexWrap:"wrap" }}>
                 {categories.map(cat => (
-                  <button
-                    key={cat}
-                    onClick={() => setFilter(cat)}
-                    style={{
-                      padding: "6px 14px", borderRadius: "20px", cursor: "pointer", fontSize: "12px",
-                      fontFamily: "'Libre Baskerville', serif", fontWeight: 900,
-                      background: filter === cat ? "#2D5A3D" : "transparent",
-                      color:      filter === cat ? "#EDE8DE" : "#1E2018",
-                      border:     filter === cat ? "1px solid #2D5A3D" : "1px solid rgba(45,90,61,0.2)",
-                    }}
-                  >
-                    {cat}
-                  </button>
+                  <button key={cat} onClick={() => setFilter(cat)} style={{
+                    padding:"5px 14px", borderRadius:"20px", cursor:"pointer", fontSize:"12px",
+                    fontFamily:"var(--font-body)", fontWeight:600,
+                    border: filter===cat ? "1.5px solid var(--color-accent)" : "1.5px solid var(--color-border)",
+                    background: filter===cat ? "var(--color-accent)" : "transparent",
+                    color: filter===cat ? "var(--color-surface)" : "var(--color-text-muted)",
+                    transition:"all 0.15s ease",
+                  }}>{cat}</button>
                 ))}
               </div>
 
-              {/* Mode toggle */}
-              <div style={{ display: "flex", background: "#F0EAD8", borderRadius: "8px", border: "1px solid rgba(45,90,61,0.15)", overflow: "hidden" }}>
-                {["list", "flashcard"].map(m => (
-                  <button
-                    key={m}
-                    onClick={() => setMode(m)}
-                    style={{
-                      padding: "8px 16px", cursor: "pointer", fontSize: "12px",
-                      fontFamily: "'Libre Baskerville', serif", fontWeight: 900, border: "none",
-                      background: mode === m ? "#2D5A3D" : "transparent",
-                      color:      mode === m ? "#EDE8DE" : "#1E2018",
-                    }}
-                  >
-                    {m === "list" ? "📋 Q&A List" : "🃏 Flashcards"}
-                  </button>
-                ))}
+              {/* Mode toggle + export */}
+              <div style={{ display:"flex", alignItems:"center", gap:"8px", flexWrap:"wrap" }}>
+                <div style={{ display:"flex", background:"var(--color-surface-2)", borderRadius:"var(--radius-sm)", border:"1px solid var(--color-border)", overflow:"hidden" }}>
+                  {["list","flashcard"].map(m => (
+                    <button key={m} onClick={() => setMode(m)} style={{
+                      padding:"8px 14px", cursor:"pointer", fontSize:"12px",
+                      fontFamily:"var(--font-body)", fontWeight:600, border:"none",
+                      background: mode===m ? "var(--color-accent)" : "transparent",
+                      color: mode===m ? "var(--color-surface)" : "var(--color-text-muted)",
+                      transition:"all 0.15s ease",
+                    }}>
+                      {m==="list" ? "📋 Q&A List" : "🃏 Flashcards"}
+                    </button>
+                  ))}
+                </div>
+                <ExportButton questions={questions} jobDescription={jobDescription} />
               </div>
             </div>
 
-            {mode === "list"
+            {mode==="list"
               ? <QAList questions={filtered} />
               : <Flashcard questions={filtered.length > 0 ? filtered : questions} />
             }
@@ -39247,12 +40185,9 @@ export default function InterviewPrep() {
 }
 
 
-
-
 ======================================================================
 FILE: ./frontend\src\pages\Jobs.jsx
 ======================================================================
-
 
 // =============================================================================
 // FILE: frontend/src/pages/Jobs.jsx
@@ -39496,17 +40431,14 @@ function FeaturedCard({ job, onClick }) {
         <SourceBadge source={job.source} />
       </div>
 
-      {/* Description preview */}
+      {/* Full description */}
       <p style={{
         color:      "#1E2018",
         fontSize:   "13px",
         opacity:    0.6,
-        lineHeight: 1.6,
+        lineHeight: 1.8,
         fontFamily: "system-ui, sans-serif",
-        display:    "-webkit-box",
-        WebkitLineClamp: 3,
-        WebkitBoxOrient: "vertical",
-        overflow:   "hidden",
+        whiteSpace: "pre-wrap",
       }}>
         {job.description || "Click to view full job description."}
       </p>
@@ -40249,8 +41181,6 @@ export default function Jobs() {
 }
 
 
-
-
 ======================================================================
 FILE: ./frontend\src\pages\LinkedInOptimiser.jsx
 ======================================================================
@@ -40923,8 +41853,30 @@ export default function Profile() {
     setProjects(prev => {
       const newIndex = prev.length;
       setEditingProject(newIndex);
-      return [...prev, { name: "", technologies: "", bullets: [""], url: "", includeInCV: true }];
+      return [...prev, { name: "", technologies: "", bullets: [""], urls: [""], includeInCV: true }];
     });
+  };
+
+  // ── PROJECT URL HELPERS ───────────────────────────────────────────────────
+  const handleProjectUrlChange = (projIndex, urlIndex, value) => {
+    setProjects(projects.map((proj, i) => {
+      if (i !== projIndex) return proj;
+      const urls = [...(proj.urls || [])];
+      urls[urlIndex] = value;
+      return { ...proj, urls };
+    }));
+  };
+  const handleAddProjectUrl = (projIndex) => {
+    setProjects(projects.map((proj, i) =>
+      i === projIndex ? { ...proj, urls: [...(proj.urls || []), ""] } : proj
+    ));
+  };
+  const handleRemoveProjectUrl = (projIndex, urlIndex) => {
+    setProjects(projects.map((proj, i) => {
+      if (i !== projIndex) return proj;
+      const urls = (proj.urls || []).filter((_, ui) => ui !== urlIndex);
+      return { ...proj, urls: urls.length ? urls : [""] };
+    }));
   };
   const handleProjectChange = (index, field, value) => {
     setProjects(projects.map((proj, i) => i === index ? { ...proj, [field]: value } : proj));
@@ -40959,12 +41911,14 @@ export default function Profile() {
   };
 
   const handleCopyAll = (proj) => {
-  const all = proj.bullets.filter(b => b.trim()).map((b, i) => `${i + 1}. ${b}`).join("\n\n");
-  const urlLine = proj.url ? `\n${proj.url}` : "";
-  navigator.clipboard.writeText(`${proj.name}\n${proj.technologies}${urlLine}\n\n${all}`);
-  setCopied(`${proj.name}-all`);
-  setTimeout(() => setCopied(null), 1800);
-};
+    const all = proj.bullets.filter(b => b.trim()).map((b, i) => `${i + 1}. ${b}`).join("\n\n");
+    const urlLines = (proj.urls || (proj.url ? [proj.url] : []))
+      .filter(u => u && u.trim()).join("\n");
+    const urlSection = urlLines ? `\n${urlLines}` : "";
+    navigator.clipboard.writeText(`${proj.name}\n${proj.technologies}${urlSection}\n\n${all}`);
+    setCopied(`${proj.name}-all`);
+    setTimeout(() => setCopied(null), 1800);
+  };
  
 
 
@@ -41033,14 +41987,14 @@ export default function Profile() {
           .replace(/&nbsp;/g, " ").replace(/&amp;/g, "&")
           .replace(/&lt;/g, "<").replace(/&gt;/g, ">")
           .replace(/\s{2,}/g, " ").trim()
-          .slice(0, 12000);
+          .slice(0, 10000);
 
         // Add a note to GPT that input/select values may be missing (saved React page)
         if (htmlRaw.includes("id=\"root\"") || htmlRaw.includes("type=\"module\"")) {
           cvText = `NOTE: This is a saved webpage from the FrontendJobs profile page. Input field values (name, company, job title, dates) may be missing from the HTML because they are held in React state. Extract what you can — skills, project names, bullet points, URLs are visible. Leave missing fields as empty strings.\n\n` + cvText;
         }
 
-        if (!cvText || cvText.length < 100) {
+        if (!cvText || cvText.length < 200) {
           setImportError("This HTML file appears empty after parsing. Try using the Paste Text tab instead.");
           setImporting(false);
           return;
@@ -41946,13 +42900,46 @@ export default function Profile() {
                     </p>
                   </div>
 
-                  {/* Project URL */}
+                  {/* Project URLs (multi) */}
                   <div style={{ marginBottom: "16px" }}>
-                    <label style={labelStyle}>Project URL <span style={{ color: "#2D5A3D", fontSize: "11px", fontWeight: 400 }}>(GitHub, live site, etc.)</span></label>
-                    <input style={inputStyle}
-                      placeholder="https://github.com/yourusername/project"
-                      value={proj.url || ""}
-                      onChange={(e) => handleProjectChange(index, "url", e.target.value)} />
+                    <label style={labelStyle}>
+                      Project URLs <span style={{ color: "#2D5A3D", fontSize: "11px", fontWeight: 400 }}>(GitHub, live site, demo, etc.)</span>
+                    </label>
+                    {(Array.isArray(proj.urls) ? proj.urls : (proj.url ? [proj.url] : [""])).map((urlVal, uIdx) => (
+                      <div key={uIdx} style={{ display: "flex", gap: "8px", marginBottom: "8px", alignItems: "center" }}>
+                        <input
+                          style={{ ...inputStyle, flex: 1, marginBottom: 0 }}
+                          placeholder={uIdx === 0 ? "https://github.com/yourusername/project" : "https://yourlivesite.com"}
+                          value={urlVal}
+                          onChange={(e) => {
+                            const arr = Array.isArray(proj.urls) ? [...proj.urls] : (proj.url ? [proj.url] : [""]);
+                            arr[uIdx] = e.target.value;
+                            handleProjectChange(index, "urls", arr);
+                          }}
+                        />
+                        {(Array.isArray(proj.urls) ? proj.urls : [proj.url || ""]).length > 1 && (
+                          <button
+                            onClick={() => {
+                              const arr = Array.isArray(proj.urls) ? [...proj.urls] : [proj.url || ""];
+                              handleProjectChange(index, "urls", arr.filter((_, i) => i !== uIdx));
+                            }}
+                            style={{ background: "transparent", border: "none", color: "#8B2020", cursor: "pointer", fontSize: "18px", lineHeight: 1, flexShrink: 0, opacity: 0.7 }}
+                          >×</button>
+                        )}
+                      </div>
+                    ))}
+                    <button
+                      onClick={() => {
+                        const arr = Array.isArray(proj.urls) ? [...proj.urls] : (proj.url ? [proj.url] : [""]);
+                        handleProjectChange(index, "urls", [...arr, ""]);
+                      }}
+                      style={{
+                        background: "transparent", border: "1px dashed rgba(45,90,61,0.3)",
+                        color: "#2D5A3D", borderRadius: "6px", padding: "6px 14px",
+                        cursor: "pointer", fontSize: "12px", fontFamily: "'Libre Baskerville', serif",
+                        marginTop: "4px", width: "100%",
+                      }}
+                    >+ Add another URL</button>
                   </div>
 
                   {/* Bullet inputs */}
@@ -42008,11 +42995,21 @@ export default function Profile() {
                       }}>
                         {proj.name || <span style={{ opacity: 0.25, fontStyle: "italic", fontWeight: 400 }}>Project name...</span>}
                       </h2>
-                      {proj.url && (
-                        <a href={proj.url} target="_blank" rel="noreferrer" style={{
-                          color: "#2D5A3D", fontSize: "12px", opacity: 0.8, textDecoration: "none",
-                        }}>↗ {proj.url}</a>
-                      )}
+                      {/* URLs display — supports both legacy url and new urls array */}
+                      {(() => {
+                        const urlsArr = Array.isArray(proj.urls) && proj.urls.some(Boolean)
+                          ? proj.urls.filter(Boolean)
+                          : proj.url ? [proj.url] : [];
+                        return urlsArr.length > 0 ? (
+                          <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", marginTop: "4px" }}>
+                            {urlsArr.map((u, ui) => (
+                              <a key={ui} href={u} target="_blank" rel="noreferrer" style={{
+                                color: "#2D5A3D", fontSize: "12px", opacity: 0.8, textDecoration: "none",
+                              }}>↗ {u}</a>
+                            ))}
+                          </div>
+                        ) : null;
+                      })()}
                     </div>
                     <div style={{ display: "flex", gap: "8px", flexShrink: 0 }}>
                       <button onClick={() => handleCopyAll(proj)} style={{
@@ -42931,6 +43928,743 @@ export default function SkillsGap() {
 }
 
 
+
+
+======================================================================
+FILE: ./frontend\src\pages\SmartJobsPage.jsx
+======================================================================
+
+import { useState, useEffect, useCallback } from "react";
+import api from "../services/api";
+import DashboardLayout from "../layouts/DashboardLayout";
+
+// ─────────────────────────────────────────────
+// STYLES — matches app colour scheme
+// ─────────────────────────────────────────────
+const S = {
+  page: {
+    minHeight: "100vh",
+    background: "#F4EFE6",
+    color: "#1E2018",
+    fontFamily: "'Libre Baskerville', Georgia, serif",
+    paddingTop: "110px",
+    paddingBottom: "60px",
+  },
+  inner: {
+    maxWidth: "860px",
+    margin: "0 auto",
+    padding: "0 32px",
+  },
+  pageHeader: { marginBottom: "32px" },
+  pageTitle: {
+    fontSize: "clamp(20px, 4vw, 32px)",
+    fontWeight: 900,
+    color: "#2D5A3D",
+    fontFamily: "'Libre Baskerville', Georgia, serif",
+    letterSpacing: "2px",
+    marginBottom: "6px",
+  },
+  pageSubtitle: { color: "#1E2018", fontSize: "13px", opacity: 0.5 },
+  tabRow: {
+    display: "flex", gap: "4px", marginBottom: "28px",
+    borderBottom: "2px solid #DDD5C4", paddingBottom: "0",
+  },
+  tab: (active) => ({
+    padding: "10px 24px",
+    background: active ? "#2D5A3D" : "transparent",
+    color: active ? "#FDFAF5" : "#6B6252",
+    border: "none", borderRadius: "8px 8px 0 0",
+    cursor: "pointer", fontWeight: 700, fontSize: "13px",
+    fontFamily: "inherit", transition: "all 0.15s", marginBottom: "-2px",
+    borderBottom: active ? "2px solid #2D5A3D" : "2px solid transparent",
+  }),
+  tabBadge: {
+    display: "inline-flex", alignItems: "center", justifyContent: "center",
+    background: "#E8F0EB", color: "#2D5A3D", borderRadius: "10px",
+    fontSize: "11px", padding: "1px 7px", marginLeft: "6px", fontWeight: 700,
+  },
+  primaryBtn: (disabled) => ({
+    padding: "13px 28px",
+    background: disabled ? "#C8BCA8" : "#2D5A3D",
+    color: "#FDFAF5", border: "none", borderRadius: "8px",
+    cursor: disabled ? "not-allowed" : "pointer", fontWeight: 700,
+    fontSize: "14px", fontFamily: "inherit", transition: "all 0.15s",
+    whiteSpace: "nowrap", flexShrink: 0, opacity: disabled ? 0.55 : 1,
+  }),
+  secondaryBtn: (disabled) => ({
+    padding: "10px 20px", background: "transparent",
+    color: disabled ? "#C8BCA8" : "#2D5A3D",
+    border: `1px solid ${disabled ? "#C8BCA8" : "#2D5A3D"}`,
+    borderRadius: "8px", cursor: disabled ? "not-allowed" : "pointer",
+    fontWeight: 700, fontSize: "13px", fontFamily: "inherit",
+    transition: "all 0.15s", whiteSpace: "nowrap",
+  }),
+  dangerBtn: {
+    padding: "8px 18px", background: "transparent", color: "#8B2020",
+    border: "1px solid rgba(139,32,32,0.35)", borderRadius: "8px",
+    cursor: "pointer", fontWeight: 700, fontSize: "13px", fontFamily: "inherit",
+  },
+  successBtn: {
+    padding: "8px 18px", background: "rgba(45,90,61,0.12)", color: "#2D5A3D",
+    border: "1px solid #2D5A3D", borderRadius: "8px", cursor: "pointer",
+    fontWeight: 700, fontSize: "13px", fontFamily: "inherit",
+  },
+  jobGrid: { display: "flex", flexDirection: "column", gap: "10px" },
+  jobCard: (selected) => ({
+    background: "rgba(220,210,192,0.5)",
+    border: selected ? "1px solid rgba(45,90,61,0.5)" : "1px solid rgba(45,90,61,0.15)",
+    borderLeft: selected ? "4px solid #2D5A3D" : "4px solid rgba(45,90,61,0.2)",
+    borderRadius: "12px", padding: "20px 24px", transition: "all 0.15s",
+    cursor: "pointer", boxShadow: selected ? "0 0 0 3px #E8F0EB" : "none",
+  }),
+  jobCardTop: {
+    display: "flex", justifyContent: "space-between",
+    alignItems: "flex-start", gap: "16px", flexWrap: "wrap",
+  },
+  jobLeft: { flex: 1, minWidth: "200px" },
+  jobTitle: {
+    fontSize: "14px", fontWeight: 700, color: "#1E2018", marginBottom: "3px",
+    fontFamily: "'Libre Baskerville', serif",
+  },
+  jobCompany: {
+    fontSize: "13px", color: "#2D5A3D", fontWeight: 700, marginBottom: "8px",
+    fontFamily: "'Libre Baskerville', serif",
+  },
+  jobMeta: { display: "flex", gap: "6px", flexWrap: "wrap", marginBottom: "8px" },
+  metaTag: (color) => ({
+    padding: "2px 9px", background: "#E8F0EB",
+    border: `1px solid ${color || "#C8BCA8"}`,
+    borderRadius: "20px", fontSize: "11px", color: color || "#6B6252",
+    fontFamily: "'Libre Baskerville', serif",
+  }),
+  scoreRing: (score) => {
+    const color = score >= 70 ? "#2D5A3D" : score >= 50 ? "#B8860B" : "#8B2020";
+    return {
+      width: "58px", height: "58px", borderRadius: "50%",
+      border: `3px solid ${color}`, display: "flex", flexDirection: "column",
+      alignItems: "center", justifyContent: "center", flexShrink: 0,
+      background: "#FDFAF5",
+    };
+  },
+  scoreNumber: (score) => ({
+    fontSize: "13px", fontWeight: 900,
+    color: score >= 70 ? "#2D5A3D" : score >= 50 ? "#B8860B" : "#8B2020",
+    lineHeight: 1, fontFamily: "'Libre Baskerville', serif",
+  }),
+  scoreLabel: { fontSize: "7px", color: "#6B6252", marginTop: "2px", letterSpacing: "0.5px" },
+  jobDesc: {
+    marginTop: "14px", padding: "14px 16px", background: "#EDE8DE",
+    borderRadius: "8px", fontSize: "12px", lineHeight: "1.7", color: "#6B6252",
+    maxHeight: "240px", overflowY: "auto", whiteSpace: "pre-wrap",
+    border: "1px solid #DDD5C4", fontFamily: "'Libre Baskerville', serif",
+  },
+  jobCardActions: { display: "flex", gap: "8px", marginTop: "12px", flexWrap: "wrap", alignItems: "center" },
+  statusBadge: (status) => {
+    const map = {
+      ranked:    { bg: "#E8F0EB",               color: "#6B6252"  },
+      generated: { bg: "rgba(45,90,61,0.12)",   color: "#2D5A3D"  },
+      verified:  { bg: "rgba(184,134,11,0.12)", color: "#B8860B"  },
+      applied:   { bg: "rgba(45,90,61,0.08)",   color: "#3D7A55"  },
+    };
+    const s = map[status] || map.ranked;
+    return {
+      padding: "2px 10px", background: s.bg, color: s.color,
+      borderRadius: "20px", fontSize: "9px", fontWeight: 700,
+      textTransform: "uppercase", letterSpacing: "0.8px",
+      fontFamily: "'Libre Baskerville', serif",
+    };
+  },
+  checkbox: { width: "15px", height: "15px", accentColor: "#2D5A3D", cursor: "pointer", flexShrink: 0, marginTop: "3px" },
+  batchBar: {
+    display: "flex", alignItems: "center", justifyContent: "space-between",
+    padding: "12px 16px", background: "#E8F0EB",
+    border: "1px solid rgba(45,90,61,0.25)", borderRadius: "10px",
+    marginBottom: "16px", flexWrap: "wrap", gap: "10px",
+  },
+  batchBarText: { color: "#2D5A3D", fontWeight: 700, fontSize: "13px", fontFamily: "'Libre Baskerville', serif" },
+  queueCard: {
+    background: "#FDFAF5", border: "1px solid #DDD5C4",
+    borderRadius: "12px", padding: "18px 22px", marginBottom: "10px",
+  },
+  queueCardTitle: { fontSize: "14px", fontWeight: 700, color: "#1E2018", marginBottom: "3px", fontFamily: "'Libre Baskerville', serif" },
+  queueCardSub:   { fontSize: "12px", color: "#6B6252", marginBottom: "12px", fontFamily: "'Libre Baskerville', serif" },
+  queueActions:   { display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" },
+  applyNowBtn: {
+    padding: "10px 22px", background: "#2D5A3D", color: "#FDFAF5",
+    border: "none", borderRadius: "8px", cursor: "pointer", fontWeight: 700,
+    fontSize: "13px", fontFamily: "inherit", textDecoration: "none",
+    display: "inline-flex", alignItems: "center", gap: "6px",
+  },
+  emptyState: { textAlign: "center", padding: "60px 20px", color: "#6B6252" },
+  emptyIcon:  { fontSize: "3rem", marginBottom: "12px" },
+  loadingRow: {
+    display: "flex", alignItems: "center", justifyContent: "center",
+    gap: "12px", padding: "40px", color: "#6B6252",
+    fontFamily: "'Libre Baskerville', serif", fontSize: "13px",
+  },
+  spinner: {
+    width: "20px", height: "20px",
+    border: "2px solid #DDD5C4", borderTop: "2px solid #2D5A3D",
+    borderRadius: "50%", animation: "spin 0.8s linear infinite", flexShrink: 0,
+  },
+  progressBar: (pct) => ({
+    height: "3px", background: "#DDD5C4", borderRadius: "2px",
+    overflow: "hidden", marginTop: "8px", display: pct > 0 ? "block" : "none",
+  }),
+  progressFill: (pct) => ({
+    height: "100%", width: `${pct}%`, background: "#2D5A3D",
+    borderRadius: "2px", transition: "width 0.4s ease",
+  }),
+};
+
+// ─────────────────────────────────────────────
+// COMPONENT
+// ─────────────────────────────────────────────
+export default function SmartJobsPage() {
+  const [activeTab, setActiveTab] = useState("search"); // search | queue
+  const [query, setQuery] = useState("");
+  const [profile, setProfile] = useState({});
+  const [jobs, setJobs] = useState([]);
+  const [queueData, setQueueData] = useState({ ranked: [], generated: [], verified: [], applied: [] });
+  const [selectedIds, setSelectedIds] = useState(new Set());
+  const [expandedId, setExpandedId] = useState(null);
+  const [searching, setSearching] = useState(false);
+  const [generating, setGenerating] = useState(false);
+  const [generateProgress, setGenerateProgress] = useState(0);
+  const [page, setPage] = useState(1);
+  const [error, setError] = useState("");
+  const [successMsg, setSuccessMsg] = useState("");
+
+  // ── Load queue + profile from API on mount ──
+  useEffect(() => {
+    loadQueue();
+    api.get("/profile")
+      .then(res => { if (res.data && Object.keys(res.data).length > 0) setProfile(res.data); })
+      .catch(() => {});
+    const style = document.createElement("style");
+    style.textContent = `@keyframes spin { to { transform: rotate(360deg); } }`;
+    document.head.appendChild(style);
+  }, []);
+
+  const loadQueue = async () => {
+    try {
+      const res = await api.get("/smart-jobs/queue");
+      setQueueData(res.data);
+    } catch (e) {
+      console.error("Queue load error:", e);
+    }
+  };
+
+  // ── SEARCH ──
+  const handleSearch = async () => {
+    if (searching) return;
+    setError("");
+    setSuccessMsg("");
+    setSearching(true);
+    setJobs([]);
+    setSelectedIds(new Set());
+
+    const currentProfile = profile;
+
+    try {
+      const res = await api.post("/smart-jobs/search", {
+        profile: currentProfile,
+        query: query.trim(),
+        page,
+      });
+      setJobs(res.data.jobs || []);
+      if ((res.data.jobs || []).length === 0) {
+        setError("No jobs found. Try a different search term, or make sure your JSEARCH_API_KEY is set.");
+      }
+    } catch (e) {
+      setError(e.response?.data?.message || "Search failed. Check your API key.");
+    } finally {
+      setSearching(false);
+    }
+  };
+
+  const handleLoadMore = async () => {
+    const nextPage = page + 1;
+    setPage(nextPage);
+    setSearching(true);
+    try {
+      const res = await api.post("/smart-jobs/search", {
+        profile: profile,
+        query: query.trim(),
+        page: nextPage,
+      });
+      const newJobs = res.data.jobs || [];
+      // Merge + re-sort by score
+      setJobs(prev => {
+        const combined = [...prev, ...newJobs];
+        return combined.sort((a, b) => b.match_score - a.match_score);
+      });
+    } catch (e) {
+      setError("Failed to load more jobs.");
+    } finally {
+      setSearching(false);
+    }
+  };
+
+  // ── SELECT JOBS ──
+  const toggleSelect = (e, jobId) => {
+    e.stopPropagation();
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      next.has(jobId) ? next.delete(jobId) : next.add(jobId);
+      return next;
+    });
+  };
+
+  const selectAll = () => {
+    setSelectedIds(new Set(jobs.map(j => j.job_id)));
+  };
+
+  const selectNone = () => setSelectedIds(new Set());
+
+  // ── GENERATE BATCH ZIP ──
+  const handleGenerateBatch = async () => {
+    if (generating || selectedIds.size === 0) return;
+    setError("");
+    setSuccessMsg("");
+    setGenerating(true);
+    setGenerateProgress(5);
+
+    // Cap at 5 — each job = 2 AI calls (~15-30s), so 5 jobs ≈ 2 mins max
+    const selectedJobs = jobs.filter(j => selectedIds.has(j.job_id)).slice(0, 5);
+    const jobCount = selectedJobs.length;
+
+    // Spread progress across expected duration so it doesn't hit 88% too fast
+    const tickInterval = Math.max(1500, (jobCount * 20000) / 25);
+    const ticker = setInterval(() => {
+      setGenerateProgress(p => Math.min(p + 3, 88));
+    }, tickInterval);
+
+    try {
+      const res = await api.post("/smart-jobs/generate-batch", {
+        profile: profile,
+        jobs: selectedJobs,
+      }, {
+        responseType: "blob",
+        timeout: jobCount * 3 * 60 * 1000, // 3 mins per job
+      });
+
+      clearInterval(ticker);
+      setGenerateProgress(100);
+
+      // Trigger download
+      const url = window.URL.createObjectURL(new Blob([res.data]));
+      const link = document.createElement("a");
+      link.href = url;
+      link.setAttribute("download", "FrontendJobs_Applications.zip");
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+
+      setSuccessMsg(`✓ ZIP downloaded — ${jobCount} tailored CV + Cover Letter files ready. Verify each on Overleaf, then mark as Verified in your Apply Queue.`);
+
+      setJobs(prev => prev.map(j =>
+        selectedIds.has(j.job_id) ? { ...j, status: "generated" } : j
+      ));
+
+      await loadQueue();
+    } catch (e) {
+      clearInterval(ticker);
+      // axios blob responses wrap errors as blobs — read the real message
+      let errMsg = "Generation failed. Check the server terminal for the exact error.";
+      if (e.code === "ECONNABORTED" || e.message?.includes("timeout")) {
+        errMsg = "Request timed out. Try selecting just 1–2 jobs and try again.";
+      } else if (e.response?.data instanceof Blob) {
+        try {
+          const text = await e.response.data.text();
+          const parsed = JSON.parse(text);
+          if (parsed.message) errMsg = `Server error: ${parsed.message}`;
+        } catch { /* use default */ }
+      } else if (e.response?.data?.message) {
+        errMsg = `Server error: ${e.response.data.message}`;
+      }
+      setError(errMsg);
+    } finally {
+      setGenerating(false);
+      setTimeout(() => setGenerateProgress(0), 3000);
+    }
+  };
+
+  // ── UPDATE STATUS ──
+  const updateStatus = async (jobId, status) => {
+    try {
+      await api.patch("/smart-jobs/status", { job_id: jobId, status });
+      await loadQueue();
+      setSuccessMsg(`Status updated to "${status}"`);
+      setTimeout(() => setSuccessMsg(""), 3000);
+    } catch (e) {
+      setError("Failed to update status.");
+    }
+  };
+
+  // ── COPY COVER LETTER HINT ──
+  const handleApply = (job) => {
+    // Mark as applied
+    updateStatus(job.job_id, "applied");
+    // Open apply URL
+    window.open(job.apply_url, "_blank", "noopener,noreferrer");
+  };
+
+  // ─────────────────────────────────────────
+  // RENDER HELPERS
+  // ─────────────────────────────────────────
+
+  const renderJobCard = (job, showCheckbox = true) => {
+    const isSelected = selectedIds.has(job.job_id);
+    const isExpanded = expandedId === job.job_id;
+
+    return (
+      <div
+        key={job.job_id}
+        style={S.jobCard(isSelected)}
+        onClick={() => setExpandedId(isExpanded ? null : job.job_id)}
+      >
+        <div style={S.jobCardTop}>
+          {/* Checkbox */}
+          {showCheckbox && (
+            <input
+              type="checkbox"
+              style={S.checkbox}
+              checked={isSelected}
+              onChange={(e) => toggleSelect(e, job.job_id)}
+              onClick={(e) => e.stopPropagation()}
+            />
+          )}
+
+          {/* Job Info */}
+          <div style={S.jobLeft}>
+            <div style={S.jobTitle}>{job.title}</div>
+            <div style={S.jobCompany}>{job.company}</div>
+            <div style={S.jobMeta}>
+              {job.location && (
+                <span style={S.metaTag("#6B6252")}>📍 {job.location}</span>
+              )}
+              {job.work_type && (
+                <span style={S.metaTag(job.work_type === "Remote" ? "#2D5A3D" : "#6B6252")}>
+                  {job.work_type === "Remote" ? "🏠" : "🏢"} {job.work_type}
+                </span>
+              )}
+              {job.employment_type && (
+                <span style={S.metaTag("#6B6252")}>{job.employment_type}</span>
+              )}
+              <span style={S.metaTag(job.salary !== "Not disclosed" ? "#B8860B" : "#6B6252")}>
+                💰 {job.salary}
+              </span>
+            </div>
+            <span style={S.statusBadge(job.status)}>{job.status}</span>
+          </div>
+
+          {/* Match Score */}
+          <div style={S.scoreRing(job.match_score)}>
+            <span style={S.scoreNumber(job.match_score)}>
+              {Math.round(job.match_score)}
+            </span>
+            <span style={S.scoreLabel}>MATCH</span>
+          </div>
+        </div>
+
+        {/* Expanded Description */}
+        {isExpanded && (
+          <>
+            <div style={S.jobDesc}>
+              {job.description || "No description available."}
+            </div>
+            <div style={S.jobCardActions}>
+              {job.status === "verified" && (
+                <button
+                  style={S.applyNowBtn}
+                  onClick={(e) => { e.stopPropagation(); handleApply(job); }}
+                >
+                  ✈ Apply Now
+                </button>
+              )}
+              {job.status === "generated" && (
+                <button
+                  style={S.successBtn}
+                  onClick={(e) => { e.stopPropagation(); updateStatus(job.job_id, "verified"); }}
+                >
+                  ✓ Mark Verified
+                </button>
+              )}
+              {job.status === "applied" && (
+                <span style={{ color: "#3D7A55", fontSize: "0.85rem", fontWeight: 700 }}>
+                  ✈ Applied
+                </span>
+              )}
+            </div>
+          </>
+        )}
+      </div>
+    );
+  };
+
+  const totalQueue = queueData.verified?.length + queueData.generated?.length;
+
+  // ─────────────────────────────────────────
+  // RENDER
+  // ─────────────────────────────────────────
+  return (
+    <DashboardLayout>
+    <div style={S.page}>
+      <div style={S.inner}>
+
+        {/* Header */}
+        <div style={S.pageHeader}>
+          <div style={S.pageTitle}>⚡ Smart Job Hunt</div>
+          <div style={S.pageSubtitle}>
+            AI matches jobs to your profile · Auto-generates tailored CV + Cover Letter · Guided apply queue
+          </div>
+        </div>
+
+        {/* Tabs */}
+        <div style={S.tabRow}>
+          <button style={S.tab(activeTab === "search")} onClick={() => setActiveTab("search")}>
+            🔍 Search & Rank
+          </button>
+          <button style={S.tab(activeTab === "queue")} onClick={() => { setActiveTab("queue"); loadQueue(); }}>
+            ✈ Apply Queue
+            {totalQueue > 0 && <span style={S.tabBadge}>{totalQueue}</span>}
+          </button>
+        </div>
+
+        {/* Alerts */}
+        {error && (
+          <div style={{ padding: "12px 18px", background: "#FBF0F0", border: "1px solid rgba(139,32,32,0.25)", borderRadius: "8px", color: "#8B2020", marginBottom: "16px", fontSize: "0.88rem" }}>
+            ⚠ {error}
+          </div>
+        )}
+        {successMsg && (
+          <div style={{ padding: "12px 18px", background: "#E8F0EB", border: "1px solid rgba(45,90,61,0.3)", borderRadius: "8px", color: "#2D5A3D", marginBottom: "16px", fontSize: "0.88rem" }}>
+            {successMsg}
+          </div>
+        )}
+
+        {/* ═══════════════════════════════════ */}
+        {/* TAB: SEARCH */}
+        {/* ═══════════════════════════════════ */}
+        {activeTab === "search" && (
+          <>
+            {/* Search panel — matches Jobs page */}
+            <div style={{ background: "rgba(220,210,192,0.8)", border: "1px solid rgba(45,90,61,0.2)", borderRadius: "16px", padding: "24px", marginBottom: "24px" }}>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "12px", marginBottom: "14px" }}>
+                <input
+                  type="text"
+                  placeholder='Job title, keywords, or company...'
+                  value={query}
+                  onChange={e => setQuery(e.target.value)}
+                  onKeyDown={e => e.key === "Enter" && handleSearch()}
+                  style={{ flex: 1, minWidth: "220px", padding: "13px 16px", background: "#FFFFFF", border: "1px solid rgba(45,90,61,0.25)", borderRadius: "10px", color: "#1E2018", fontSize: "14px", fontFamily: "system-ui, sans-serif", outline: "none", boxSizing: "border-box" }}
+                />
+                <button className="primary-btn" onClick={handleSearch} disabled={searching} style={{ padding: "13px 28px", fontSize: "14px", whiteSpace: "nowrap", flexShrink: 0 }}>
+                  {searching ? "Searching..." : "Search Jobs"}
+                </button>
+              </div>
+              <p style={{ color: "#1E2018", fontSize: "12px", opacity: 0.5, fontFamily: "'Libre Baskerville', serif", lineHeight: 1.5 }}>
+                Jobs ranked against your profile using AI · Select up to 5 per batch → <strong>Generate ZIP</strong> → compile on{" "}
+                <a href="https://overleaf.com" target="_blank" rel="noopener noreferrer" style={{ color: "#2D5A3D" }}>Overleaf</a>
+                {" "}→ mark Verified → apply from the Apply Queue
+              </p>
+            </div>
+
+            {/* Batch actions bar */}
+            {jobs.length > 0 && (
+              <div style={S.batchBar}>
+                <div style={S.batchBarText}>
+                  {selectedIds.size} of {jobs.length} jobs selected
+                  {selectedIds.size > 0 && ` · ${Math.min(selectedIds.size, 5)} will be generated (5 per batch)`}
+                </div>
+                <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", alignItems: "center" }}>
+                  <button style={S.secondaryBtn(false)} onClick={selectAll}>Select All</button>
+                  <button style={S.secondaryBtn(selectedIds.size === 0)} onClick={selectNone} disabled={selectedIds.size === 0}>Clear</button>
+                  <button
+                    style={S.primaryBtn(generating || selectedIds.size === 0)}
+                    onClick={handleGenerateBatch}
+                    disabled={generating || selectedIds.size === 0}
+                  >
+                    {generating ? `Generating... ${generateProgress}%` : `⬇ Generate ZIP (${Math.min(selectedIds.size, 5)} jobs)`}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Progress bar */}
+            {generating && (
+              <div style={S.progressBar(generateProgress)}>
+                <div style={S.progressFill(generateProgress)} />
+              </div>
+            )}
+
+            {/* Loading */}
+            {searching && (
+              <div style={S.loadingRow}>
+                <div style={S.spinner} />
+                <span>Fetching and ranking jobs against your profile...</span>
+              </div>
+            )}
+
+            {/* Job list */}
+            {!searching && jobs.length > 0 && (
+              <div style={S.jobGrid}>
+                {jobs.map(job => renderJobCard(job, true))}
+              </div>
+            )}
+
+            {/* Load more */}
+            {!searching && jobs.length > 0 && (
+              <div style={{ textAlign: "center", marginTop: "24px" }}>
+                <button style={S.secondaryBtn(searching)} onClick={handleLoadMore} disabled={searching}>
+                  Load 20 More Jobs
+                </button>
+              </div>
+            )}
+
+            {/* Empty */}
+            {!searching && jobs.length === 0 && !error && (
+              <div style={S.emptyState}>
+                <div style={S.emptyIcon}>🎯</div>
+                <div style={{ fontWeight: 700, marginBottom: "8px" }}>Ready to find your next role</div>
+                <div style={{ fontSize: "0.85rem" }}>Search above or leave blank to auto-build a query from your profile</div>
+              </div>
+            )}
+          </>
+        )}
+
+        {/* ═══════════════════════════════════ */}
+        {/* TAB: APPLY QUEUE */}
+        {/* ═══════════════════════════════════ */}
+        {activeTab === "queue" && (
+          <>
+            {/* ── VERIFIED → READY TO APPLY ── */}
+            {queueData.verified?.length > 0 && (
+              <>
+                <div style={{ fontSize: "1rem", fontWeight: 700, color: "#B8860B", marginBottom: "12px" }}>
+                  ✅ Verified — Ready to Apply ({queueData.verified.length})
+                </div>
+                <div style={{ padding: "14px 18px", background: "#EDE8DE", border: "1px solid #DDD5C4", borderRadius: "8px", fontSize: "0.83rem", color: "#6B6252", lineHeight: "1.5", marginBottom: "20px" }}>
+                  These CVs have been verified on Overleaf. Click <strong>Apply Now</strong> to open the application page.
+                  Your cover letter will be in the .tex file you compiled.
+                </div>
+                {queueData.verified.map(job => (
+                  <div key={job.job_id} style={S.queueCard}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "12px" }}>
+                      <div>
+                        <div style={S.queueCardTitle}>{job.title}</div>
+                        <div style={S.queueCardSub}>
+                          {job.company} · {job.location} · {job.work_type} · 💰 {job.salary}
+                        </div>
+                        <div style={S.queueActions}>
+                          <a
+                            href={job.apply_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={S.applyNowBtn}
+                            onClick={() => updateStatus(job.job_id, "applied")}
+                          >
+                            ✈ Apply Now
+                          </a>
+                          <button style={S.dangerBtn} onClick={() => updateStatus(job.job_id, "ranked")}>
+                            Skip
+                          </button>
+                        </div>
+                      </div>
+                      <div style={S.scoreRing(job.match_score)}>
+                        <span style={S.scoreNumber(job.match_score)}>{Math.round(job.match_score)}</span>
+                        <span style={S.scoreLabel}>MATCH</span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </>
+            )}
+
+            {/* ── GENERATED → NEEDS OVERLEAF VERIFY ── */}
+            {queueData.generated?.length > 0 && (
+              <>
+                <div style={{ fontSize: "1rem", fontWeight: 700, color: "#2D5A3D", marginBottom: "12px", marginTop: "28px" }}>
+                  📄 Generated — Awaiting Overleaf Verification ({queueData.generated.length})
+                </div>
+                <div style={{ padding: "14px 18px", background: "#EDE8DE", border: "1px solid #DDD5C4", borderRadius: "8px", fontSize: "0.83rem", color: "#6B6252", lineHeight: "1.5", marginBottom: "20px" }}>
+                  Download already done. Open each .tex file in Overleaf, fix any compile errors, then come back and click <strong>Mark Verified</strong>.
+                </div>
+                {queueData.generated.map(job => (
+                  <div key={job.job_id} style={S.queueCard}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "12px" }}>
+                      <div>
+                        <div style={S.queueCardTitle}>{job.title}</div>
+                        <div style={S.queueCardSub}>{job.company} · {job.location} · 💰 {job.salary}</div>
+                        <div style={S.queueActions}>
+                          <button style={S.successBtn} onClick={() => updateStatus(job.job_id, "verified")}>
+                            ✓ Mark Verified
+                          </button>
+                          <a
+                            href="https://overleaf.com"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{ ...S.secondaryBtn(false), textDecoration: "none", display: "inline-flex", alignItems: "center" }}
+                          >
+                            Open Overleaf ↗
+                          </a>
+                          <button style={S.dangerBtn} onClick={() => updateStatus(job.job_id, "ranked")}>
+                            Reset
+                          </button>
+                        </div>
+                      </div>
+                      <div style={S.scoreRing(job.match_score)}>
+                        <span style={S.scoreNumber(job.match_score)}>{Math.round(job.match_score)}</span>
+                        <span style={S.scoreLabel}>MATCH</span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </>
+            )}
+
+            {/* ── APPLIED ── */}
+            {queueData.applied?.length > 0 && (
+              <>
+                <div style={{ fontSize: "1rem", fontWeight: 700, color: "#3D7A55", marginBottom: "12px", marginTop: "28px" }}>
+                  ✈ Applied ({queueData.applied.length})
+                </div>
+                {queueData.applied.map(job => (
+                  <div key={job.job_id} style={{ ...S.queueCard, opacity: 0.7 }}>
+                    <div style={S.queueCardTitle}>{job.title}</div>
+                    <div style={S.queueCardSub}>{job.company} · {job.location}</div>
+                    <span style={S.statusBadge("applied")}>Applied ✓</span>
+                  </div>
+                ))}
+              </>
+            )}
+
+            {/* Empty state */}
+            {!queueData.verified?.length && !queueData.generated?.length && !queueData.applied?.length && (
+              <div style={S.emptyState}>
+                <div style={S.emptyIcon}>📋</div>
+                <div style={{ fontWeight: 700, marginBottom: "8px" }}>Your apply queue is empty</div>
+                <div style={{ fontSize: "0.85rem" }}>
+                  Search for jobs, select your top picks, generate the ZIP, then come back here after verifying on Overleaf.
+                </div>
+                <button
+                  style={{ ...S.primaryBtn(false), marginTop: "20px" }}
+                  onClick={() => setActiveTab("search")}
+                >
+                  Go to Search →
+                </button>
+              </div>
+            )}
+          </>
+        )}
+
+      </div>
+    </div>
+    </DashboardLayout>
+  );
+}
 
 
 ======================================================================

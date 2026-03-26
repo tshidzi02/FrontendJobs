@@ -133,6 +133,7 @@ export default function DashboardLayout({ children }) {
 
           <span style={sectionLabel}>Jobs</span>
           <Link to="/jobs"         style={navLinkStyle("/jobs")}         onClick={closeSidebar}>🔍 Job Search</Link>
+          <Link to="/smart-jobs"  style={navLinkStyle("/smart-jobs")}  onClick={closeSidebar}>⚡ Smart Jobs</Link>
           <Link to="/tracker"      style={navLinkStyle("/tracker")}      onClick={closeSidebar}>📋 App Tracker</Link>
 
           <span style={sectionLabel}>AI Tools</span>
@@ -140,6 +141,7 @@ export default function DashboardLayout({ children }) {
           <Link to="/tools/linkedin"   style={navLinkStyle("/tools/linkedin")}   onClick={closeSidebar}>💼 LinkedIn Bio</Link>
           <Link to="/tools/salary"     style={navLinkStyle("/tools/salary")}     onClick={closeSidebar}>💰 Salary Estimator</Link>
           <Link to="/tools/skills-gap" style={navLinkStyle("/tools/skills-gap")} onClick={closeSidebar}>📊 Skills Gap</Link>
+
         </nav>
 
         {/* Logout */}

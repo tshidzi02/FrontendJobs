@@ -29,8 +29,17 @@ def generate_cv_content(
 
     # Store URL map keyed by project name so we can re-attach after AI call
     # (AI is not told about URLs — it only enhances bullets and titles)
+    # Supports both new `urls` (array) and legacy `url` (single string).
+    def _extract_urls(p):
+        raw = p.get("urls")
+        if raw and isinstance(raw, list) and any(raw):
+            return [u for u in raw if isinstance(u, str) and u.strip()]
+        if p.get("url"):
+            return [p["url"]]
+        return []
+
     project_url_map = {
-        p.get("name", p.get("title", "")): p.get("url", "")
+        p.get("name", p.get("title", "")): _extract_urls(p)
         for p in filtered_projects
     }
 
@@ -304,7 +313,7 @@ Job (summary): {job_description[:600]}
     for proj in ai_projects:
         if isinstance(proj, dict):
             name = proj.get("title", "")
-            proj["url"] = project_url_map.get(name, "")
+            proj["urls"] = project_url_map.get(name, [])
 
     # =========================================================================
     # ASSEMBLE FINAL RESULT

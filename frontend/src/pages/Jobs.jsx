@@ -1,4 +1,3 @@
-
 // =============================================================================
 // FILE: frontend/src/pages/Jobs.jsx
 // =============================================================================
@@ -241,17 +240,14 @@ function FeaturedCard({ job, onClick }) {
         <SourceBadge source={job.source} />
       </div>
 
-      {/* Description preview */}
+      {/* Full description */}
       <p style={{
         color:      "#1E2018",
         fontSize:   "13px",
         opacity:    0.6,
-        lineHeight: 1.6,
+        lineHeight: 1.8,
         fontFamily: "system-ui, sans-serif",
-        display:    "-webkit-box",
-        WebkitLineClamp: 3,
-        WebkitBoxOrient: "vertical",
-        overflow:   "hidden",
+        whiteSpace: "pre-wrap",
       }}>
         {job.description || "Click to view full job description."}
       </p>
@@ -992,4 +988,3 @@ export default function Jobs() {
     </DashboardLayout>
   );
 }
-

@@ -259,8 +259,30 @@ export default function Profile() {
     setProjects(prev => {
       const newIndex = prev.length;
       setEditingProject(newIndex);
-      return [...prev, { name: "", technologies: "", bullets: [""], url: "", includeInCV: true }];
+      return [...prev, { name: "", technologies: "", bullets: [""], urls: [""], includeInCV: true }];
     });
+  };
+
+  // ── PROJECT URL HELPERS ───────────────────────────────────────────────────
+  const handleProjectUrlChange = (projIndex, urlIndex, value) => {
+    setProjects(projects.map((proj, i) => {
+      if (i !== projIndex) return proj;
+      const urls = [...(proj.urls || [])];
+      urls[urlIndex] = value;
+      return { ...proj, urls };
+    }));
+  };
+  const handleAddProjectUrl = (projIndex) => {
+    setProjects(projects.map((proj, i) =>
+      i === projIndex ? { ...proj, urls: [...(proj.urls || []), ""] } : proj
+    ));
+  };
+  const handleRemoveProjectUrl = (projIndex, urlIndex) => {
+    setProjects(projects.map((proj, i) => {
+      if (i !== projIndex) return proj;
+      const urls = (proj.urls || []).filter((_, ui) => ui !== urlIndex);
+      return { ...proj, urls: urls.length ? urls : [""] };
+    }));
   };
   const handleProjectChange = (index, field, value) => {
     setProjects(projects.map((proj, i) => i === index ? { ...proj, [field]: value } : proj));
@@ -295,12 +317,14 @@ export default function Profile() {
   };
 
   const handleCopyAll = (proj) => {
-  const all = proj.bullets.filter(b => b.trim()).map((b, i) => `${i + 1}. ${b}`).join("\n\n");
-  const urlLine = proj.url ? `\n${proj.url}` : "";
-  navigator.clipboard.writeText(`${proj.name}\n${proj.technologies}${urlLine}\n\n${all}`);
-  setCopied(`${proj.name}-all`);
-  setTimeout(() => setCopied(null), 1800);
-};
+    const all = proj.bullets.filter(b => b.trim()).map((b, i) => `${i + 1}. ${b}`).join("\n\n");
+    const urlLines = (proj.urls || (proj.url ? [proj.url] : []))
+      .filter(u => u && u.trim()).join("\n");
+    const urlSection = urlLines ? `\n${urlLines}` : "";
+    navigator.clipboard.writeText(`${proj.name}\n${proj.technologies}${urlSection}\n\n${all}`);
+    setCopied(`${proj.name}-all`);
+    setTimeout(() => setCopied(null), 1800);
+  };
  
 
 
@@ -369,14 +393,14 @@ export default function Profile() {
           .replace(/&nbsp;/g, " ").replace(/&amp;/g, "&")
           .replace(/&lt;/g, "<").replace(/&gt;/g, ">")
           .replace(/\s{2,}/g, " ").trim()
-          .slice(0, 12000);
+          .slice(0, 10000);
 
         // Add a note to GPT that input/select values may be missing (saved React page)
         if (htmlRaw.includes("id=\"root\"") || htmlRaw.includes("type=\"module\"")) {
           cvText = `NOTE: This is a saved webpage from the FrontendJobs profile page. Input field values (name, company, job title, dates) may be missing from the HTML because they are held in React state. Extract what you can — skills, project names, bullet points, URLs are visible. Leave missing fields as empty strings.\n\n` + cvText;
         }
 
-        if (!cvText || cvText.length < 100) {
+        if (!cvText || cvText.length < 200) {
           setImportError("This HTML file appears empty after parsing. Try using the Paste Text tab instead.");
           setImporting(false);
           return;
@@ -1282,13 +1306,46 @@ export default function Profile() {
                     </p>
                   </div>
 
-                  {/* Project URL */}
+                  {/* Project URLs (multi) */}
                   <div style={{ marginBottom: "16px" }}>
-                    <label style={labelStyle}>Project URL <span style={{ color: "#2D5A3D", fontSize: "11px", fontWeight: 400 }}>(GitHub, live site, etc.)</span></label>
-                    <input style={inputStyle}
-                      placeholder="https://github.com/yourusername/project"
-                      value={proj.url || ""}
-                      onChange={(e) => handleProjectChange(index, "url", e.target.value)} />
+                    <label style={labelStyle}>
+                      Project URLs <span style={{ color: "#2D5A3D", fontSize: "11px", fontWeight: 400 }}>(GitHub, live site, demo, etc.)</span>
+                    </label>
+                    {(Array.isArray(proj.urls) ? proj.urls : (proj.url ? [proj.url] : [""])).map((urlVal, uIdx) => (
+                      <div key={uIdx} style={{ display: "flex", gap: "8px", marginBottom: "8px", alignItems: "center" }}>
+                        <input
+                          style={{ ...inputStyle, flex: 1, marginBottom: 0 }}
+                          placeholder={uIdx === 0 ? "https://github.com/yourusername/project" : "https://yourlivesite.com"}
+                          value={urlVal}
+                          onChange={(e) => {
+                            const arr = Array.isArray(proj.urls) ? [...proj.urls] : (proj.url ? [proj.url] : [""]);
+                            arr[uIdx] = e.target.value;
+                            handleProjectChange(index, "urls", arr);
+                          }}
+                        />
+                        {(Array.isArray(proj.urls) ? proj.urls : [proj.url || ""]).length > 1 && (
+                          <button
+                            onClick={() => {
+                              const arr = Array.isArray(proj.urls) ? [...proj.urls] : [proj.url || ""];
+                              handleProjectChange(index, "urls", arr.filter((_, i) => i !== uIdx));
+                            }}
+                            style={{ background: "transparent", border: "none", color: "#8B2020", cursor: "pointer", fontSize: "18px", lineHeight: 1, flexShrink: 0, opacity: 0.7 }}
+                          >×</button>
+                        )}
+                      </div>
+                    ))}
+                    <button
+                      onClick={() => {
+                        const arr = Array.isArray(proj.urls) ? [...proj.urls] : (proj.url ? [proj.url] : [""]);
+                        handleProjectChange(index, "urls", [...arr, ""]);
+                      }}
+                      style={{
+                        background: "transparent", border: "1px dashed rgba(45,90,61,0.3)",
+                        color: "#2D5A3D", borderRadius: "6px", padding: "6px 14px",
+                        cursor: "pointer", fontSize: "12px", fontFamily: "'Libre Baskerville', serif",
+                        marginTop: "4px", width: "100%",
+                      }}
+                    >+ Add another URL</button>
                   </div>
 
                   {/* Bullet inputs */}
@@ -1344,11 +1401,21 @@ export default function Profile() {
                       }}>
                         {proj.name || <span style={{ opacity: 0.25, fontStyle: "italic", fontWeight: 400 }}>Project name...</span>}
                       </h2>
-                      {proj.url && (
-                        <a href={proj.url} target="_blank" rel="noreferrer" style={{
-                          color: "#2D5A3D", fontSize: "12px", opacity: 0.8, textDecoration: "none",
-                        }}>↗ {proj.url}</a>
-                      )}
+                      {/* URLs display — supports both legacy url and new urls array */}
+                      {(() => {
+                        const urlsArr = Array.isArray(proj.urls) && proj.urls.some(Boolean)
+                          ? proj.urls.filter(Boolean)
+                          : proj.url ? [proj.url] : [];
+                        return urlsArr.length > 0 ? (
+                          <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", marginTop: "4px" }}>
+                            {urlsArr.map((u, ui) => (
+                              <a key={ui} href={u} target="_blank" rel="noreferrer" style={{
+                                color: "#2D5A3D", fontSize: "12px", opacity: 0.8, textDecoration: "none",
+                              }}>↗ {u}</a>
+                            ))}
+                          </div>
+                        ) : null;
+                      })()}
                     </div>
                     <div style={{ display: "flex", gap: "8px", flexShrink: 0 }}>
                       <button onClick={() => handleCopyAll(proj)} style={{

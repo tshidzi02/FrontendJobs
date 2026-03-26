@@ -22,7 +22,7 @@ function Navbar() {
 
   const dashboardRoutes = [
     "/dashboard", "/cabinet", "/generate", "/profile","/bulkgenerate",
-    "/cover-letter", "/jobs", "/tracker",
+    "/cover-letter", "/jobs", "/smart-jobs","/tracker",
     "/tools/interview", "/tools/linkedin", "/tools/salary", "/tools/skills-gap",
   ];
   const isDashboardRoute = dashboardRoutes.includes(location.pathname);

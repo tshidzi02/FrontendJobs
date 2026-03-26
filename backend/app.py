@@ -25,6 +25,7 @@ import os
 import json
 import traceback
 import json as _json
+import io     
 
 from config import Config
 from services.ai_engine import generate_cv_content
@@ -44,6 +45,13 @@ from services.tools_ai import (
     estimate_salary,
     generate_skills_gap,
 )
+from services.smart_jobs_service import (
+    fetch_all_jobs,
+    rank_jobs,
+    build_search_query,
+    generate_batch_zip
+)
+ 
 from google.oauth2 import id_token
 from google.auth.transport import requests as google_requests
 from openai import OpenAI
@@ -57,7 +65,10 @@ app = Flask(__name__)
 app.config.from_object(Config)
 
 # Force SQLite - ignore any environment DATABASE_URL
+app.config["JWT_SECRET_KEY"] = "change-this-to-long-random-secret"
 app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///users.db"
+app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+app.config["MAX_CONTENT_LENGTH"] = 32 * 1024 * 1024
 CORS(app, origins=["https://frontendjobs.online", "http://localhost:5173", "http://127.0.0.1:5173"])
 
 bcrypt = Bcrypt(app)
@@ -150,6 +161,28 @@ class JobApplication(db.Model):
     url        = db.Column(db.String(500), nullable=False, default="")
     created_at = db.Column(db.DateTime, default=db.func.now())
     updated_at = db.Column(db.DateTime, default=db.func.now(), onupdate=db.func.now())
+
+class SmartJobApplication(db.Model):
+    """
+    Persists a user's job search results and application pipeline.
+    status flow: ranked → generated → verified → applied
+    """
+    id           = db.Column(db.Integer, primary_key=True)
+    user_email   = db.Column(db.String(120), nullable=False, index=True)
+    job_id       = db.Column(db.String(200), nullable=False)
+    title        = db.Column(db.String(300))
+    company      = db.Column(db.String(200))
+    location     = db.Column(db.String(200))
+    salary       = db.Column(db.String(200))
+    work_type    = db.Column(db.String(100))
+    apply_url    = db.Column(db.String(500))
+    match_score  = db.Column(db.Float, default=0)
+    status       = db.Column(db.String(50), default="ranked")
+    description  = db.Column(db.Text)
+    company_logo = db.Column(db.String(500))
+    posted_at    = db.Column(db.String(100))
+    created_at   = db.Column(db.DateTime, server_default=db.func.now())
+ 
 
 
 
@@ -1160,18 +1193,7 @@ Return ONLY the JSON object, nothing else."""
         traceback.print_exc()
         return jsonify({"error": f"{type(e).__name__}: {str(e)}"}), 500
 
-# =============================================================================
-# ADD TO: backend/app.py
-# =============================================================================
-# Step 1 — Add these two imports at the top of app.py with the other service imports:
-#
-#   from services.cv_latex          import generate_cv_pdf
-#   from services.cover_letter_latex import generate_cover_letter_pdf
-#
-# Step 2 — Paste the two routes below directly after their .docx counterparts:
-#   • /api/download-cv-pdf      goes right after /api/download-cv
-#   • /api/download-cover-letter-pdf  goes right after /api/download-cover-letter
-# =============================================================================
+
 
 
 # ── DOWNLOAD CV as PDF (LaTeX) ─────────────────────────────────────────────────
@@ -1443,6 +1465,199 @@ def delete_bulk_saved(item_id):
     db.session.commit()
     return jsonify({"message": "Deleted"})
 
+
+# =========================
+# ROUTES — SMART JOBS
+# =========================
+ 
+@app.route("/api/smart-jobs/search", methods=["POST"])
+@jwt_required()
+def smart_jobs_search():
+    """
+    Fetch jobs from JSearch, rank against user profile, persist to DB.
+    Body: { profile: {...}, query: "optional", page: 1 }
+    """
+    current_user = get_jwt_identity()
+    data = request.get_json()
+ 
+    profile = data.get("profile", {})
+    user_query = data.get("query", "")
+    page = int(data.get("page", 1))
+ 
+    if not profile:
+        return jsonify({"message": "Profile data required"}), 400
+ 
+    search_query = build_search_query(profile, user_query)
+    jobs, total = fetch_all_jobs(search_query, page=page)
+
+    if not jobs:
+        return jsonify({
+            "jobs": [],
+            "total": 0,
+            "query": search_query,
+            "message": "No jobs found. Check your API keys or try a different query."
+        })
+
+    ranked_jobs = rank_jobs(jobs, profile)
+ 
+    # Persist new jobs to DB (skip duplicates)
+    for job in ranked_jobs:
+        existing = SmartJobApplication.query.filter_by(
+            user_email=current_user,
+            job_id=job["job_id"]
+        ).first()
+ 
+        if not existing:
+            db.session.add(SmartJobApplication(
+                user_email=current_user,
+                job_id=job["job_id"],
+                title=job["title"],
+                company=job["company"],
+                location=job["location"],
+                salary=job["salary"],
+                work_type=job["work_type"],
+                apply_url=job["apply_url"],
+                match_score=job["match_score"],
+                status="ranked",
+                description=job["description"],
+                company_logo=job["company_logo"],
+                posted_at=job["posted_at"]
+            ))
+ 
+    db.session.commit()
+ 
+    return jsonify({
+        "jobs": ranked_jobs,
+        "total": total,
+        "query": search_query
+    })
+ 
+ 
+@app.route("/api/smart-jobs/generate-batch", methods=["POST"])
+@jwt_required()
+def smart_jobs_generate_batch():
+    """
+    Generate a ZIP of tailored LaTeX CV+CoverLetter files for selected jobs.
+    Body: { profile: {...}, jobs: [...] }
+    Returns: ZIP file download
+    """
+    current_user = get_jwt_identity()
+    data = request.get_json()
+ 
+    profile = data.get("profile", {})
+    jobs = data.get("jobs", [])
+ 
+    if not profile:
+        return jsonify({"message": "Profile data required"}), 400
+    if not jobs:
+        return jsonify({"message": "No jobs provided"}), 400
+ 
+    # Cap at 5 per batch — each job makes 2 AI calls (~15-30s each)
+    jobs = jobs[:5]
+ 
+    try:
+        zip_bytes = generate_batch_zip(profile, jobs)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({"message": f"Generation error: {str(e)}"}), 500
+ 
+    if not zip_bytes:
+        return jsonify({"message": "ZIP generation produced no output"}), 500
+ 
+    # Mark jobs as generated in DB
+    for job in jobs:
+        record = SmartJobApplication.query.filter_by(
+            user_email=current_user,
+            job_id=job.get("job_id", "")
+        ).first()
+        if record:
+            record.status = "generated"
+ 
+    db.session.commit()
+ 
+    zip_io = io.BytesIO(zip_bytes)
+    zip_io.seek(0)
+ 
+    return send_file(
+        zip_io,
+        mimetype="application/zip",
+        as_attachment=True,
+        download_name="FrontendJobs_Applications.zip"
+    )
+ 
+ 
+@app.route("/api/smart-jobs/status", methods=["PATCH"])
+@jwt_required()
+def smart_jobs_update_status():
+    """
+    Update the status of a job application.
+    Body: { job_id: "...", status: "verified" | "applied" | "ranked" | "generated" }
+    """
+    current_user = get_jwt_identity()
+    data = request.get_json()
+ 
+    job_id = data.get("job_id")
+    new_status = data.get("status")
+ 
+    valid_statuses = ["ranked", "generated", "verified", "applied"]
+    if new_status not in valid_statuses:
+        return jsonify({"message": f"Invalid status. Must be one of: {valid_statuses}"}), 400
+ 
+    record = SmartJobApplication.query.filter_by(
+        user_email=current_user,
+        job_id=job_id
+    ).first()
+ 
+    if not record:
+        return jsonify({"message": "Job not found"}), 404
+ 
+    record.status = new_status
+    db.session.commit()
+ 
+    return jsonify({"message": "Status updated", "job_id": job_id, "status": new_status})
+ 
+ 
+@app.route("/api/smart-jobs/queue", methods=["GET"])
+@jwt_required()
+def smart_jobs_queue():
+    """
+    Get all saved job applications for this user, bucketed by status.
+    """
+    current_user = get_jwt_identity()
+ 
+    records = SmartJobApplication.query.filter_by(
+        user_email=current_user
+    ).order_by(
+        SmartJobApplication.match_score.desc()
+    ).all()
+ 
+    def to_dict(r):
+        return {
+            "job_id": r.job_id,
+            "title": r.title,
+            "company": r.company,
+            "location": r.location,
+            "salary": r.salary,
+            "work_type": r.work_type,
+            "apply_url": r.apply_url,
+            "match_score": r.match_score,
+            "status": r.status,
+            "description": r.description,
+            "company_logo": r.company_logo,
+            "posted_at": r.posted_at,
+        }
+ 
+    all_jobs = [to_dict(r) for r in records]
+ 
+    return jsonify({
+        "ranked":    [j for j in all_jobs if j["status"] == "ranked"],
+        "generated": [j for j in all_jobs if j["status"] == "generated"],
+        "verified":  [j for j in all_jobs if j["status"] == "verified"],
+        "applied":   [j for j in all_jobs if j["status"] == "applied"],
+        "total": len(all_jobs)
+    })
+ 
 
 if __name__ == "__main__":
     app.run(debug=True)

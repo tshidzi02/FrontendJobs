@@ -22,6 +22,7 @@ import { SidebarProvider } from "./context/SidebarContext";
 import { AuthProvider } from "./context/AuthContext";
 import Profile from "./pages/Profile";
 import BulkGenerate from "./pages/BulkGenerate";
+import SmartJobsPage from "./pages/SmartJobsPage";
 
 
 
@@ -62,6 +63,7 @@ export default function App() {
               <Route path="/tools/salary"    element={<ProtectedRoute><SalaryEstimator /></ProtectedRoute>} />
               <Route path="/tools/skills-gap" element={<ProtectedRoute><SkillsGap /></ProtectedRoute>} />
               <Route path="/bulkgenerate" element={<ProtectedRoute><BulkGenerate /></ProtectedRoute>} />
+              <Route path="/smart-jobs" element={<ProtectedRoute><SmartJobsPage /></ProtectedRoute>} />
             </Routes>
           </BackgroundWrapper>
         </SidebarProvider>

@@ -81,25 +81,47 @@ def build_cv_tex(profile: dict, ai_result: dict) -> str:
             _key = (_p.get("name") or _p.get("title") or "").strip().lower()
             if _key:
                 _prof_by_name[_key] = _p
-    # Merge: use AI bullets/tech but pull url from profile when AI entry lacks one
+    # Merge: use AI bullets/tech but pull urls from profile when AI entry lacks them
     _merged = []
     for _ap in _ai_projects:
         if not isinstance(_ap, dict):
             continue
         _title = (_ap.get("title") or _ap.get("name") or "").strip()
         _pp    = _prof_by_name.get(_title.lower(), {})
+
+        # Resolve urls: new array format, then legacy single url, then profile fallback
+        def _resolve_urls(src_dict, fallback_dict):
+            raw = src_dict.get("urls")
+            if raw and isinstance(raw, list) and any(raw):
+                return [u for u in raw if isinstance(u, str) and u.strip()]
+            if src_dict.get("url"):
+                return [src_dict["url"]]
+            raw2 = fallback_dict.get("urls")
+            if raw2 and isinstance(raw2, list) and any(raw2):
+                return [u for u in raw2 if isinstance(u, str) and u.strip()]
+            if fallback_dict.get("url"):
+                return [fallback_dict["url"]]
+            return []
+
         _merged.append({
             "title":      _title,
-            "url":        _ap.get("url") or _pp.get("url", ""),
+            "urls":       _resolve_urls(_ap, _pp),
             "tech_stack": _ap.get("tech_stack") or _ap.get("technologies") or _pp.get("technologies") or _pp.get("tech_stack", ""),
             "bullets":    _ap.get("bullets", []),
         })
     # If AI returned nothing but profile has projects, use profile projects directly
     if not _merged and _prof_projects:
+        def _prof_urls(p):
+            raw = p.get("urls")
+            if raw and isinstance(raw, list) and any(raw):
+                return [u for u in raw if isinstance(u, str) and u.strip()]
+            if p.get("url"):
+                return [p["url"]]
+            return []
         _merged = [
             {
                 "title":      _p.get("name") or _p.get("title", ""),
-                "url":        _p.get("url", ""),
+                "urls":       _prof_urls(_p),
                 "tech_stack": _p.get("technologies") or _p.get("tech_stack", ""),
                 "bullets":    _p.get("bullets", []),
             }
@@ -366,8 +388,9 @@ def build_cv_tex(profile: dict, ai_result: dict) -> str:
             if not isinstance(proj, dict):
                 continue
             ptitle     = e(proj.get("title", proj.get("name", "")))
-            url_raw    = proj.get("url", "").strip()          # raw — used inside \href{}
-            url_display = e(url_raw)                           # escaped — used as display text
+            # Support both new `urls` (array) and legacy `url` (string)
+            raw_urls   = proj.get("urls") or ([proj["url"]] if proj.get("url") else [])
+            urls_clean = [u.strip() for u in raw_urls if isinstance(u, str) and u.strip()]
             tech_stack = e(proj.get("tech_stack", proj.get("technologies", "")))
             bullets    = [e(b) for b in proj.get("bullets", []) if isinstance(b, str)]
 
@@ -376,7 +399,8 @@ def build_cv_tex(profile: dict, ai_result: dict) -> str:
             out(r"{\color{DKGreen}\rule{4pt}{14pt}}\hspace{6pt}%")
             out(f"\\textcolor{{DarkTxt}}{{\\textbf{{\\large {ptitle}}}}}\\par")
             out(r"\vspace{1pt}")
-            if url_raw:
+            for url_raw in urls_clean:
+                url_display = e(url_raw)
                 out(f"\\noindent\\hspace{{10pt}}\\href{{{url_raw}}}{{\\textcolor{{MDGreen}}{{\\small {url_display}}}}}\\par")
             if tech_stack:
                 out(f"\\noindent\\hspace{{10pt}}\\textcolor{{DKGreen}}{{\\textbf{{\\small {tech_stack}}}}}")
