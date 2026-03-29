@@ -87,6 +87,7 @@ export default function BulkGenerate() {
   const [jobs,    setJobs]    = useState([emptyJob()]);
   const [running, setRunning] = useState(false);
   const [copied,  setCopied]  = useState(null);
+  const [wishlistedIds, setWishlistedIds] = useState(new Set());
   const bottomRef = useRef(null);
 
   useEffect(() => {
@@ -134,6 +135,23 @@ export default function BulkGenerate() {
     } catch (err) {
       const msg = err.response?.data?.message || "Save failed. Please try again.";
       patchJob(job.id, { saving: false, saveError: msg });
+    }
+  };
+
+  const handleSaveWishlist = async (job) => {
+    if (wishlistedIds.has(job.id)) return;
+    try {
+      await api.post("/tracker", {
+        company: "",
+        role:    job.title || "",
+        status:  "Wishlist",
+        salary:  "",
+        notes:   job.description ? job.description.slice(0, 200) : "",
+        url:     "",
+      });
+      setWishlistedIds(prev => new Set([...prev, job.id]));
+    } catch (err) {
+      alert("Could not save to Wishlist. Please try again.");
     }
   };
 
@@ -445,6 +463,20 @@ export default function BulkGenerate() {
                           Saving…
                         </>
                       ) : job.saved ? "✓ Saved to Cabinet!" : "🗂 Save to Cabinet"}
+                    </button>
+                    <button
+                      onClick={() => handleSaveWishlist(job)}
+                      disabled={wishlistedIds.has(job.id)}
+                      style={{
+                        ...btn(
+                          wishlistedIds.has(job.id) ? "rgba(45,90,61,0.12)" : "transparent",
+                          "#2D5A3D"
+                        ),
+                        border: `1px solid ${wishlistedIds.has(job.id) ? "#2D5A3D" : "rgba(45,90,61,0.35)"}`,
+                        cursor: wishlistedIds.has(job.id) ? "default" : "pointer",
+                      }}
+                    >
+                      {wishlistedIds.has(job.id) ? "✓ Wishlisted!" : "⭐ Save to Wishlist"}
                     </button>
                     <button onClick={() => patchJob(job.id, { status: "idle", activeTab: "cv" })}
                       style={btn("rgba(139,32,32,0.08)", "#8B2020")}>

@@ -59,9 +59,19 @@ function getColumnColor(status) {
 // APPLICATION CARD
 // =============================================================================
 
-function AppCard({ app, onDragStart, onEdit, onDelete }) {
+// Pipeline progression map
+const NEXT_STATUS = {
+  Wishlist:  { next: "Applied",   nextLabel: "📤 Move to Applied",    nextColor: "#2D5A3D" },
+  Applied:   { next: "Interview", nextLabel: "🎙 Move to Interview",  nextColor: "#A78BFA" },
+  Interview: { next: "Offer",     nextLabel: "🎉 Move to Offer",      nextColor: "#4ADE80" },
+  Offer:     { next: null,        nextLabel: null,                    nextColor: null      },
+  Rejected:  { next: "Wishlist",  nextLabel: "↩ Restore to Wishlist", nextColor: "#60A5FA" },
+};
+
+function AppCard({ app, onDragStart, onEdit, onDelete, onMove }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const col = COLUMNS.find(c => c.id === app.status);
+  const pipeline = NEXT_STATUS[app.status] || {};
 
   return (
     <div
@@ -132,12 +142,63 @@ function AppCard({ app, onDragStart, onEdit, onDelete }) {
         </p>
       )}
 
+      {/* ── Stage progression buttons ── */}
+      <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginBottom: "10px" }}>
+        {/* Advance to next stage */}
+        {pipeline.next && (
+          <button
+            onClick={(e) => { e.stopPropagation(); onMove(app.id, pipeline.next); }}
+            style={{
+              flex:         1,
+              background:   `${pipeline.nextColor}18`,
+              border:       `1px solid ${pipeline.nextColor}55`,
+              borderRadius: "6px",
+              color:        pipeline.nextColor,
+              fontSize:     "11px",
+              fontFamily:   "'Libre Baskerville', serif",
+              fontWeight:   900,
+              padding:      "5px 8px",
+              cursor:       "pointer",
+              textAlign:    "center",
+              transition:   "background 0.15s",
+            }}
+            onMouseEnter={e => e.currentTarget.style.background = `${pipeline.nextColor}30`}
+            onMouseLeave={e => e.currentTarget.style.background = `${pipeline.nextColor}18`}
+          >
+            {pipeline.nextLabel}
+          </button>
+        )}
+        {/* Reject — shown on all stages except Offer and Rejected */}
+        {app.status !== "Rejected" && app.status !== "Offer" && (
+          <button
+            onClick={(e) => { e.stopPropagation(); onMove(app.id, "Rejected"); }}
+            style={{
+              background:   "rgba(139,32,32,0.08)",
+              border:       "1px solid rgba(139,32,32,0.3)",
+              borderRadius: "6px",
+              color:        "#8B2020",
+              fontSize:     "11px",
+              fontFamily:   "'Libre Baskerville', serif",
+              fontWeight:   900,
+              padding:      "5px 8px",
+              cursor:       "pointer",
+              transition:   "background 0.15s",
+              whiteSpace:   "nowrap",
+            }}
+            onMouseEnter={e => e.currentTarget.style.background = "rgba(139,32,32,0.15)"}
+            onMouseLeave={e => e.currentTarget.style.background = "rgba(139,32,32,0.08)"}
+          >
+            ❌ Reject
+          </button>
+        )}
+      </div>
+
       {/* Footer row */}
       <div style={{
         display:        "flex",
         justifyContent: "space-between",
         alignItems:     "center",
-        marginTop:      "8px",
+        marginTop:      "4px",
         paddingTop:     "8px",
         borderTop:      "1px solid rgba(0,0,0,0.06)",
       }}>
@@ -218,7 +279,7 @@ function AppCard({ app, onDragStart, onEdit, onDelete }) {
 // KANBAN COLUMN
 // =============================================================================
 
-function KanbanColumn({ column, apps, onDragStart, onDrop, onDragOver, onEdit, onDelete, onAddCard }) {
+function KanbanColumn({ column, apps, onDragStart, onDrop, onDragOver, onEdit, onDelete, onAddCard, onMove }) {
   const [isDragOver, setIsDragOver] = useState(false);
 
   return (
@@ -295,6 +356,7 @@ function KanbanColumn({ column, apps, onDragStart, onDrop, onDragOver, onEdit, o
             onDragStart={onDragStart}
             onEdit={onEdit}
             onDelete={onDelete}
+            onMove={onMove}
           />
         ))}
       </div>
@@ -647,6 +709,24 @@ export default function Tracker() {
   };
 
 
+  // ── MOVE HANDLER (stage progression buttons) ──────────────────────────────
+  const handleMove = async (id, newStatus) => {
+    const app = apps.find(a => a.id === id);
+    if (!app || app.status === newStatus) return;
+
+    // Optimistic update
+    setApps(prev => prev.map(a => a.id === id ? { ...a, status: newStatus } : a));
+
+    try {
+      await api.patch(`/tracker/${id}`, { status: newStatus });
+    } catch {
+      // Revert on failure
+      setApps(prev => prev.map(a => a.id === id ? { ...a, status: app.status } : a));
+      setError("Failed to update status. Please try again.");
+    }
+  };
+
+
   // ── ADD HANDLER ────────────────────────────────────────────────────────────
   const handleAdd = (status = "Wishlist") => {
     setEditingApp({ ...EMPTY_FORM, status });
@@ -817,6 +897,7 @@ export default function Tracker() {
                 onEdit={(app) => { setEditingApp(app); setModalOpen(true); }}
                 onDelete={handleDelete}
                 onAddCard={handleAdd}
+                onMove={handleMove}
               />
             ))}
           </div>
@@ -863,4 +944,7 @@ export default function Tracker() {
     </DashboardLayout>
   );
 }
+
+
+
 

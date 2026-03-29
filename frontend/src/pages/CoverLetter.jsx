@@ -1,1124 +1,731 @@
-
-
-// =============================================================================
-// FILE: frontend/src/pages/CoverLetter.jsx  (UPDATED — Lesson 4.1 Signature)
-// =============================================================================
-// WHAT'S NEW:
-//   ✅ Signature panel — upload PNG/JPG directly from this page
-//   ✅ Signature is saved back to the user's profile via POST /api/profile
-//   ✅ Shows preview of current signature, Replace and Remove buttons
-//   ✅ Appears at the bottom of the page above the history section
-//
-// DESIGN DECISION — why save signature here and not just link to Profile?
-//   The user might arrive at Cover Letter ready to download, then realise
-//   they haven't uploaded a signature yet. Making them navigate away to Profile,
-//   save, come back, and re-generate is a friction point. Embedding the upload
-//   here means they can do it inline without losing their generated letter.
-//   The signature is still stored in personalInfo.signature in the profile —
-//   exactly the same field the docx generator reads. No duplication.
-// =============================================================================
-
-import { useState, useEffect, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useEffect, useCallback } from "react";
 import api from "../services/api";
 import DashboardLayout from "../layouts/DashboardLayout";
 
-
-// ── TONE OPTIONS ──────────────────────────────────────────────────────────────
-// Each option has a value (sent to backend), label (shown in UI), and a short
-// description so the user understands the difference.
-const TONE_OPTIONS = [
-  {
-    value: "professional",
-    label: "Professional",
-    description: "Confident and formal. Demonstrates expertise without exclamation marks.",
+// ─────────────────────────────────────────────
+// STYLES — matches app colour scheme
+// ─────────────────────────────────────────────
+const S = {
+  page: {
+    minHeight: "100vh",
+    background: "#F4EFE6",
+    color: "#1E2018",
+    fontFamily: "'Libre Baskerville', Georgia, serif",
+    paddingTop: "110px",
+    paddingBottom: "60px",
   },
-  {
-    value: "enthusiastic",
-    label: "Enthusiastic",
-    description: "Warm and energetic. Shows genuine excitement about the role.",
+  inner: {
+    maxWidth: "860px",
+    margin: "0 auto",
+    padding: "0 32px",
   },
-  {
-    value: "concise",
-    label: "Concise",
-    description: "Short and punchy. 3 paragraphs max. Every sentence earns its place.",
+  pageHeader: { marginBottom: "32px" },
+  pageTitle: {
+    fontSize: "clamp(20px, 4vw, 32px)",
+    fontWeight: 900,
+    color: "#2D5A3D",
+    fontFamily: "'Libre Baskerville', Georgia, serif",
+    letterSpacing: "2px",
+    marginBottom: "6px",
   },
-];
-
-
-// ── HELPER: format ISO timestamp ──────────────────────────────────────────────
-function formatDate(isoString) {
-  if (!isoString) return "";
-  return new Date(isoString).toLocaleDateString("en-GB", {
-    day: "numeric", month: "short", year: "numeric",
-  });
-}
-
-
-export default function CoverLetter() {
-
-  // ── STATE ──────────────────────────────────────────────────────────────────
-  const [jobDescription, setJobDescription] = useState("");
-  const [tone, setTone]                     = useState("professional");
-  const [result, setResult]                 = useState("");
-  // result: the generated cover letter plain text. Empty string = not generated yet.
-
-  const [loading, setLoading]               = useState(false);
-  const [error, setError]                   = useState("");
-
-  const [copied, setCopied]                 = useState(false);
-  // copied: true for 2 seconds after clipboard copy — shows "✓ Copied!" flash.
-
-  const [saving, setSaving]                 = useState(false);
-  const [saved, setSaved]                   = useState(false);
-  const [saveError, setSaveError]           = useState("");
-  const [downloadError, setDownloadError]     = useState("");
-  const [downloadingTex, setDownloadingTex]   = useState(false);
-  const [downloadTexError, setDownloadTexError] = useState("");
-  // downloadError: shown on screen when .docx download fails — surfaces the real error message.
-
-  const [hasProfile, setHasProfile]         = useState(null);
-  // null = not checked yet, true = profile exists, false = no profile saved.
-  // Used to show a warning when no profile is saved.
-
-  const [history, setHistory]               = useState([]);
-  // history: array of saved cover letters from GET /api/cover-letter/saved
-  // Each item: { id, job_title, tone, cover_letter, preview, created_at }
-
-  const [historyLoading, setHistoryLoading] = useState(true);
-  const [expandedId, setExpandedId]         = useState(null);
-  // expandedId: the id of the history card currently showing full text.
-  // null = all collapsed. Click a card to expand it.
-
-  const [confirmDeleteId, setConfirmDeleteId] = useState(null);
-  const [deletingId, setDeletingId]           = useState(null);
-
-  // ── SIGNATURE STATE ───────────────────────────────────────────────────────
-  const fileInputRef                        = useRef(null);
-  const [signature, setSignature]           = useState("");
-  // signature: base64 data URL from the user's profile, e.g. "data:image/png;base64,..."
-  // Empty string = no signature saved yet.
-  const [fullProfile, setFullProfile]       = useState(null);
-  // fullProfile: the entire profile object — needed so we can POST the full
-  // profile back when saving just the signature field.
-  const [signatureError, setSigError]       = useState("");
-  const [sigSaving, setSigSaving]           = useState(false);
-  const [sigSaved, setSigSaved]             = useState(false);
-
-  const navigate = useNavigate();
-
-
-  // ── LOAD PROFILE + HISTORY ON MOUNT ──────────────────────────────────────
-  useEffect(() => {
-    const init = async () => {
-      // Load full profile so we can (a) check it exists, (b) read the signature,
-      // and (c) POST it back with an updated signature without losing other fields.
-      try {
-        const res = await api.get("/profile");
-        const data = res.data;
-        const exists = data && Object.keys(data).length > 0;
-        setHasProfile(exists);
-        if (exists) {
-          setFullProfile(data);
-          setSignature(data.personalInfo?.signature || "");
-        }
-      } catch {
-        setHasProfile(false);
-      }
-
-      // Load saved cover letter history
-      try {
-        const res = await api.get("/cover-letter/saved");
-        setHistory(res.data);
-      } catch (err) {
-        if (err.response?.status === 401) {
-          localStorage.removeItem("token");
-          navigate("/login");
-        }
-      } finally {
-        setHistoryLoading(false);
-      }
+  pageSubtitle: { color: "#1E2018", fontSize: "13px", opacity: 0.5 },
+  tabRow: {
+    display: "flex", gap: "4px", marginBottom: "28px",
+    borderBottom: "2px solid #DDD5C4", paddingBottom: "0",
+  },
+  tab: (active) => ({
+    padding: "10px 24px",
+    background: active ? "#2D5A3D" : "transparent",
+    color: active ? "#FDFAF5" : "#6B6252",
+    border: "none", borderRadius: "8px 8px 0 0",
+    cursor: "pointer", fontWeight: 700, fontSize: "13px",
+    fontFamily: "inherit", transition: "all 0.15s", marginBottom: "-2px",
+    borderBottom: active ? "2px solid #2D5A3D" : "2px solid transparent",
+  }),
+  tabBadge: {
+    display: "inline-flex", alignItems: "center", justifyContent: "center",
+    background: "#E8F0EB", color: "#2D5A3D", borderRadius: "10px",
+    fontSize: "11px", padding: "1px 7px", marginLeft: "6px", fontWeight: 700,
+  },
+  primaryBtn: (disabled) => ({
+    padding: "13px 28px",
+    background: disabled ? "#C8BCA8" : "#2D5A3D",
+    color: "#FDFAF5", border: "none", borderRadius: "8px",
+    cursor: disabled ? "not-allowed" : "pointer", fontWeight: 700,
+    fontSize: "14px", fontFamily: "inherit", transition: "all 0.15s",
+    whiteSpace: "nowrap", flexShrink: 0, opacity: disabled ? 0.55 : 1,
+  }),
+  secondaryBtn: (disabled) => ({
+    padding: "10px 20px", background: "transparent",
+    color: disabled ? "#C8BCA8" : "#2D5A3D",
+    border: `1px solid ${disabled ? "#C8BCA8" : "#2D5A3D"}`,
+    borderRadius: "8px", cursor: disabled ? "not-allowed" : "pointer",
+    fontWeight: 700, fontSize: "13px", fontFamily: "inherit",
+    transition: "all 0.15s", whiteSpace: "nowrap",
+  }),
+  dangerBtn: {
+    padding: "8px 18px", background: "transparent", color: "#8B2020",
+    border: "1px solid rgba(139,32,32,0.35)", borderRadius: "8px",
+    cursor: "pointer", fontWeight: 700, fontSize: "13px", fontFamily: "inherit",
+  },
+  successBtn: {
+    padding: "8px 18px", background: "rgba(45,90,61,0.12)", color: "#2D5A3D",
+    border: "1px solid #2D5A3D", borderRadius: "8px", cursor: "pointer",
+    fontWeight: 700, fontSize: "13px", fontFamily: "inherit",
+  },
+  jobGrid: { display: "flex", flexDirection: "column", gap: "10px" },
+  jobCard: (selected) => ({
+    background: "rgba(220,210,192,0.5)",
+    border: selected ? "1px solid rgba(45,90,61,0.5)" : "1px solid rgba(45,90,61,0.15)",
+    borderLeft: selected ? "4px solid #2D5A3D" : "4px solid rgba(45,90,61,0.2)",
+    borderRadius: "12px", padding: "20px 24px", transition: "all 0.15s",
+    cursor: "pointer", boxShadow: selected ? "0 0 0 3px #E8F0EB" : "none",
+  }),
+  jobCardTop: {
+    display: "flex", justifyContent: "space-between",
+    alignItems: "flex-start", gap: "16px", flexWrap: "wrap",
+  },
+  jobLeft: { flex: 1, minWidth: "200px" },
+  jobTitle: {
+    fontSize: "14px", fontWeight: 700, color: "#1E2018", marginBottom: "3px",
+    fontFamily: "'Libre Baskerville', serif",
+  },
+  jobCompany: {
+    fontSize: "13px", color: "#2D5A3D", fontWeight: 700, marginBottom: "8px",
+    fontFamily: "'Libre Baskerville', serif",
+  },
+  jobMeta: { display: "flex", gap: "6px", flexWrap: "wrap", marginBottom: "8px" },
+  metaTag: (color) => ({
+    padding: "2px 9px", background: "#E8F0EB",
+    border: `1px solid ${color || "#C8BCA8"}`,
+    borderRadius: "20px", fontSize: "11px", color: color || "#6B6252",
+    fontFamily: "'Libre Baskerville', serif",
+  }),
+  scoreRing: (score) => {
+    const color = score >= 70 ? "#2D5A3D" : score >= 50 ? "#B8860B" : "#8B2020";
+    return {
+      width: "58px", height: "58px", borderRadius: "50%",
+      border: `3px solid ${color}`, display: "flex", flexDirection: "column",
+      alignItems: "center", justifyContent: "center", flexShrink: 0,
+      background: "#FDFAF5",
     };
+  },
+  scoreNumber: (score) => ({
+    fontSize: "13px", fontWeight: 900,
+    color: score >= 70 ? "#2D5A3D" : score >= 50 ? "#B8860B" : "#8B2020",
+    lineHeight: 1, fontFamily: "'Libre Baskerville', serif",
+  }),
+  scoreLabel: { fontSize: "7px", color: "#6B6252", marginTop: "2px", letterSpacing: "0.5px" },
+  jobDesc: {
+    marginTop: "14px", padding: "14px 16px", background: "#EDE8DE",
+    borderRadius: "8px", fontSize: "12px", lineHeight: "1.7", color: "#6B6252",
+    whiteSpace: "pre-wrap",
+    border: "1px solid #DDD5C4", fontFamily: "'Libre Baskerville', serif",
+  },
+  jobCardActions: { display: "flex", gap: "8px", marginTop: "12px", flexWrap: "wrap", alignItems: "center" },
+  statusBadge: (status) => {
+    const map = {
+      ranked:    { bg: "#E8F0EB",               color: "#6B6252"  },
+      generated: { bg: "rgba(45,90,61,0.12)",   color: "#2D5A3D"  },
+      verified:  { bg: "rgba(184,134,11,0.12)", color: "#B8860B"  },
+      applied:   { bg: "rgba(45,90,61,0.08)",   color: "#3D7A55"  },
+    };
+    const s = map[status] || map.ranked;
+    return {
+      padding: "2px 10px", background: s.bg, color: s.color,
+      borderRadius: "20px", fontSize: "9px", fontWeight: 700,
+      textTransform: "uppercase", letterSpacing: "0.8px",
+      fontFamily: "'Libre Baskerville', serif",
+    };
+  },
+  checkbox: { width: "15px", height: "15px", accentColor: "#2D5A3D", cursor: "pointer", flexShrink: 0, marginTop: "3px" },
+  batchBar: {
+    display: "flex", alignItems: "center", justifyContent: "space-between",
+    padding: "12px 16px", background: "#E8F0EB",
+    border: "1px solid rgba(45,90,61,0.25)", borderRadius: "10px",
+    marginBottom: "16px", flexWrap: "wrap", gap: "10px",
+  },
+  batchBarText: { color: "#2D5A3D", fontWeight: 700, fontSize: "13px", fontFamily: "'Libre Baskerville', serif" },
+  queueCard: {
+    background: "#FDFAF5", border: "1px solid #DDD5C4",
+    borderRadius: "12px", padding: "18px 22px", marginBottom: "10px",
+  },
+  queueCardTitle: { fontSize: "14px", fontWeight: 700, color: "#1E2018", marginBottom: "3px", fontFamily: "'Libre Baskerville', serif" },
+  queueCardSub:   { fontSize: "12px", color: "#6B6252", marginBottom: "12px", fontFamily: "'Libre Baskerville', serif" },
+  queueActions:   { display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" },
+  applyNowBtn: {
+    padding: "10px 22px", background: "#2D5A3D", color: "#FDFAF5",
+    border: "none", borderRadius: "8px", cursor: "pointer", fontWeight: 700,
+    fontSize: "13px", fontFamily: "inherit", textDecoration: "none",
+    display: "inline-flex", alignItems: "center", gap: "6px",
+  },
+  emptyState: { textAlign: "center", padding: "60px 20px", color: "#6B6252" },
+  emptyIcon:  { fontSize: "3rem", marginBottom: "12px" },
+  loadingRow: {
+    display: "flex", alignItems: "center", justifyContent: "center",
+    gap: "12px", padding: "40px", color: "#6B6252",
+    fontFamily: "'Libre Baskerville', serif", fontSize: "13px",
+  },
+  spinner: {
+    width: "20px", height: "20px",
+    border: "2px solid #DDD5C4", borderTop: "2px solid #2D5A3D",
+    borderRadius: "50%", animation: "spin 0.8s linear infinite", flexShrink: 0,
+  },
+  progressBar: (pct) => ({
+    height: "3px", background: "#DDD5C4", borderRadius: "2px",
+    overflow: "hidden", marginTop: "8px", display: pct > 0 ? "block" : "none",
+  }),
+  progressFill: (pct) => ({
+    height: "100%", width: `${pct}%`, background: "#2D5A3D",
+    borderRadius: "2px", transition: "width 0.4s ease",
+  }),
+};
 
-    init();
-  }, [navigate]);
+// ─────────────────────────────────────────────
+// COMPONENT
+// ─────────────────────────────────────────────
+export default function SmartJobsPage() {
+  const [activeTab, setActiveTab] = useState("search"); // search | queue
+  const [query, setQuery] = useState("");
+  const [profile, setProfile] = useState({});
+  const [jobs, setJobs] = useState([]);
+  const [queueData, setQueueData] = useState({ ranked: [], generated: [], verified: [], applied: [] });
+  const [selectedIds, setSelectedIds] = useState(new Set());
+  const [expandedId, setExpandedId] = useState(null);
+  const [searching, setSearching] = useState(false);
+  const [generating, setGenerating] = useState(false);
+  const [generateProgress, setGenerateProgress] = useState(0);
+  const [page, setPage] = useState(1);
+  const [error, setError] = useState("");
+  const [successMsg, setSuccessMsg] = useState("");
 
+  // ── Load queue + profile from API on mount ──
+  useEffect(() => {
+    loadQueue();
+    api.get("/profile")
+      .then(res => { if (res.data && Object.keys(res.data).length > 0) setProfile(res.data); })
+      .catch(() => {});
+    const style = document.createElement("style");
+    style.textContent = `@keyframes spin { to { transform: rotate(360deg); } }`;
+    document.head.appendChild(style);
+  }, []);
 
-  // ── GENERATE HANDLER ──────────────────────────────────────────────────────
-  const handleGenerate = async () => {
-    if (!jobDescription.trim()) {
-      setError("Please paste a job description before generating.");
-      return;
-    }
-
-    setError("");
-    setLoading(true);
-    setResult("");
-    setSaved(false);
-    setSaveError("");
-
+  const loadQueue = async () => {
     try {
-      const response = await api.post("/cover-letter", {
-        jobDescription,
-        tone,
-      });
-      // The backend loads the profile from DB — we only send the JD and tone.
-
-      setResult(response.data.cover_letter || "");
-
-    } catch (err) {
-      if (err.response?.status === 401) {
-        localStorage.removeItem("token");
-        navigate("/login");
-      } else {
-        setError("Generation failed. Make sure the backend server is running.");
-      }
-    } finally {
-      setLoading(false);
+      const res = await api.get("/smart-jobs/queue");
+      setQueueData(res.data);
+    } catch (e) {
+      console.error("Queue load error:", e);
     }
   };
 
+  // ── SEARCH ──
+  const handleSearch = async () => {
+    if (searching) return;
+    setError("");
+    setSuccessMsg("");
+    setSearching(true);
+    setJobs([]);
+    setSelectedIds(new Set());
 
-  // ── COPY HANDLER ──────────────────────────────────────────────────────────
-  const handleCopy = (text) => {
-    // text param: allows copying from either the live result or a history card.
-    navigator.clipboard.writeText(text).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+    const currentProfile = profile;
+
+    try {
+      const res = await api.post("/smart-jobs/search", {
+        profile: currentProfile,
+        query: query.trim(),
+        page,
+      });
+      setJobs(res.data.jobs || []);
+      if ((res.data.jobs || []).length === 0) {
+        setError("No jobs found. Try a different search term, or make sure your JSEARCH_API_KEY is set.");
+      }
+    } catch (e) {
+      setError(e.response?.data?.message || "Search failed. Check your API key.");
+    } finally {
+      setSearching(false);
+    }
+  };
+
+  const handleLoadMore = async () => {
+    const nextPage = page + 1;
+    setPage(nextPage);
+    setSearching(true);
+    try {
+      const res = await api.post("/smart-jobs/search", {
+        profile: profile,
+        query: query.trim(),
+        page: nextPage,
+      });
+      const newJobs = res.data.jobs || [];
+      // Merge + re-sort by score
+      setJobs(prev => {
+        const combined = [...prev, ...newJobs];
+        return combined.sort((a, b) => b.match_score - a.match_score);
+      });
+    } catch (e) {
+      setError("Failed to load more jobs.");
+    } finally {
+      setSearching(false);
+    }
+  };
+
+  // ── SELECT JOBS ──
+  const toggleSelect = (e, jobId) => {
+    e.stopPropagation();
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      next.has(jobId) ? next.delete(jobId) : next.add(jobId);
+      return next;
     });
   };
 
-
-  // ── DOWNLOAD .DOCX HANDLER ──────────────────────────────────────────────────
-  const handleDownload = async (text, jobTitleStr = "Cover_Letter") => {
-    setDownloadError("");
-    try {
-      const response = await api.post(
-        "/download-cover-letter",
-        { cover_letter: text, job_title: jobTitleStr },
-        { responseType: "blob" }
-      );
-      const blob = response.data;
-      const url  = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href     = url;
-      const safe = jobTitleStr.replace(/[^a-zA-Z0-9\s]/g, "").replace(/\s+/g, "_").slice(0, 60);
-      link.download = `${safe}_Cover_Letter.docx`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-    } catch (err) {
-      if (err.response?.status === 401) {
-        localStorage.removeItem("token");
-        navigate("/login");
-      } else {
-        setDownloadError("Download failed. Make sure the backend is running.");
-      }
-    }
+  const selectAll = () => {
+    setSelectedIds(new Set(jobs.map(j => j.job_id)));
   };
 
+  const selectNone = () => setSelectedIds(new Set());
 
-  const handleDownloadTex = async (text, jobTitleStr = "Cover_Letter") => {
-    if (!text) return;
-    setDownloadingTex(true);
-    setDownloadTexError("");
-    try {
-      const response = await api.post(
-        "/download-cover-letter-tex",
-        { cover_letter: text, job_title: jobTitleStr },
-        { responseType: "blob" }
-      );
-      const blob = response.data;
-      const url  = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href     = url;
-      link.download = "Cover_Letter.tex";
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-    } catch (err) {
-      if (err.response?.status === 401) {
-        localStorage.removeItem("token");
-        navigate("/login");
-      } else {
-        setDownloadTexError("TeX download failed.");
-      }
-    } finally {
-      setDownloadingTex(false);
-    }
-  };
- 
+  // ── GENERATE BATCH ZIP ──
+  const handleGenerateBatch = async () => {
+    if (generating || selectedIds.size === 0) return;
+    setError("");
+    setSuccessMsg("");
+    setGenerating(true);
+    setGenerateProgress(5);
 
-  // ── SAVE HANDLER ──────────────────────────────────────────────────────────
-  const handleSave = async () => {
-    if (!result) return;
+    // Cap at 5 — each job = 2 AI calls (~15-30s), so 5 jobs ≈ 2 mins max
+    const selectedJobs = jobs.filter(j => selectedIds.has(j.job_id)).slice(0, 5);
+    const jobCount = selectedJobs.length;
 
-    setSaving(true);
-    setSaveError("");
-
-    // Extract job title from the first non-empty line of the job description.
-    const jobTitle = jobDescription.trim().split("\n").find(l => l.trim()) || "Untitled Role";
+    // Spread progress across expected duration so it doesn't hit 88% too fast
+    const tickInterval = Math.max(1500, (jobCount * 20000) / 25);
+    const ticker = setInterval(() => {
+      setGenerateProgress(p => Math.min(p + 3, 88));
+    }, tickInterval);
 
     try {
-      await api.post("/cover-letter/save", {
-        cover_letter: result,
-        job_title:    jobTitle.slice(0, 120),
-        tone,
+      const res = await api.post("/smart-jobs/generate-batch", {
+        profile: profile,
+        jobs: selectedJobs,
+      }, {
+        responseType: "blob",
+        timeout: jobCount * 3 * 60 * 1000, // 3 mins per job
       });
 
-      setSaved(true);
-      setTimeout(() => setSaved(false), 3000);
+      clearInterval(ticker);
+      setGenerateProgress(100);
 
-      // Refresh history list so the new entry appears immediately.
-      const res = await api.get("/cover-letter/saved");
-      setHistory(res.data);
+      // Trigger download
+      const url = window.URL.createObjectURL(new Blob([res.data]));
+      const link = document.createElement("a");
+      link.href = url;
+      link.setAttribute("download", "FrontendJobs_Applications.zip");
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
 
-    } catch (err) {
-      if (err.response?.status === 401) {
-        localStorage.removeItem("token");
-        navigate("/login");
-      } else {
-        setSaveError("Could not save. Please try again.");
+      setSuccessMsg(`✓ ZIP downloaded — ${jobCount} tailored CV + Cover Letter files ready. Verify each on Overleaf, then mark as Verified in your Apply Queue.`);
+
+      setJobs(prev => prev.map(j =>
+        selectedIds.has(j.job_id) ? { ...j, status: "generated" } : j
+      ));
+
+      await loadQueue();
+    } catch (e) {
+      clearInterval(ticker);
+      // axios blob responses wrap errors as blobs — read the real message
+      let errMsg = "Generation failed. Check the server terminal for the exact error.";
+      if (e.code === "ECONNABORTED" || e.message?.includes("timeout")) {
+        errMsg = "Request timed out. Try selecting just 1–2 jobs and try again.";
+      } else if (e.response?.data instanceof Blob) {
+        try {
+          const text = await e.response.data.text();
+          const parsed = JSON.parse(text);
+          if (parsed.message) errMsg = `Server error: ${parsed.message}`;
+        } catch { /* use default */ }
+      } else if (e.response?.data?.message) {
+        errMsg = `Server error: ${e.response.data.message}`;
       }
+      setError(errMsg);
     } finally {
-      setSaving(false);
+      setGenerating(false);
+      setTimeout(() => setGenerateProgress(0), 3000);
     }
   };
 
-
-  // ── DELETE HISTORY ITEM ───────────────────────────────────────────────────
-  const handleDelete = async (clId) => {
-    setDeletingId(clId);
-    setConfirmDeleteId(null);
+  // ── UPDATE STATUS ──
+  const updateStatus = async (jobId, status) => {
     try {
-      await api.delete(`/cover-letter/${clId}`);
-      setHistory(prev => prev.filter(cl => cl.id !== clId));
-    } catch (err) {
-      if (err.response?.status === 401) {
-        localStorage.removeItem("token");
-        navigate("/login");
-      }
-    } finally {
-      setDeletingId(null);
+      await api.patch("/smart-jobs/status", { job_id: jobId, status });
+      await loadQueue();
+      setSuccessMsg(`Status updated to "${status}"`);
+      setTimeout(() => setSuccessMsg(""), 3000);
+    } catch (e) {
+      setError("Failed to update status.");
     }
   };
 
-
-  // ── SIGNATURE HANDLERS ────────────────────────────────────────────────────
-  const handleSignatureUpload = (e) => {
-    setSigError("");
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (!["image/png", "image/jpeg", "image/jpg"].includes(file.type)) {
-      setSigError("Only PNG or JPEG images are accepted.");
-      return;
-    }
-    if (file.size > 2 * 1024 * 1024) {
-      setSigError("Image must be under 2MB.");
-      return;
-    }
-    const reader = new FileReader();
-    reader.onload = (event) => setSignature(event.target.result);
-    reader.readAsDataURL(file);
-    e.target.value = "";
+  // ── COPY COVER LETTER HINT ──
+  const handleApply = (job) => {
+    // Mark as applied
+    updateStatus(job.job_id, "applied");
+    // Open apply URL
+    window.open(job.apply_url, "_blank", "noopener,noreferrer");
   };
 
-  const handleRemoveSignature = () => {
-    setSignature("");
-    setSigError("");
-    setSigSaved(false);
+  // ─────────────────────────────────────────
+  // RENDER HELPERS
+  // ─────────────────────────────────────────
+
+  const renderJobCard = (job, showCheckbox = true) => {
+    const isSelected = selectedIds.has(job.job_id);
+    const isExpanded = expandedId === job.job_id;
+
+    return (
+      <div
+        key={job.job_id}
+        style={S.jobCard(isSelected)}
+        onClick={() => setExpandedId(isExpanded ? null : job.job_id)}
+      >
+        <div style={S.jobCardTop}>
+          {/* Checkbox */}
+          {showCheckbox && (
+            <input
+              type="checkbox"
+              style={S.checkbox}
+              checked={isSelected}
+              onChange={(e) => toggleSelect(e, job.job_id)}
+              onClick={(e) => e.stopPropagation()}
+            />
+          )}
+
+          {/* Job Info */}
+          <div style={S.jobLeft}>
+            <div style={S.jobTitle}>{job.title}</div>
+            <div style={S.jobCompany}>{job.company}</div>
+            <div style={S.jobMeta}>
+              {job.location && (
+                <span style={S.metaTag("#6B6252")}>📍 {job.location}</span>
+              )}
+              {job.work_type && (
+                <span style={S.metaTag(job.work_type === "Remote" ? "#2D5A3D" : "#6B6252")}>
+                  {job.work_type === "Remote" ? "🏠" : "🏢"} {job.work_type}
+                </span>
+              )}
+              {job.employment_type && (
+                <span style={S.metaTag("#6B6252")}>{job.employment_type}</span>
+              )}
+              <span style={S.metaTag(job.salary !== "Not disclosed" ? "#B8860B" : "#6B6252")}>
+                💰 {job.salary}
+              </span>
+            </div>
+            <span style={S.statusBadge(job.status)}>{job.status}</span>
+          </div>
+
+          {/* Match Score */}
+          <div style={S.scoreRing(job.match_score)}>
+            <span style={S.scoreNumber(job.match_score)}>
+              {Math.round(job.match_score)}
+            </span>
+            <span style={S.scoreLabel}>MATCH</span>
+          </div>
+        </div>
+
+        {/* Expanded Description */}
+        {isExpanded && (
+          <>
+            <div style={S.jobDesc}>
+              {job.description || "No description available."}
+            </div>
+            <div style={S.jobCardActions}>
+              {job.status === "verified" && (
+                <button
+                  style={S.applyNowBtn}
+                  onClick={(e) => { e.stopPropagation(); handleApply(job); }}
+                >
+                  ✈ Apply Now
+                </button>
+              )}
+              {job.status === "generated" && (
+                <button
+                  style={S.successBtn}
+                  onClick={(e) => { e.stopPropagation(); updateStatus(job.job_id, "verified"); }}
+                >
+                  ✓ Mark Verified
+                </button>
+              )}
+              {job.status === "applied" && (
+                <span style={{ color: "#3D7A55", fontSize: "0.85rem", fontWeight: 700 }}>
+                  ✈ Applied
+                </span>
+              )}
+            </div>
+          </>
+        )}
+      </div>
+    );
   };
 
-  const handleSaveSignature = async () => {
-    // Merge the new signature into the full profile and POST it back.
-    // This updates only personalInfo.signature — all other fields are unchanged.
-    if (!fullProfile) return;
-    setSigSaving(true);
-    setSigError("");
-    try {
-      const updated = {
-        ...fullProfile,
-        personalInfo: { ...fullProfile.personalInfo, signature },
-      };
-      await api.post("/profile", updated);
-      setFullProfile(updated);
-      setSigSaved(true);
-      setTimeout(() => setSigSaved(false), 3000);
-    } catch {
-      setSigError("Could not save signature. Please try again.");
-    } finally {
-      setSigSaving(false);
-    }
-  };
+  const totalQueue = queueData.verified?.length + queueData.generated?.length;
 
-
-  // ── RENDER ────────────────────────────────────────────────────────────────
+  // ─────────────────────────────────────────
+  // RENDER
+  // ─────────────────────────────────────────
   return (
     <DashboardLayout>
-      <div style={{ maxWidth: "min(1000px, 100%)", margin: "0 auto" }}>
+    <div style={S.page}>
+      <div style={S.inner}>
 
-        {/* ── PAGE HEADER ──────────────────────────────── */}
-        <div style={{ marginBottom: "28px" }}>
-          <h1 style={{
-            fontFamily: "'Libre Baskerville', serif",
-            fontSize: "clamp(20px, 4vw, 32px)", color: "#2D5A3D",
-            letterSpacing: "2px", marginBottom: "6px",
-          }}>
-            Cover Letter
-          </h1>
-          <p style={{ color: "#1E2018", opacity: 0.5, fontSize: "13px" }}>
-            Generate a tailored cover letter from your profile and a job description.
-          </p>
+        {/* Header */}
+        <div style={S.pageHeader}>
+          <div style={S.pageTitle}>⚡ Smart Job Hunt</div>
+          <div style={S.pageSubtitle}>
+            AI matches jobs to your profile · Auto-generates tailored CV + Cover Letter · Guided apply queue
+          </div>
         </div>
 
-
-        {/* ── NO PROFILE WARNING ───────────────────────── */}
-        {hasProfile === false && (
-          <div style={{
-            background: "rgba(255,179,71,0.08)",
-            border: "1px solid rgba(255,179,71,0.35)",
-            borderRadius: "10px",
-            padding: "14px 18px",
-            marginBottom: "20px",
-            display: "flex", flexWrap: "wrap", alignItems: "center", gap: "12px",
-          }}>
-            <span style={{ fontSize: "18px" }}>⚠</span>
-            <p style={{ color: "#FFB347", fontSize: "13px", margin: 0 }}>
-              No profile saved yet — the cover letter will be less personalised.{" "}
-              <span
-                onClick={() => navigate("/profile")}
-                style={{ textDecoration: "underline", cursor: "pointer" }}
-              >
-                Set up your profile
-              </span>{" "}
-              to get better results.
-            </p>
-          </div>
-        )}
-
-
-        {/* ══ INPUT CARD ════════════════════════════════════ */}
-        <div className="card" style={{ maxWidth: "100%", marginBottom: "24px" }}>
-
-          {/* Job Description */}
-          <h3 style={{
-            color: "#2D5A3D", fontFamily: "'Libre Baskerville', serif",
-            fontSize: "13px", letterSpacing: "2px", textTransform: "uppercase",
-            marginBottom: "14px", opacity: 0.8,
-          }}>
-            📋 Job Description
-          </h3>
-
-          <textarea
-            value={jobDescription}
-            onChange={(e) => setJobDescription(e.target.value)}
-            placeholder="Paste the full job description here..."
-            rows={8}
-            style={{
-              width: "100%", background: "#FFFFFF",
-              border: "1px solid rgba(45,90,61,0.2)", borderRadius: "8px",
-              color: "#1E2018", padding: "14px", fontSize: "13px",
-              lineHeight: "1.6", resize: "vertical",
-              fontFamily: "system-ui, sans-serif", marginBottom: "20px",
-            }}
-          />
-
-          {/* Tone Selector */}
-          <h3 style={{
-            color: "#2D5A3D", fontFamily: "'Libre Baskerville', serif",
-            fontSize: "13px", letterSpacing: "2px", textTransform: "uppercase",
-            marginBottom: "12px", opacity: 0.8,
-          }}>
-            🎨 Tone
-          </h3>
-
-          <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", marginBottom: "20px" }}>
-            {TONE_OPTIONS.map((option) => {
-              const isSelected = tone === option.value;
-              return (
-                <div
-                  key={option.value}
-                  onClick={() => setTone(option.value)}
-                  style={{
-                    flex: 1, minWidth: "140px",
-                    background: isSelected ? "rgba(45,90,61,0.12)" : "rgba(0,0,0,0.2)",
-                    border: isSelected
-                      ? "1px solid rgba(45,90,61,0.6)"
-                      : "1px solid rgba(45,90,61,0.15)",
-                    borderRadius: "10px",
-                    padding: "14px 16px",
-                    cursor: "pointer",
-                    transition: "all 0.15s ease",
-                  }}
-                >
-                  <p style={{
-                    color: isSelected ? "#2D5A3D" : "#1E2018",
-                    fontFamily: "'Libre Baskerville', serif",
-                    fontSize: "13px", marginBottom: "5px",
-                    fontWeight: "900",
-                  }}>
-                    {isSelected ? "● " : "○ "}{option.label}
-                  </p>
-                  <p style={{
-                    color: "#1E2018", fontSize: "11px",
-                    opacity: 0.45, lineHeight: "1.5", margin: 0,
-                    fontFamily: "system-ui, sans-serif",
-                  }}>
-                    {option.description}
-                  </p>
-                </div>
-              );
-            })}
-          </div>
-
-          {error && (
-            <p style={{ color: "#8B2020", fontSize: "13px", marginBottom: "12px" }}>{error}</p>
-          )}
-
-          {/* Generate Button */}
-          <button
-            className="primary-btn"
-            onClick={handleGenerate}
-            disabled={loading}
-            style={{
-              fontSize: "15px", padding: "13px 36px",
-              opacity: loading ? 0.65 : 1,
-              cursor: loading ? "not-allowed" : "pointer",
-              display: "flex", flexWrap: "wrap", alignItems: "center", gap: "8px",
-            }}
-          >
-            {loading ? (
-              <>
-                <span style={{
-                  display: "inline-block", width: "14px", height: "14px",
-                  border: "2px solid #2D5A3D", borderTopColor: "transparent",
-                  borderRadius: "50%", animation: "spin 0.7s linear infinite",
-                }} />
-                Writing...
-              </>
-            ) : "✦ Generate Cover Letter"}
+        {/* Tabs */}
+        <div style={S.tabRow}>
+          <button style={S.tab(activeTab === "search")} onClick={() => setActiveTab("search")}>
+            🔍 Search & Rank
           </button>
-
-          <style>{`
-            @keyframes spin  { to { transform: rotate(360deg); } }
-            @keyframes pulse { 0%,100%{opacity:0.4} 50%{opacity:0.9} }
-          `}</style>
+          <button style={S.tab(activeTab === "queue")} onClick={() => { setActiveTab("queue"); loadQueue(); }}>
+            ✈ Apply Queue
+            {totalQueue > 0 && <span style={S.tabBadge}>{totalQueue}</span>}
+          </button>
         </div>
 
-
-        {/* ══ LOADING SKELETON ════════════════════════════ */}
-        {loading && (
-          <div style={{
-            background: "#F0EAD8", borderRadius: "12px", padding: "32px",
-            marginBottom: "24px", border: "1px solid rgba(45,90,61,0.08)",
-          }}>
-            {[100, 95, 88, 92, 75, 85, 60].map((w, i) => (
-              <div key={i} style={{
-                height: "13px", background: "rgba(45,90,61,0.07)",
-                borderRadius: "6px", marginBottom: "14px", width: `${w}%`,
-                animation: "pulse 1.5s ease-in-out infinite",
-                animationDelay: `${i * 0.1}s`,
-              }} />
-            ))}
+        {/* Alerts */}
+        {error && (
+          <div style={{ padding: "12px 18px", background: "#FBF0F0", border: "1px solid rgba(139,32,32,0.25)", borderRadius: "8px", color: "#8B2020", marginBottom: "16px", fontSize: "0.88rem" }}>
+            ⚠ {error}
+          </div>
+        )}
+        {successMsg && (
+          <div style={{ padding: "12px 18px", background: "#E8F0EB", border: "1px solid rgba(45,90,61,0.3)", borderRadius: "8px", color: "#2D5A3D", marginBottom: "16px", fontSize: "0.88rem" }}>
+            {successMsg}
           </div>
         )}
 
-
-        {/* ══ RESULT PANEL ════════════════════════════════ */}
-        {result && !loading && (
-          <div className="card" style={{ maxWidth: "100%", marginBottom: "24px" }}>
-
-            {/* Header row: title + character count */}
-            <div style={{
-              display: "flex", justifyContent: "space-between",
-              alignItems: "center", flexWrap: "wrap", gap: "12px",
-              marginBottom: "20px",
-            }}>
-              <h3 style={{
-                color: "#2D5A3D", fontFamily: "'Libre Baskerville', serif",
-                fontSize: "13px", letterSpacing: "2px", textTransform: "uppercase",
-                opacity: 0.8, margin: 0,
-              }}>
-                ✉ Generated Cover Letter
-              </h3>
-              <span style={{
-                color: "#1E2018", fontSize: "11px", opacity: 0.35,
-                fontFamily: "'Libre Baskerville', serif",
-              }}>
-                {result.length} characters · {result.split(/\n\n+/).filter(p => p.trim()).length} paragraphs
-              </span>
-            </div>
-
-            {/* Cover letter text — shown in a readable panel */}
-            <div style={{
-              background: "#FFFFFF",
-              border: "1px solid rgba(45,90,61,0.1)",
-              borderRadius: "10px",
-              padding: "28px 32px",
-              marginBottom: "24px",
-              whiteSpace: "pre-wrap",
-              // pre-wrap: preserves newlines from the plain text response
-              // while still wrapping long lines. Essential for cover letter prose.
-              color: "#1E2018",
-              fontSize: "14px",
-              lineHeight: "1.85",
-              fontFamily: "system-ui, sans-serif",
-            }}>
-              {result}
-            </div>
-
-            {/* Action buttons row */}
-            <div style={{
-              display: "flex", gap: "12px", flexWrap: "wrap", alignItems: "flex-start",
-            }}>
-
-              {/* Copy */}
-              <button
-                className="primary-btn"
-                onClick={() => handleCopy(result)}
-                style={{
-                  fontSize: "14px", padding: "11px 24px",
-                  background: copied ? "#3D7A55" : "#2D5A3D",
-                }}
-              >
-                {copied ? "✓ Copied!" : "⎘ Copy"}
-              </button>
-
-              {/* ── Download .docx ── */}
-              <button
-                onClick={() => handleDownload(result, jobDescription.split("\n")[0] || "Cover_Letter")}
-                style={{
-                  background:   "transparent",
-                  border:       "1px solid rgba(45,90,61,0.4)",
-                  color:        "#2D5A3D",
-                  padding:      "11px 24px",
-                  borderRadius: "6px",
-                  cursor:       "pointer",
-                  fontSize:     "14px",
-                  fontFamily:   "'Libre Baskerville', serif",
-                  transition:   "background 0.15s ease",
-                }}
-                onMouseEnter={(e) => e.currentTarget.style.background = "rgba(45,90,61,0.08)"}
-                onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
-              >
-                ⬇ Download .docx
-              </button>
-              {downloadError && (
-                <p style={{ color: "#8B2020", fontSize: "12px", marginTop: "6px" }}>⚠ {downloadError}</p>
-              )}
-
-              {/* ── Download .tex + Overleaf suggestion ── */}
-              <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: "4px" }}>
-                <button
-                  onClick={() => handleDownloadTex(result, jobDescription.split("\n")[0] || "Cover_Letter")}
-                  disabled={downloadingTex}
-                  style={{
-                    background:   "#2D5A3D",
-                    border:       "none",
-                    color:        "#EDE8DE",
-                    padding:      "11px 24px",
-                    borderRadius: "6px",
-                    cursor:       downloadingTex ? "not-allowed" : "pointer",
-                    fontSize:     "14px",
-                    fontFamily:   "'Libre Baskerville', serif",
-                    fontWeight:   900,
-                    opacity:      downloadingTex ? 0.65 : 1,
-                    display:      "flex", alignItems: "center", gap: "8px",
-                  }}
-                >
-                  {downloadingTex ? (
-                    <>
-                      <span style={{
-                        display: "inline-block", width: "12px", height: "12px",
-                        border: "2px solid rgba(255,255,255,0.4)", borderTopColor: "white",
-                        borderRadius: "50%", animation: "spin 0.7s linear infinite",
-                      }} />
-                      Preparing...
-                    </>
-                  ) : "⬇ Download .tex"}
-                </button>
-                <span style={{ fontSize: "12px", color: "#1E2018", opacity: 0.55, lineHeight: "1.4" }}>
-                  Edit & compile free on{" "}
-                  <a href="https://www.overleaf.com" target="_blank" rel="noopener noreferrer"
-                    style={{ color: "#2D5A3D", fontWeight: 700, textDecoration: "underline" }}>
-                    overleaf.com
-                  </a>
-                </span>
-                {downloadTexError && (
-                  <p style={{ color: "#8B2020", fontSize: "12px", marginTop: "3px" }}>⚠ {downloadTexError}</p>
-                )}
-              </div>
-
-              {/* Save */}
-              <div>
-                <button
-                  className="primary-btn"
-                  onClick={handleSave}
-                  disabled={saving || saved}
-                  style={{
-                    fontSize: "14px", padding: "11px 24px",
-                    background: saved ? "#3D7A55" : saving ? "#2D5A3D" : "#2D5A3D",
-                    opacity: saving ? 0.75 : 1,
-                    cursor: (saving || saved) ? "not-allowed" : "pointer",
-                    display: "flex", flexWrap: "wrap", alignItems: "center", gap: "8px",
-                  }}
-                >
-                  {saving ? (
-                    <>
-                      <span style={{
-                        display: "inline-block", width: "12px", height: "12px",
-                        border: "2px solid #2D5A3D", borderTopColor: "transparent",
-                        borderRadius: "50%", animation: "spin 0.7s linear infinite",
-                      }} />
-                      Saving...
-                    </>
-                  ) : saved ? "✓ Saved!" : "💾 Save"}
-                </button>
-                {saveError && (
-                  <p style={{ color: "#8B2020", fontSize: "12px", marginTop: "6px" }}>
-                    {saveError}
-                  </p>
-                )}
-              </div>
-
-            </div>
-          </div>
-        )}
-
-
-        {/* ══ SIGNATURE PANEL ═════════════════════════════
-            Lets the user upload a signature image without leaving this page.
-            Saved directly to their profile so it's picked up on .docx download.
-        ════════════════════════════════════════════════ */}
-        <div className="card" style={{ maxWidth: "100%", marginBottom: "24px" }}>
-          <h3 style={{
-            color: "#2D5A3D", fontFamily: "'Libre Baskerville', serif",
-            fontSize: "13px", letterSpacing: "2px", textTransform: "uppercase",
-            marginBottom: "6px", opacity: 0.8,
-          }}>
-            ✍ Signature
-          </h3>
-          <p style={{
-            color: "#1E2018", fontSize: "13px", opacity: 0.45,
-            marginBottom: "20px", lineHeight: "1.6",
-            fontFamily: "system-ui, sans-serif",
-          }}>
-            Your signature appears at the bottom of the downloaded .docx cover letter.
-            Upload a photo or scan — PNG or JPEG, max 2MB.
-          </p>
-
-          {/* Hidden native file input */}
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/png,image/jpeg,image/jpg"
-            onChange={handleSignatureUpload}
-            style={{ display: "none" }}
-          />
-
-          {/* No signature — dashed upload zone */}
-          {!signature && (
-            <div
-              onClick={() => fileInputRef.current?.click()}
-              style={{
-                border: "2px dashed rgba(45,90,61,0.3)",
-                borderRadius: "12px", padding: "36px 20px",
-                textAlign: "center", cursor: "pointer",
-                transition: "border-color 0.2s ease, background 0.2s ease",
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.borderColor = "#2D5A3D";
-                e.currentTarget.style.background = "rgba(45,90,61,0.04)";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.borderColor = "rgba(45,90,61,0.3)";
-                e.currentTarget.style.background = "transparent";
-              }}
-            >
-              <div style={{ fontSize: "28px", marginBottom: "10px" }}>✍</div>
-              <p style={{
-                color: "#2D5A3D", fontFamily: "'Libre Baskerville', serif",
-                fontSize: "14px", marginBottom: "4px",
-              }}>
-                Click to upload signature
-              </p>
-              <p style={{ color: "#1E2018", fontSize: "12px", opacity: 0.35, fontFamily: "system-ui, sans-serif" }}>
-                PNG or JPEG · Max 2MB
-              </p>
-            </div>
-          )}
-
-          {/* Signature uploaded — preview + actions */}
-          {signature && (
-            <div>
-              {/* White background so the sig is visible on any paper colour */}
-              <div style={{
-                background: "#ffffff", borderRadius: "10px",
-                padding: "20px", marginBottom: "16px",
-                display: "inline-block",
-                border: "1px solid rgba(45,90,61,0.2)",
-              }}>
-                <img
-                  src={signature}
-                  alt="Signature preview"
-                  style={{ maxWidth: "220px", maxHeight: "90px", display: "block", objectFit: "contain" }}
+        {/* ═══════════════════════════════════ */}
+        {/* TAB: SEARCH */}
+        {/* ═══════════════════════════════════ */}
+        {activeTab === "search" && (
+          <>
+            {/* Search panel — matches Jobs page */}
+            <div style={{ background: "rgba(220,210,192,0.8)", border: "1px solid rgba(45,90,61,0.2)", borderRadius: "16px", padding: "24px", marginBottom: "24px" }}>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "12px", marginBottom: "14px" }}>
+                <input
+                  type="text"
+                  placeholder='Job title, keywords, or company...'
+                  value={query}
+                  onChange={e => setQuery(e.target.value)}
+                  onKeyDown={e => e.key === "Enter" && handleSearch()}
+                  style={{ flex: 1, minWidth: "220px", padding: "13px 16px", background: "#FFFFFF", border: "1px solid rgba(45,90,61,0.25)", borderRadius: "10px", color: "#1E2018", fontSize: "14px", fontFamily: "system-ui, sans-serif", outline: "none", boxSizing: "border-box" }}
                 />
-              </div>
-
-              <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", alignItems: "center" }}>
-                {/* Save to profile */}
-                <button
-                  className="primary-btn"
-                  onClick={handleSaveSignature}
-                  disabled={sigSaving || sigSaved}
-                  style={{
-                    fontSize: "13px", padding: "10px 22px",
-                    background: sigSaved ? "#3D7A55" : "#2D5A3D",
-                    opacity: sigSaving ? 0.7 : 1,
-                    cursor: (sigSaving || sigSaved) ? "not-allowed" : "pointer",
-                    display: "flex", flexWrap: "wrap", alignItems: "center", gap: "7px",
-                  }}
-                >
-                  {sigSaving ? (
-                    <>
-                      <span style={{
-                        display: "inline-block", width: "11px", height: "11px",
-                        border: "2px solid #2D5A3D", borderTopColor: "transparent",
-                        borderRadius: "50%", animation: "spin 0.7s linear infinite",
-                      }} />
-                      Saving...
-                    </>
-                  ) : sigSaved ? "✓ Saved to profile" : "💾 Save to profile"}
-                </button>
-
-                {/* Replace */}
-                <button
-                  onClick={() => fileInputRef.current?.click()}
-                  style={{
-                    background: "transparent",
-                    border: "1px solid rgba(45,90,61,0.35)",
-                    color: "#2D5A3D", padding: "10px 20px",
-                    borderRadius: "6px", cursor: "pointer",
-                    fontSize: "13px", fontFamily: "'Libre Baskerville', serif",
-                    transition: "background 0.15s ease",
-                  }}
-                  onMouseEnter={(e) => e.currentTarget.style.background = "rgba(45,90,61,0.08)"}
-                  onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
-                >
-                  Replace
-                </button>
-
-                {/* Remove */}
-                <button
-                  onClick={handleRemoveSignature}
-                  style={{
-                    background: "transparent",
-                    border: "1px solid rgba(255,107,107,0.3)",
-                    color: "#8B2020", padding: "10px 20px",
-                    borderRadius: "6px", cursor: "pointer",
-                    fontSize: "13px", fontFamily: "'Libre Baskerville', serif",
-                    opacity: 0.7, transition: "opacity 0.15s ease, background 0.15s ease",
-                  }}
-                  onMouseEnter={(e) => { e.currentTarget.style.opacity = "1"; e.currentTarget.style.background = "rgba(255,107,107,0.07)"; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.opacity = "0.7"; e.currentTarget.style.background = "transparent"; }}
-                >
-                  Remove
+                <button className="primary-btn" onClick={handleSearch} disabled={searching} style={{ padding: "13px 28px", fontSize: "14px", whiteSpace: "nowrap", flexShrink: 0 }}>
+                  {searching ? "Searching..." : "Search Jobs"}
                 </button>
               </div>
-            </div>
-          )}
-
-          {signatureError && (
-            <p style={{ color: "#8B2020", fontSize: "13px", marginTop: "12px" }}>
-              ⚠ {signatureError}
-            </p>
-          )}
-        </div>
-
-
-        {/* ══ SAVED HISTORY ═══════════════════════════════ */}
-        <div style={{ marginBottom: "40px" }}>
-
-          <h3 style={{
-            color: "#2D5A3D", fontFamily: "'Libre Baskerville', serif",
-            fontSize: "13px", letterSpacing: "2px", textTransform: "uppercase",
-            marginBottom: "16px", opacity: 0.8,
-          }}>
-            🗂 Saved Cover Letters
-            {history.length > 0 && (
-              <span style={{
-                marginLeft: "10px",
-                background: "rgba(45,90,61,0.15)",
-                border: "1px solid rgba(45,90,61,0.3)",
-                color: "#2D5A3D", fontSize: "11px",
-                padding: "2px 8px", borderRadius: "10px",
-                fontFamily: "'Libre Baskerville', serif",
-              }}>
-                {history.length}
-              </span>
-            )}
-          </h3>
-
-          {/* Loading skeletons */}
-          {historyLoading && (
-            <div>
-              {[1, 2].map(i => (
-                <div key={i} style={{
-                  background: "#F0EAD8", borderRadius: "12px", padding: "24px",
-                  marginBottom: "12px", border: "1px solid rgba(45,90,61,0.08)",
-                  animation: "pulse 1.5s ease-in-out infinite",
-                  animationDelay: `${i * 0.15}s`,
-                  height: "80px",
-                }} />
-              ))}
-            </div>
-          )}
-
-          {/* Empty state */}
-          {!historyLoading && history.length === 0 && (
-            <div style={{
-              background: "#F0EAD8",
-              border: "1px dashed rgba(45,90,61,0.2)",
-              borderRadius: "12px", padding: "40px",
-              textAlign: "center",
-            }}>
-              <p style={{ color: "#1E2018", opacity: 0.4, fontSize: "14px" }}>
-                No cover letters saved yet. Generate one above and click Save.
+              <p style={{ color: "#1E2018", fontSize: "12px", opacity: 0.5, fontFamily: "'Libre Baskerville', serif", lineHeight: 1.5 }}>
+                Jobs ranked against your profile using AI · Select up to 5 per batch → <strong>Generate ZIP</strong> → compile on{" "}
+                <a href="https://overleaf.com" target="_blank" rel="noopener noreferrer" style={{ color: "#2D5A3D" }}>Overleaf</a>
+                {" "}→ mark Verified → apply from the Apply Queue
               </p>
             </div>
-          )}
 
-          {/* History cards */}
-          {!historyLoading && history.map((cl) => {
-            const isExpanded  = expandedId === cl.id;
-            const isConfirming = confirmDeleteId === cl.id;
-            const isDeleting  = deletingId === cl.id;
+            {/* Batch actions bar */}
+            {jobs.length > 0 && (
+              <div style={S.batchBar}>
+                <div style={S.batchBarText}>
+                  {selectedIds.size} of {jobs.length} jobs selected
+                  {selectedIds.size > 0 && ` · ${Math.min(selectedIds.size, 5)} will be generated (5 per batch)`}
+                </div>
+                <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", alignItems: "center" }}>
+                  <button style={S.secondaryBtn(false)} onClick={selectAll}>Select All</button>
+                  <button style={S.secondaryBtn(selectedIds.size === 0)} onClick={selectNone} disabled={selectedIds.size === 0}>Clear</button>
+                  <button
+                    style={S.primaryBtn(generating || selectedIds.size === 0)}
+                    onClick={handleGenerateBatch}
+                    disabled={generating || selectedIds.size === 0}
+                  >
+                    {generating ? `Generating... ${generateProgress}%` : `⬇ Generate ZIP (${Math.min(selectedIds.size, 5)} jobs)`}
+                  </button>
+                </div>
+              </div>
+            )}
 
-            // Tone badge colour
-            const toneBadgeColor = {
-              professional: "rgba(45,90,61,0.15)",
-              enthusiastic: "rgba(255,179,71,0.12)",
-              concise:      "rgba(180,180,255,0.12)",
-            }[cl.tone] || "rgba(45,90,61,0.1)";
+            {/* Progress bar */}
+            {generating && (
+              <div style={S.progressBar(generateProgress)}>
+                <div style={S.progressFill(generateProgress)} />
+              </div>
+            )}
 
-            const toneBorderColor = {
-              professional: "rgba(45,90,61,0.35)",
-              enthusiastic: "rgba(255,179,71,0.35)",
-              concise:      "rgba(180,180,255,0.35)",
-            }[cl.tone] || "rgba(45,90,61,0.2)";
+            {/* Loading */}
+            {searching && (
+              <div style={S.loadingRow}>
+                <div style={S.spinner} />
+                <span>Fetching and ranking jobs against your profile...</span>
+              </div>
+            )}
 
-            const toneTextColor = {
-              professional: "#2D5A3D",
-              enthusiastic: "#FFB347",
-              concise:      "#B4B4FF",
-            }[cl.tone] || "#2D5A3D";
+            {/* Job list */}
+            {!searching && jobs.length > 0 && (
+              <div style={S.jobGrid}>
+                {jobs.map(job => renderJobCard(job, true))}
+              </div>
+            )}
 
-            return (
-              <div
-                key={cl.id}
-                style={{
-                  background: "#F0EAD8",
-                  borderRadius: "12px",
-                  padding: "20px 24px",
-                  marginBottom: "12px",
-                  border: "1px solid rgba(45,90,61,0.1)",
-                  transition: "border-color 0.2s ease",
-                }}
-                onMouseEnter={(e) => e.currentTarget.style.borderColor = "rgba(45,90,61,0.25)"}
-                onMouseLeave={(e) => e.currentTarget.style.borderColor = "rgba(45,90,61,0.1)"}
-              >
+            {/* Load more */}
+            {!searching && jobs.length > 0 && (
+              <div style={{ textAlign: "center", marginTop: "24px" }}>
+                <button style={S.secondaryBtn(searching)} onClick={handleLoadMore} disabled={searching}>
+                  Load 20 More Jobs
+                </button>
+              </div>
+            )}
 
-                {/* Card header row */}
-                <div style={{
-                  display: "flex", justifyContent: "space-between",
-                  alignItems: "flex-start", flexWrap: "wrap", gap: "10px",
-                  marginBottom: isExpanded ? "16px" : "0",
-                }}>
-                  <div>
-                    <p style={{
-                      color: "#1E2018", fontFamily: "'Libre Baskerville', serif",
-                      fontSize: "14px", marginBottom: "5px",
-                    }}>
-                      {cl.job_title}
-                    </p>
-                    <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
-                      {/* Date */}
-                      <span style={{ color: "#1E2018", fontSize: "12px", opacity: 0.35 }}>
-                        {formatDate(cl.created_at)}
-                      </span>
-                      {/* Tone badge */}
-                      <span style={{
-                        background: toneBadgeColor,
-                        border: `1px solid ${toneBorderColor}`,
-                        color: toneTextColor,
-                        fontSize: "10px", padding: "2px 8px",
-                        borderRadius: "10px",
-                        fontFamily: "'Libre Baskerville', serif",
-                        letterSpacing: "0.5px", textTransform: "capitalize",
-                      }}>
-                        {cl.tone}
-                      </span>
+            {/* Empty */}
+            {!searching && jobs.length === 0 && !error && (
+              <div style={S.emptyState}>
+                <div style={S.emptyIcon}>🎯</div>
+                <div style={{ fontWeight: 700, marginBottom: "8px" }}>Ready to find your next role</div>
+                <div style={{ fontSize: "0.85rem" }}>Search above or leave blank to auto-build a query from your profile</div>
+              </div>
+            )}
+          </>
+        )}
+
+        {/* ═══════════════════════════════════ */}
+        {/* TAB: APPLY QUEUE */}
+        {/* ═══════════════════════════════════ */}
+        {activeTab === "queue" && (
+          <>
+            {/* ── VERIFIED → READY TO APPLY ── */}
+            {queueData.verified?.length > 0 && (
+              <>
+                <div style={{ fontSize: "1rem", fontWeight: 700, color: "#B8860B", marginBottom: "12px" }}>
+                  ✅ Verified — Ready to Apply ({queueData.verified.length})
+                </div>
+                <div style={{ padding: "14px 18px", background: "#EDE8DE", border: "1px solid #DDD5C4", borderRadius: "8px", fontSize: "0.83rem", color: "#6B6252", lineHeight: "1.5", marginBottom: "20px" }}>
+                  These CVs have been verified on Overleaf. Click <strong>Apply Now</strong> to open the application page.
+                  Your cover letter will be in the .tex file you compiled.
+                </div>
+                {queueData.verified.map(job => (
+                  <div key={job.job_id} style={S.queueCard}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "12px" }}>
+                      <div>
+                        <div style={S.queueCardTitle}>{job.title}</div>
+                        <div style={S.queueCardSub}>
+                          {job.company} · {job.location} · {job.work_type} · 💰 {job.salary}
+                        </div>
+                        <div style={S.queueActions}>
+                          <a
+                            href={job.apply_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={S.applyNowBtn}
+                            onClick={() => updateStatus(job.job_id, "applied")}
+                          >
+                            ✈ Apply Now
+                          </a>
+                          <button style={S.dangerBtn} onClick={() => updateStatus(job.job_id, "ranked")}>
+                            Skip
+                          </button>
+                        </div>
+                      </div>
+                      <div style={S.scoreRing(job.match_score)}>
+                        <span style={S.scoreNumber(job.match_score)}>{Math.round(job.match_score)}</span>
+                        <span style={S.scoreLabel}>MATCH</span>
+                      </div>
                     </div>
                   </div>
+                ))}
+              </>
+            )}
 
-                  {/* Card action buttons */}
-                  <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
-
-                    {/* Expand / Collapse */}
-                    <button
-                      onClick={() => setExpandedId(isExpanded ? null : cl.id)}
-                      style={{
-                        background: "transparent",
-                        border: "1px solid rgba(45,90,61,0.3)",
-                        color: "#2D5A3D", padding: "6px 14px",
-                        borderRadius: "6px", cursor: "pointer",
-                        fontSize: "12px", fontFamily: "'Libre Baskerville', serif",
-                        transition: "background 0.15s ease",
-                      }}
-                      onMouseEnter={(e) => e.currentTarget.style.background = "rgba(45,90,61,0.08)"}
-                      onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
-                    >
-                      {isExpanded ? "▲ Collapse" : "▼ View"}
-                    </button>
-
-                    {/* Copy */}
-                    <button
-                      onClick={() => handleCopy(cl.cover_letter)}
-                      style={{
-                        background: "transparent",
-                        border: "1px solid rgba(45,90,61,0.3)",
-                        color: "#2D5A3D", padding: "6px 14px",
-                        borderRadius: "6px", cursor: "pointer",
-                        fontSize: "12px", fontFamily: "'Libre Baskerville', serif",
-                        transition: "background 0.15s ease",
-                      }}
-                      onMouseEnter={(e) => e.currentTarget.style.background = "rgba(45,90,61,0.08)"}
-                      onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
-                    >
-                      ⎘ Copy
-                    </button>
-
-                    {/* Download .docx */}
-                    <button
-                      onClick={() => handleDownload(cl.cover_letter, cl.job_title)}
-                      style={{
-                        background: "transparent",
-                        border: "1px solid rgba(45,90,61,0.3)",
-                        color: "#2D5A3D", padding: "6px 14px",
-                        borderRadius: "6px", cursor: "pointer",
-                        fontSize: "12px", fontFamily: "'Libre Baskerville', serif",
-                        transition: "background 0.15s ease",
-                      }}
-                      onMouseEnter={(e) => e.currentTarget.style.background = "rgba(45,90,61,0.08)"}
-                      onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
-                    >
-                      ⬇ .docx
-                    </button>
-
-                    {/* Download .tex */}
-                    <button
-                      onClick={() => handleDownloadTex(cl.cover_letter, cl.job_title)}
-                      style={{
-                        background: "#2D5A3D",
-                        border: "none",
-                        color: "#EDE8DE", padding: "6px 14px",
-                        borderRadius: "6px", cursor: "pointer",
-                        fontSize: "12px", fontFamily: "'Libre Baskerville', serif",
-                        fontWeight: 900,
-                      }}
-                    >
-                      ⬇ .tex
-                    </button>
-
-                    {/* Delete — two-step */}
-                    {!isConfirming && !isDeleting && (
-                      <button
-                        onClick={() => setConfirmDeleteId(cl.id)}
-                        style={{
-                          background: "transparent",
-                          border: "1px solid rgba(255,107,107,0.25)",
-                          color: "#8B2020", padding: "6px 14px",
-                          borderRadius: "6px", cursor: "pointer",
-                          fontSize: "12px", fontFamily: "'Libre Baskerville', serif",
-                          opacity: 0.6, transition: "opacity 0.15s ease, background 0.15s ease",
-                        }}
-                        onMouseEnter={(e) => { e.currentTarget.style.opacity = "1"; e.currentTarget.style.background = "rgba(255,107,107,0.07)"; }}
-                        onMouseLeave={(e) => { e.currentTarget.style.opacity = "0.6"; e.currentTarget.style.background = "transparent"; }}
-                      >
-                        Delete
-                      </button>
-                    )}
-
-                    {isConfirming && (
-                      <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "6px" }}>
-                        <span style={{ color: "#1E2018", fontSize: "11px", opacity: 0.5 }}>Sure?</span>
-                        <button
-                          onClick={() => handleDelete(cl.id)}
-                          style={{
-                            background: "rgba(255,107,107,0.15)",
-                            border: "1px solid rgba(255,107,107,0.5)",
-                            color: "#8B2020", padding: "5px 12px",
-                            borderRadius: "6px", cursor: "pointer",
-                            fontSize: "11px", fontFamily: "'Libre Baskerville', serif",
-                          }}
-                        >
-                          Yes
-                        </button>
-                        <button
-                          onClick={() => setConfirmDeleteId(null)}
-                          style={{
-                            background: "transparent",
-                            border: "1px solid rgba(255,255,255,0.15)",
-                            color: "#1E2018", padding: "5px 12px",
-                            borderRadius: "6px", cursor: "pointer",
-                            fontSize: "11px", fontFamily: "'Libre Baskerville', serif",
-                            opacity: 0.5,
-                          }}
-                        >
-                          Cancel
-                        </button>
-                      </div>
-                    )}
-
-                    {isDeleting && (
-                      <span style={{ color: "#1E2018", fontSize: "12px", opacity: 0.4 }}>
-                        Deleting...
-                      </span>
-                    )}
-
-                  </div>
+            {/* ── GENERATED → NEEDS OVERLEAF VERIFY ── */}
+            {queueData.generated?.length > 0 && (
+              <>
+                <div style={{ fontSize: "1rem", fontWeight: 700, color: "#2D5A3D", marginBottom: "12px", marginTop: "28px" }}>
+                  📄 Generated — Awaiting Overleaf Verification ({queueData.generated.length})
                 </div>
-
-                {/* Expanded full text */}
-                {isExpanded && (
-                  <div style={{
-                    background: "#FFFFFF",
-                    border: "1px solid rgba(45,90,61,0.08)",
-                    borderRadius: "8px",
-                    padding: "20px 24px",
-                    whiteSpace: "pre-wrap",
-                    color: "#1E2018",
-                    fontSize: "13px",
-                    lineHeight: "1.85",
-                    fontFamily: "system-ui, sans-serif",
-                  }}>
-                    {cl.cover_letter}
+                <div style={{ padding: "14px 18px", background: "#EDE8DE", border: "1px solid #DDD5C4", borderRadius: "8px", fontSize: "0.83rem", color: "#6B6252", lineHeight: "1.5", marginBottom: "20px" }}>
+                  Download already done. Open each .tex file in Overleaf, fix any compile errors, then come back and click <strong>Mark Verified</strong>.
+                </div>
+                {queueData.generated.map(job => (
+                  <div key={job.job_id} style={S.queueCard}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "12px" }}>
+                      <div>
+                        <div style={S.queueCardTitle}>{job.title}</div>
+                        <div style={S.queueCardSub}>{job.company} · {job.location} · 💰 {job.salary}</div>
+                        <div style={S.queueActions}>
+                          <button style={S.successBtn} onClick={() => updateStatus(job.job_id, "verified")}>
+                            ✓ Mark Verified
+                          </button>
+                          <a
+                            href="https://overleaf.com"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{ ...S.secondaryBtn(false), textDecoration: "none", display: "inline-flex", alignItems: "center" }}
+                          >
+                            Open Overleaf ↗
+                          </a>
+                          <button style={S.dangerBtn} onClick={() => updateStatus(job.job_id, "ranked")}>
+                            Reset
+                          </button>
+                        </div>
+                      </div>
+                      <div style={S.scoreRing(job.match_score)}>
+                        <span style={S.scoreNumber(job.match_score)}>{Math.round(job.match_score)}</span>
+                        <span style={S.scoreLabel}>MATCH</span>
+                      </div>
+                    </div>
                   </div>
-                )}
+                ))}
+              </>
+            )}
 
+            {/* ── APPLIED ── */}
+            {queueData.applied?.length > 0 && (
+              <>
+                <div style={{ fontSize: "1rem", fontWeight: 700, color: "#3D7A55", marginBottom: "12px", marginTop: "28px" }}>
+                  ✈ Applied ({queueData.applied.length})
+                </div>
+                {queueData.applied.map(job => (
+                  <div key={job.job_id} style={{ ...S.queueCard, opacity: 0.7 }}>
+                    <div style={S.queueCardTitle}>{job.title}</div>
+                    <div style={S.queueCardSub}>{job.company} · {job.location}</div>
+                    <span style={S.statusBadge("applied")}>Applied ✓</span>
+                  </div>
+                ))}
+              </>
+            )}
+
+            {/* Empty state */}
+            {!queueData.verified?.length && !queueData.generated?.length && !queueData.applied?.length && (
+              <div style={S.emptyState}>
+                <div style={S.emptyIcon}>📋</div>
+                <div style={{ fontWeight: 700, marginBottom: "8px" }}>Your apply queue is empty</div>
+                <div style={{ fontSize: "0.85rem" }}>
+                  Search for jobs, select your top picks, generate the ZIP, then come back here after verifying on Overleaf.
+                </div>
+                <button
+                  style={{ ...S.primaryBtn(false), marginTop: "20px" }}
+                  onClick={() => setActiveTab("search")}
+                >
+                  Go to Search →
+                </button>
               </div>
-            );
-          })}
-
-        </div>
+            )}
+          </>
+        )}
 
       </div>
+    </div>
     </DashboardLayout>
   );
 }
-
-
-
-

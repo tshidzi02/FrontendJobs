@@ -355,7 +355,118 @@ function JobRow({ job, onClick }) {
 }
 
 // ── JOB DETAIL MODAL ──────────────────────────────────────────────────────────
-function JobModal({ job, onClose, onGenerateCV }) {
+function JobModal({ job, onClose, onGenerateCV, profile }) {
+  const [copied,   setCopied]   = useState(false);
+  const [saved,    setSaved]    = useState(false);
+  const [saving,   setSaving]   = useState(false);
+
+  // Combined LaTeX generation state
+  const [texStatus, setTexStatus] = useState("idle"); // idle | generating | done | error
+  const [texError,  setTexError]  = useState("");
+
+  const handleGenerateCombinedTex = async () => {
+    if (texStatus === "generating") return;
+    if (!profile || !Object.keys(profile).length) {
+      setTexError("Profile not loaded. Please save your profile first.");
+      setTexStatus("error");
+      return;
+    }
+    setTexStatus("generating");
+    setTexError("");
+    try {
+      // Step 1 — Generate AI CV content (same as Generate CV page)
+      const cvResp = await api.post("/generate", {
+        jobDescription:    job.description || job.title,
+        personalInfo:      profile.personalInfo      || {},
+        baseSkills:        profile.skills            || [],
+        baseExperience:    profile.experience        || [],
+        projectExperience: profile.projects          || [],
+        education:         profile.education         || [],
+        languages:         profile.languages         || [],
+        references:        profile.references        || "Available upon Request",
+      });
+      const aiResult = cvResp.data;
+
+      // Step 2 — Generate cover letter text (same as Cover Letter page)
+      const clResp = await api.post("/cover-letter", {
+        jobDescription: job.description || job.title,
+        tone:           "professional",
+      });
+      const coverLetterText = clResp.data.cover_letter || "";
+
+      // Step 3 — Build LaTeX server-side (same as Bulk Generate)
+      const texResp = await api.post("/bulk-tex", {
+        ai_result:    aiResult,
+        cover_letter: coverLetterText,
+        job_title:    job.title,
+      });
+      const cvTex = texResp.data.cv_tex           || "";
+      const clTex = texResp.data.cover_letter_tex || "";
+
+      // Step 4 — Combine (same logic as BulkGenerate buildCombined)
+      const extractBody = (tex) => {
+        const start = tex.indexOf("\\begin{document}");
+        const end   = tex.lastIndexOf("\\end{document}");
+        if (start === -1 || end === -1) return tex;
+        return tex.slice(start + "\\begin{document}".length, end).trim();
+      };
+      const preamble = cvTex.slice(0, cvTex.indexOf("\\begin{document}")).trim();
+      const combined = [
+        preamble, "",
+        "\\begin{document}", "",
+        "% ═══════════════════════════════════════════════════════════════════════",
+        "% COVER LETTER",
+        "% ═══════════════════════════════════════════════════════════════════════",
+        extractBody(clTex), "",
+        "\\newpage", "",
+        "% ═══════════════════════════════════════════════════════════════════════",
+        "% CURRICULUM VITAE",
+        "% ═══════════════════════════════════════════════════════════════════════",
+        extractBody(cvTex), "",
+        "\\end{document}",
+      ].join("\n");
+
+      // Step 5 — Download the .tex file
+      const slug     = job.title.replace(/\s+/g, "_").replace(/[^a-zA-Z0-9_]/g, "");
+      const filename = `${slug}_CV_CoverLetter.tex`;
+      const blob     = new Blob([combined], { type: "text/plain" });
+      const url      = URL.createObjectURL(blob);
+      const a        = document.createElement("a");
+      a.href         = url;
+      a.download     = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+
+      setTexStatus("done");
+      setTimeout(() => setTexStatus("idle"), 4000);
+    } catch (e) {
+      setTexError(e.response?.data?.message || "Generation failed. Check your profile and API keys.");
+      setTexStatus("error");
+    }
+  };
+
+  const handleSaveWishlist = async () => {
+    if (saving || saved) return;
+    setSaving(true);
+    try {
+      await api.post("/tracker", {
+        company: job.company || "",
+        role:    job.title   || "",
+        status:  "Wishlist",
+        salary:  job.salary  || "",
+        notes:   "",
+        url:     job.url     || "",
+      });
+      setSaved(true);
+    } catch (e) {
+      alert("Could not save to Wishlist. Please try again.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   // Close on Escape key
   useEffect(() => {
     const handler = (e) => { if (e.key === "Escape") onClose(); };
@@ -491,6 +602,26 @@ function JobModal({ job, onClose, onGenerateCV }) {
           }}>
             {job.description || "No description available."}
           </p>
+          {/* Warning when API truncated the description */}
+          {job.description && (
+            job.description.trimEnd().endsWith("...") ||
+            job.description.trimEnd().endsWith("…") ||
+            job.description.length < 300
+          ) && job.url && (
+            <div style={{
+              marginTop: "16px", padding: "12px 16px",
+              background: "rgba(184,134,11,0.08)",
+              border: "1px solid rgba(184,134,11,0.3)",
+              borderRadius: "8px", fontSize: "12px", color: "#7A5800",
+              fontFamily: "'Libre Baskerville', serif",
+            }}>
+              ⚠ This description was shortened by the job board.{" "}
+              <a href={job.url} target="_blank" rel="noopener noreferrer"
+                style={{ color: "#2D5A3D", fontWeight: 700 }}>
+                View the full listing →
+              </a>
+            </div>
+          )}
         </div>
 
         {/* Modal footer — action buttons */}
@@ -502,13 +633,95 @@ function JobModal({ job, onClose, onGenerateCV }) {
           flexShrink:   0,
           flexWrap:     "wrap",
         }}>
-          {/* Generate CV for this job — key feature */}
+          {/* Generate CV for this job — navigates to /generate */}
           <button
             className="primary-btn"
             onClick={() => onGenerateCV(job)}
             style={{ flex: 1, fontSize: "14px", padding: "12px 20px" }}
           >
             ✨ Generate CV for This Job
+          </button>
+
+          {/* Generate combined CV + Cover Letter .tex and download it */}
+          <button
+            onClick={handleGenerateCombinedTex}
+            disabled={texStatus === "generating"}
+            style={{
+              background:   texStatus === "done"       ? "rgba(45,90,61,0.15)"
+                          : texStatus === "generating" ? "rgba(45,90,61,0.06)"
+                          : "transparent",
+              border:       `1px solid ${texStatus === "done" ? "#2D5A3D" : "rgba(45,90,61,0.3)"}`,
+              borderRadius: "6px",
+              color:        texStatus === "error" ? "#8B2020" : "#2D5A3D",
+              padding:      "12px 20px",
+              fontSize:     "14px",
+              fontFamily:   "'Libre Baskerville', serif",
+              fontWeight:   900,
+              cursor:       texStatus === "generating" ? "not-allowed" : "pointer",
+              whiteSpace:   "nowrap",
+              transition:   "all 0.2s",
+              display:      "flex",
+              alignItems:   "center",
+              gap:          "8px",
+            }}
+          >
+            {texStatus === "generating" && (
+              <span style={{
+                display: "inline-block", width: "12px", height: "12px",
+                border: "2px solid #2D5A3D", borderTopColor: "transparent",
+                borderRadius: "50%", animation: "spin 0.7s linear infinite",
+              }} />
+            )}
+            {texStatus === "done"       ? "✓ Downloaded!"
+           : texStatus === "generating" ? "Generating…"
+           : "📄 Download CV + Cover Letter (.tex)"}
+          </button>
+
+          {/* Save to Wishlist */}
+          <button
+            onClick={handleSaveWishlist}
+            disabled={saving || saved}
+            style={{
+              background:   saved ? "rgba(45,90,61,0.12)" : "transparent",
+              border:       `1px solid ${saved ? "#2D5A3D" : "rgba(45,90,61,0.3)"}`,
+              borderRadius: "6px",
+              color:        "#2D5A3D",
+              padding:      "12px 20px",
+              fontSize:     "14px",
+              fontFamily:   "'Libre Baskerville', serif",
+              fontWeight:   900,
+              cursor:       saving || saved ? "default" : "pointer",
+              whiteSpace:   "nowrap",
+              transition:   "all 0.2s",
+              opacity:      saving ? 0.6 : 1,
+            }}
+          >
+            {saved ? "✓ Saved to Wishlist!" : saving ? "Saving…" : "⭐ Save to Wishlist"}
+          </button>
+
+          {/* Copy description */}
+          <button
+            onClick={() => {
+              navigator.clipboard.writeText(job.description || "").then(() => {
+                setCopied(true);
+                setTimeout(() => setCopied(false), 2000);
+              });
+            }}
+            style={{
+              background:   copied ? "rgba(45,90,61,0.1)" : "transparent",
+              border:       "1px solid rgba(45,90,61,0.3)",
+              borderRadius: "6px",
+              color:        "#2D5A3D",
+              padding:      "12px 20px",
+              fontSize:     "14px",
+              fontFamily:   "'Libre Baskerville', serif",
+              fontWeight:   900,
+              cursor:       "pointer",
+              whiteSpace:   "nowrap",
+              transition:   "all 0.2s",
+            }}
+          >
+            {copied ? "✓ Copied!" : "📋 Copy Description"}
           </button>
 
           {/* Open original listing */}
@@ -535,6 +748,20 @@ function JobModal({ job, onClose, onGenerateCV }) {
             </a>
           )}
         </div>
+
+        {/* Tex generation error */}
+        {texStatus === "error" && (
+          <div style={{
+            padding: "12px 32px", background: "rgba(139,32,32,0.06)",
+            borderTop: "1px solid rgba(139,32,32,0.15)",
+            fontSize: "12px", color: "#8B2020",
+            fontFamily: "'Libre Baskerville', serif",
+          }}>
+            ⚠ {texError}
+          </div>
+        )}
+
+        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
       </div>
     </>
   );
@@ -596,6 +823,12 @@ export default function Jobs() {
 
   // ── MODAL STATE ─────────────────────────────────────────────────────────────
   const [selectedJob,    setSelectedJob]    = useState(null);
+  const [profile,        setProfile]        = useState({});
+
+  // Load profile on mount so the combined LaTeX generation has access to it
+  useEffect(() => {
+    api.get("/profile").then(r => { if (r.data) setProfile(r.data); }).catch(() => {});
+  }, []);
 
   const queryInputRef = useRef(null);
 
@@ -982,6 +1215,7 @@ export default function Jobs() {
           job={selectedJob}
           onClose={() => setSelectedJob(null)}
           onGenerateCV={handleGenerateCV}
+          profile={profile}
         />
       )}
 

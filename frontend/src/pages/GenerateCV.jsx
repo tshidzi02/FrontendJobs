@@ -30,6 +30,8 @@ export default function Generate() {
   const [downloadError, setDownloadError]       = useState("");
   const [downloadingTex, setDownloadingTex]     = useState(false);
   const [downloadTexError, setDownloadTexError] = useState("");
+  const [downloadingCombined, setDownloadingCombined] = useState(false);
+  const [downloadCombinedError, setDownloadCombinedError] = useState("");
  
   const [saving, setSaving]                 = useState(false);
   const [saved, setSaved]                   = useState(false);
@@ -192,6 +194,84 @@ useEffect(() => {
       }
     } finally {
       setDownloadingTex(false);
+    }
+  };
+
+
+  // ── DOWNLOAD COMBINED CV + COVER LETTER .tex ──────────────────────────────
+  const handleDownloadCombinedTex = async () => {
+    if (!result) return;
+    setDownloadingCombined(true);
+    setDownloadCombinedError("");
+
+    try {
+      // Step 1 — Generate cover letter using the same job description
+      const clResp = await api.post("/cover-letter", {
+        jobDescription: jobDescription,
+        tone: "professional",
+      });
+      const coverLetterText = clResp.data.cover_letter || "";
+
+      // Step 2 — Build LaTeX for both (same as Bulk Generate)
+      const texResp = await api.post("/bulk-tex", {
+        ai_result:    result,
+        cover_letter: coverLetterText,
+        job_title:    jobTitle,
+      });
+      const cvTex = texResp.data.cv_tex           || "";
+      const clTex = texResp.data.cover_letter_tex || "";
+
+      // Step 3 — Combine (same as BulkGenerate buildCombined)
+      const extractBody = (tex) => {
+        const start = tex.indexOf("\\begin{document}");
+        const end   = tex.lastIndexOf("\\end{document}");
+        if (start === -1 || end === -1) return tex;
+        return tex.slice(start + "\\begin{document}".length, end).trim();
+      };
+      const preamble = cvTex.slice(0, cvTex.indexOf("\\begin{document}")).trim();
+      const combined = [
+        preamble, "",
+        "\\begin{document}", "",
+        "% ═══════════════════════════════════════════════════════════════════════",
+        "% COVER LETTER",
+        "% ═══════════════════════════════════════════════════════════════════════",
+        extractBody(clTex), "",
+        "\\newpage", "",
+        "% ═══════════════════════════════════════════════════════════════════════",
+        "% CURRICULUM VITAE",
+        "% ═══════════════════════════════════════════════════════════════════════",
+        extractBody(cvTex), "",
+        "\\end{document}",
+      ].join("\n");
+
+      // Step 4 — Download
+      const firstName = profile?.personalInfo?.firstName || "";
+      const lastName  = profile?.personalInfo?.lastName  || "";
+      const fullName  = `${firstName}${lastName ? "_" + lastName : ""}`.trim();
+      const titleSlug = jobTitle.trim().replace(/\s+/g, "_").replace(/[^a-zA-Z0-9_]/g, "").slice(0, 50);
+      const filename  = [fullName, titleSlug, "CV_CoverLetter"].filter(Boolean).join("_") + ".tex";
+
+      const blob = new Blob([combined], { type: "text/plain" });
+      const url  = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href     = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+    } catch (err) {
+      if (err.response?.status === 401) {
+        localStorage.removeItem("token");
+        navigate("/login");
+      } else {
+        setDownloadCombinedError(
+          err.response?.data?.message || "Failed to generate combined file."
+        );
+      }
+    } finally {
+      setDownloadingCombined(false);
     }
   };
 
@@ -1200,6 +1280,49 @@ useEffect(() => {
                 )}
               </div>
 
+              {/* ── Download Combined CV + Cover Letter .tex ── */}
+              <div style={{ textAlign: "center" }}>
+                <button
+                  onClick={handleDownloadCombinedTex}
+                  disabled={downloadingCombined}
+                  style={{
+                    fontSize: "15px", padding: "13px 36px",
+                    opacity:      downloadingCombined ? 0.65 : 1,
+                    cursor:       downloadingCombined ? "not-allowed" : "pointer",
+                    background:   "#2D5A3D",
+                    border:       "none",
+                    color:        "#EDE8DE",
+                    borderRadius: "6px",
+                    fontFamily:   "'Libre Baskerville', serif",
+                    fontWeight:   900,
+                    display:      "flex", alignItems: "center", gap: "8px",
+                  }}
+                >
+                  {downloadingCombined ? (
+                    <>
+                      <span style={{
+                        display: "inline-block", width: "14px", height: "14px",
+                        border: "2px solid rgba(255,255,255,0.4)", borderTopColor: "white",
+                        borderRadius: "50%", animation: "spin 0.7s linear infinite",
+                      }} />
+                      Generating…
+                    </>
+                  ) : "📄 Download CV + Cover Letter (.tex)"}
+                </button>
+                <p style={{ color: "#1E2018", fontSize: "12px", opacity: 0.55, marginTop: "8px", maxWidth: "200px", lineHeight: "1.5" }}>
+                  Combined file — cover letter + CV ready for{" "}
+                  <a href="https://www.overleaf.com" target="_blank" rel="noopener noreferrer"
+                    style={{ color: "#2D5A3D", fontWeight: 700, textDecoration: "underline" }}>
+                    Overleaf
+                  </a>
+                </p>
+                {downloadCombinedError && (
+                  <p style={{ color: "#8B2020", fontSize: "12px", marginTop: "4px", maxWidth: "260px" }}>
+                    {downloadCombinedError}
+                  </p>
+                )}
+              </div>
+
               {/* ── Save to Cabinet ── */}
               <div style={{ textAlign: "center" }}>
                 <button
@@ -1273,5 +1396,8 @@ useEffect(() => {
     </DashboardLayout>
   );
 }
+
+
+
 
 

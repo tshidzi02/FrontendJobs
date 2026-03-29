@@ -119,7 +119,7 @@ const S = {
   jobDesc: {
     marginTop: "14px", padding: "14px 16px", background: "#EDE8DE",
     borderRadius: "8px", fontSize: "12px", lineHeight: "1.7", color: "#6B6252",
-    maxHeight: "240px", overflowY: "auto", whiteSpace: "pre-wrap",
+    whiteSpace: "pre-wrap",
     border: "1px solid #DDD5C4", fontFamily: "'Libre Baskerville', serif",
   },
   jobCardActions: { display: "flex", gap: "8px", marginTop: "12px", flexWrap: "wrap", alignItems: "center" },
@@ -192,6 +192,8 @@ export default function SmartJobsPage() {
   const [queueData, setQueueData] = useState({ ranked: [], generated: [], verified: [], applied: [] });
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [expandedId, setExpandedId] = useState(null);
+  const [copiedId, setCopiedId] = useState(null);
+  const [wishlistIds, setWishlistIds] = useState(new Set());
   const [searching, setSearching] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [generateProgress, setGenerateProgress] = useState(0);
@@ -375,6 +377,23 @@ export default function SmartJobsPage() {
     window.open(job.apply_url, "_blank", "noopener,noreferrer");
   };
 
+  const saveToWishlist = async (job) => {
+    if (wishlistIds.has(job.job_id)) return;
+    try {
+      await api.post("/tracker", {
+        company: job.company  || "",
+        role:    job.title    || "",
+        status:  "Wishlist",
+        salary:  job.salary   || "",
+        notes:   "",
+        url:     job.apply_url || "",
+      });
+      setWishlistIds(prev => new Set([...prev, job.job_id]));
+    } catch (e) {
+      console.error("Wishlist save failed:", e);
+    }
+  };
+
   // ─────────────────────────────────────────
   // RENDER HELPERS
   // ─────────────────────────────────────────
@@ -439,7 +458,64 @@ export default function SmartJobsPage() {
             <div style={S.jobDesc}>
               {job.description || "No description available."}
             </div>
+            {/* Warning when API truncated the description */}
+            {job.description && (
+              job.description.trimEnd().endsWith("...") ||
+              job.description.trimEnd().endsWith("…") ||
+              job.description.length < 300
+            ) && job.apply_url && (
+              <div
+                onClick={(e) => e.stopPropagation()}
+                style={{
+                  marginTop: "8px", padding: "10px 14px",
+                  background: "rgba(184,134,11,0.08)",
+                  border: "1px solid rgba(184,134,11,0.3)",
+                  borderRadius: "8px", fontSize: "12px", color: "#7A5800",
+                  fontFamily: "inherit",
+                }}
+              >
+                ⚠ Description shortened by the job board.{" "}
+                <a href={job.apply_url} target="_blank" rel="noopener noreferrer"
+                  style={{ color: "#2D5A3D", fontWeight: 700 }}>
+                  View full listing →
+                </a>
+              </div>
+            )}
             <div style={S.jobCardActions}>
+              {/* Copy description — always visible */}
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  navigator.clipboard.writeText(job.description || "").then(() => {
+                    setCopiedId(job.job_id);
+                    setTimeout(() => setCopiedId(null), 2000);
+                  });
+                }}
+                style={{
+                  padding: "8px 14px",
+                  background: copiedId === job.job_id ? "rgba(45,90,61,0.12)" : "transparent",
+                  color: copiedId === job.job_id ? "#2D5A3D" : "#6B6252",
+                  border: `1px solid ${copiedId === job.job_id ? "#2D5A3D" : "#C8BCA8"}`,
+                  borderRadius: "8px", cursor: "pointer", fontWeight: 700,
+                  fontSize: "12px", fontFamily: "inherit", transition: "all 0.2s",
+                }}
+              >
+                {copiedId === job.job_id ? "✓ Copied!" : "📋 Copy Description"}
+              </button>
+              {/* Save to Wishlist — always visible */}
+              <button
+                onClick={(e) => { e.stopPropagation(); saveToWishlist(job); }}
+                style={{
+                  padding: "8px 14px",
+                  background: wishlistIds.has(job.job_id) ? "rgba(45,90,61,0.12)" : "transparent",
+                  color: "#2D5A3D",
+                  border: `1px solid ${wishlistIds.has(job.job_id) ? "#2D5A3D" : "#C8BCA8"}`,
+                  borderRadius: "8px", cursor: wishlistIds.has(job.job_id) ? "default" : "pointer",
+                  fontWeight: 700, fontSize: "12px", fontFamily: "inherit", transition: "all 0.2s",
+                }}
+              >
+                {wishlistIds.has(job.job_id) ? "✓ Wishlisted!" : "⭐ Save to Wishlist"}
+              </button>
               {job.status === "verified" && (
                 <button
                   style={S.applyNowBtn}
@@ -632,6 +708,37 @@ export default function SmartJobsPage() {
                           >
                             ✈ Apply Now
                           </a>
+                          <button
+                            onClick={() => {
+                              navigator.clipboard.writeText(job.description || "").then(() => {
+                                setCopiedId(job.job_id);
+                                setTimeout(() => setCopiedId(null), 2000);
+                              });
+                            }}
+                            style={{
+                              padding: "8px 14px",
+                              background: copiedId === job.job_id ? "rgba(45,90,61,0.12)" : "transparent",
+                              color: copiedId === job.job_id ? "#2D5A3D" : "#6B6252",
+                              border: `1px solid ${copiedId === job.job_id ? "#2D5A3D" : "#C8BCA8"}`,
+                              borderRadius: "8px", cursor: "pointer", fontWeight: 700,
+                              fontSize: "12px", fontFamily: "inherit", transition: "all 0.2s",
+                            }}
+                          >
+                            {copiedId === job.job_id ? "✓ Copied!" : "📋 Copy Description"}
+                          </button>
+                          <button
+                            onClick={() => saveToWishlist(job)}
+                            style={{
+                              padding: "8px 14px",
+                              background: wishlistIds.has(job.job_id) ? "rgba(45,90,61,0.12)" : "transparent",
+                              color: "#2D5A3D",
+                              border: `1px solid ${wishlistIds.has(job.job_id) ? "#2D5A3D" : "#C8BCA8"}`,
+                              borderRadius: "8px", cursor: wishlistIds.has(job.job_id) ? "default" : "pointer",
+                              fontWeight: 700, fontSize: "12px", fontFamily: "inherit", transition: "all 0.2s",
+                            }}
+                          >
+                            {wishlistIds.has(job.job_id) ? "✓ Wishlisted!" : "⭐ Save to Wishlist"}
+                          </button>
                           <button style={S.dangerBtn} onClick={() => updateStatus(job.job_id, "ranked")}>
                             Skip
                           </button>
@@ -674,6 +781,37 @@ export default function SmartJobsPage() {
                           >
                             Open Overleaf ↗
                           </a>
+                          <button
+                            onClick={() => {
+                              navigator.clipboard.writeText(job.description || "").then(() => {
+                                setCopiedId(job.job_id);
+                                setTimeout(() => setCopiedId(null), 2000);
+                              });
+                            }}
+                            style={{
+                              padding: "8px 14px",
+                              background: copiedId === job.job_id ? "rgba(45,90,61,0.12)" : "transparent",
+                              color: copiedId === job.job_id ? "#2D5A3D" : "#6B6252",
+                              border: `1px solid ${copiedId === job.job_id ? "#2D5A3D" : "#C8BCA8"}`,
+                              borderRadius: "8px", cursor: "pointer", fontWeight: 700,
+                              fontSize: "12px", fontFamily: "inherit", transition: "all 0.2s",
+                            }}
+                          >
+                            {copiedId === job.job_id ? "✓ Copied!" : "📋 Copy Description"}
+                          </button>
+                          <button
+                            onClick={() => saveToWishlist(job)}
+                            style={{
+                              padding: "8px 14px",
+                              background: wishlistIds.has(job.job_id) ? "rgba(45,90,61,0.12)" : "transparent",
+                              color: "#2D5A3D",
+                              border: `1px solid ${wishlistIds.has(job.job_id) ? "#2D5A3D" : "#C8BCA8"}`,
+                              borderRadius: "8px", cursor: wishlistIds.has(job.job_id) ? "default" : "pointer",
+                              fontWeight: 700, fontSize: "12px", fontFamily: "inherit", transition: "all 0.2s",
+                            }}
+                          >
+                            {wishlistIds.has(job.job_id) ? "✓ Wishlisted!" : "⭐ Save to Wishlist"}
+                          </button>
                           <button style={S.dangerBtn} onClick={() => updateStatus(job.job_id, "ranked")}>
                             Reset
                           </button>
