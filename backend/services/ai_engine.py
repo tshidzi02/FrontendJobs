@@ -29,7 +29,6 @@ def generate_cv_content(
 
     # Store URL map keyed by project name so we can re-attach after AI call
     # (AI is not told about URLs — it only enhances bullets and titles)
-    # Supports both new `urls` (array) and legacy `url` (single string).
     def _extract_urls(p):
         raw = p.get("urls")
         if raw and isinstance(raw, list) and any(raw):
@@ -96,12 +95,7 @@ JOB DESCRIPTION:
 
 Return this exact JSON structure:
 {{
-  "SUMMARY": "300-350 word summary tailored to the job description, 
-  written in first person, professional tone. Focus on how your background 
-  and skills make you a great fit for this specific role. Do NOT be generic. 
-  and use my skills to explain why I'm a strong candidate for this job. 
-  Use my skills to show how i can use those skills for the job. 
-  ",
+  "SUMMARY": "300-350 word summary tailored to the job description, written in first person, professional tone.",
   "experience": [
     {{
       "role": "exact job title from profile",
@@ -113,12 +107,7 @@ Return this exact JSON structure:
       "dates": "startYear - endYear",
       "bullets": [
         "Original bullet 1 — enhanced or kept as-is",
-        "Original bullet 2 — enhanced or kept as-is",
-        "Original bullet 3 — enhanced or kept as-is",
-        "Original bullet 4 — enhanced or kept as-is",
-        "AI-added bullet relevant to this job description",
-        "AI-added bullet relevant to this job description",
-        "AI-added bullet relevant to this job description",
+        "AI-added bullet relevant to this job description"
       ]
     }}
   ],
@@ -128,13 +117,7 @@ Return this exact JSON structure:
       "tech_stack": "exact tech_stack from profile",
       "bullets": [
         "Original bullet 1 — enhanced with strong verbs and impact",
-        "Original bullet 2 — enhanced with measurable results",
-        "Original bullet 3 — enhanced with strong verbs and impact",
-        "Original bullet 4 — enhanced with measurable results",
-        "AI-added bullet directly aligned to the job description requirements",
-        "AI-added bullet showing how this project demonstrates skills the job needs"
-        "AI-added bullet directly aligned to the job description requirements",
-        "AI-added bullet showing how this project demonstrates skills the job needs"
+        "AI-added bullet directly aligned to the job description requirements"
       ]
     }}
   ],
@@ -180,41 +163,45 @@ Return this exact JSON structure:
     summary = main_data.get("SUMMARY", "")
 
     # =========================================================================
-    # SKILLS GAP CALL — only finds NEW skills from job description
+    # SKILLS GAP CALL — extracts ALL skills from JD, excludes ones user has
     # =========================================================================
 
     own_skills_str = ", ".join(own_skill_names) if own_skill_names else "none listed"
 
-    skills_prompt = f"""You are a skills gap analyser. Return valid JSON only.
+    skills_prompt = f"""You are a skills extraction engine. Return valid JSON only.
 
-The candidate already has these skills:
+CANDIDATE'S EXISTING SKILLS (exclude ALL of these from your output):
 {own_skills_str}
 
-Job Description:
+JOB DESCRIPTION:
 {job_description}
 
-Task:
-1. Identify skills the job requires that the candidate does NOT already have.
-2. For each new skill write one sentence: what it is and why this job needs it.
-3. Group into categories (Tools and Platforms, Frameworks, Data Skills, Soft Skills etc).
-4. Do NOT include any skill the candidate already has.
-5. If no new skills needed, return empty array.
-6. Return valid JSON only.
-7. Do NOT return any skills that are already in the candidate's profile. Focus ONLY on new 
-skills that are required by the job description but missing from the candidate's existing 
-skills list.
-8. The categories you create should be relevant to the job description and the skills you 
-identify. For example, if the job description emphasizes cloud computing, you might have a 
-category called "Cloud Platforms" with skills like "AWS" or "Azure". If it emphasizes teamwork
-and communication, you might have a category called "Soft Skills" with skills like 
-"Cross-functional Collaboration" or "Effective Communication". The goal is to organize 
-the new skills in a way that makes sense for the specific requirements of the job.
-9. You should add an additional 10 more skills beyond the ones listed in the candidate's 
-profile, as long as they are relevant to the job description. These should be skills that 
-a strong candidate for this role would typically have, based on the job description's 
-requirements and responsibilities. The AI should use its understanding of industry standards 
-and job market trends to identify these additional skills, ensuring that they are genuinely 
-relevant and would enhance the candidate's fit for the role.
+YOUR TASK — do these steps in order:
+
+STEP 1 — EXTRACT: Read the entire job description and list EVERY distinct technical skill,
+tool, framework, platform, methodology, or practice mentioned. Be exhaustive — do not skip
+anything named in the JD. Common examples: languages (C#, Python, Go), frameworks
+(.NET, React, Django), cloud platforms (AWS, Azure, GCP), databases (SQL Server, MongoDB),
+DevOps tools (Docker, Kubernetes, Terraform), methodologies (Agile, TDD, SDLC), etc.
+
+STEP 2 — FILTER: Remove any skill that already appears in the candidate's existing skills
+list above. Do a case-insensitive comparison.
+
+STEP 3 — AUGMENT: After the JD-extracted skills, add up to 10 additional skills that are
+strongly implied by the role but not explicitly named in the JD. Only add skills a senior
+hiring manager would expect a strong candidate to have for this specific role.
+
+STEP 4 — GROUP: Organise all remaining skills into logical categories that match the JD's
+structure (e.g. "Languages & Frameworks", "Backend & APIs", "Databases", "Cloud & DevOps",
+"Tools & Practices", "Soft Skills"). Use as many categories as needed.
+
+STEP 5 — DESCRIBE: For each skill write a SHORT description (max 25 words) explaining what
+it is and why this specific job needs it.
+
+RULES:
+- Be exhaustive in Step 1 — if it's in the JD, it must appear unless the candidate already has it.
+- Do NOT include any skill from the candidate's existing skills list.
+- Return valid JSON only. No markdown. No backticks.
 
 {{
   "new_skill_categories": [
@@ -223,7 +210,7 @@ relevant and would enhance the candidate's fit for the role.
       "skills_list": [
         {{
           "skill": "Skill Name",
-          "description": "What it is and why this job needs it.It should be 100 words",
+          "description": "Max 25 words: what it is and why this job needs it.",
           "is_new": true
         }}
       ]
@@ -234,12 +221,15 @@ relevant and would enhance the candidate's fit for the role.
     skills_response = client.chat.completions.create(
         model="gpt-4o",
         messages=[
-            {"role": "system", "content": "You are a skills gap analyser. Return valid JSON only."},
+            {
+                "role": "system",
+                "content": "You are a skills extraction engine. Return valid JSON only. Never use markdown."
+            },
             {"role": "user", "content": skills_prompt}
         ],
         response_format={"type": "json_object"},
-        temperature=0.3,
-        max_tokens=1500,
+        temperature=0.2,   # lower = more deterministic/complete extraction
+        max_tokens=4000,   # was 1500 — the main reason skills were being cut off
     )
 
     skills_data = json.loads(skills_response.choices[0].message.content)
@@ -254,7 +244,7 @@ relevant and would enhance the candidate's fit for the role.
     if own_skill_names:
         desc_prompt = f"""You are a CV skills writer. Return valid JSON only.
 
-For each skill below, write one short sentence (max 100 words) explaining
+For each skill below, write one short sentence (max 25 words) explaining
 what it is and why it is relevant to this job.
 
 Skills: {own_skills_str}
@@ -276,7 +266,7 @@ Job (summary): {job_description[:600]}
             ],
             response_format={"type": "json_object"},
             temperature=0.3,
-            max_tokens=1000,
+            max_tokens=1500,  # bumped from 1000 — handles large skill sets
         )
 
         desc_data = json.loads(desc_response.choices[0].message.content)

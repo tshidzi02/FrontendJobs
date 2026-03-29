@@ -4768,7 +4768,7 @@ def _fetch_adzuna(query, location, employment_type, salary_min, salary_max,
                 "type":        "On-site",
                 "salary":      salary_str,
                 "posted":      _relative_date(item.get("created", "")),
-                "description": item.get("description", "")[:3000],
+                "description": item.get("description", ""),
                 "url":         item.get("redirect_url", ""),
                 #"source":      "Adzuna",
             })
@@ -4855,7 +4855,7 @@ def search_the_muse(query, location):
                 job_type = "Remote" if "remote" in loc_str.lower() else "On-site"
 
                 # Description
-                desc = _strip_html(item.get("contents", ""))[:3000]
+                desc = _strip_html(item.get("contents", ""))
 
                 all_jobs.append({
                     "id":          f"muse-{item.get('id', '')}",
@@ -4922,7 +4922,7 @@ def search_remoteok(query):
                 "type":        "Remote",
                 "salary":      item.get("salary", "") or "",
                 "posted":      _relative_date(item.get("epoch", time.time())),
-                "description": _strip_html(item.get("description", ""))[:3000],
+                "description": _strip_html(item.get("description", "")),
                 "url":         item.get("url", ""),
                 #"source":      "RemoteOK",
             })
@@ -5028,7 +5028,7 @@ def search_jsearch(query, location, employment_type, date_posted):
                     "type":        job_type,
                     "salary":      salary_str,
                     "posted":      posted,
-                    "description": (item.get("job_description") or "")[:3000],
+                    "description": (item.get("job_description") or ""),
                     "url":         item.get("job_apply_link") or item.get("job_google_link", ""),
                     #"source":      "JSearch",
                 })
@@ -5111,6 +5111,243 @@ def search_jobs(
 
     print(f"[JobSearch] Total after dedup: {len(final)} results")
     return final
+
+
+# =============================================================================
+# FILE: backend/services/semantic_matcher.py
+# =============================================================================
+# PURPOSE: Measures how "semantically similar" a CV summary is to a job description.
+#
+#          KEYWORD MATCHING vs SEMANTIC MATCHING — what's the difference?
+#
+#          Keyword matching (in ats_analyzer.py) checks:
+#            "Does the word 'python' appear in both the CV and the JD?"
+#            Problem: "engineered scalable systems" and "built robust infrastructure"
+#            mean the SAME thing but share ZERO keywords.
+#
+#          Semantic matching (this file) checks:
+#            "Do these two texts MEAN similar things?"
+#            It converts text into mathematical vectors (lists of numbers) that
+#            capture MEANING. Similar meanings → vectors point in similar directions.
+#            "engineered scalable systems" ≈ "built robust infrastructure"
+#            → high similarity score, even without shared words.
+#
+#          This is much more powerful and accurate than keyword matching alone.
+#          That's why it's weighted at 50% in the ATS score (the biggest weight).
+#
+# HOW IT FITS IN THE FLOW:
+#   app.py (generate route):
+#     1. Calls semantic_match_score(job_description, SUMMARY)
+#        → THIS FILE sends BOTH texts to OpenAI Embeddings API
+#        → Gets back two vectors (lists of ~1536 numbers each)
+#        → Calculates cosine similarity between them
+#        → Returns a score 0–100
+#     2. That score is passed INTO analyze_ats() as semantic_score parameter
+#        (semantic_matcher.py result feeds directly into ats_analyzer.py)
+# =============================================================================
+
+
+# =============================================================================
+# SECTION 1: IMPORTS
+# =============================================================================
+
+from openai import OpenAI
+# The official OpenAI Python client library.
+# Used here to call the Embeddings API (not the Chat/Completions API).
+# Embeddings API converts text → a list of numbers (a "vector").
+
+import numpy as np
+# NumPy = Numerical Python.
+# The go-to library for mathematical operations on arrays and matrices.
+# We use it here for:
+#   - Converting Python lists to NumPy arrays (np.array())
+#   - Dot product calculation (np.dot())
+#   - Vector magnitude/norm calculation (np.linalg.norm())
+# Install with: pip install numpy
+
+
+# =============================================================================
+# SECTION 2: CREATE OPENAI CLIENT
+# =============================================================================
+
+client = OpenAI()
+# Creates the OpenAI client.
+# Automatically reads OPENAI_API_KEY from environment variables.
+# Same pattern as ai_engine.py — one client per module, reused for all requests.
+# Note: This creates a SECOND OpenAI client (ai_engine.py also creates one).
+# In a larger app, you'd share one client across modules, but this works fine here.
+
+
+# =============================================================================
+# SECTION 3: EMBEDDING FUNCTION
+# =============================================================================
+
+def get_embedding(text):
+    """
+    Convert text into embedding vector using OpenAI model.
+    """
+    # PURPOSE: Take any string of text and convert it to a vector (list of numbers)
+    #          that represents its MEANING in mathematical space.
+    #
+    # What is an "embedding"?
+    #   Imagine a 3D space where "cat", "dog", "pet" are close together
+    #   and "car", "truck", "vehicle" are close together, but "cat" and "car" are far apart.
+    #   Embeddings do this in ~1536 DIMENSIONS (not just 3).
+    #   The more similar in meaning, the closer together the vectors.
+    #
+    # PARAMETER:
+    #   text (str) - Any text: job description, CV summary, skill list, etc.
+    #
+    # RETURNS:
+    #   A Python list of ~1536 floating point numbers.
+    #   e.g. [0.0123, -0.0456, 0.0789, ..., -0.0321]  (1536 numbers total)
+
+    response = client.embeddings.create(
+        model="text-embedding-3-small",
+        # OpenAI's embedding model.
+        # "text-embedding-3-small" is:
+        #   - Fast and cheap (much cheaper than GPT models per token)
+        #   - High quality (1536 dimensions)
+        #   - Good for semantic similarity tasks
+        # Other option: "text-embedding-3-large" (3072 dimensions, more accurate, costs more)
+
+        input=text
+        # The text we want to embed.
+        # OpenAI will process this text and return a vector representing its meaning.
+    )
+    # FLOW: HTTP request sent to OpenAI Embeddings API
+    #       Server processes text → returns response object with the vector inside
+
+    return response.data[0].embedding
+    # Breaking this down:
+    #   response         → the full API response object
+    #   .data            → a list of embedding results (we only sent one text, so one result)
+    #   [0]              → the first (and only) result
+    #   .embedding       → the actual list of numbers (the vector)
+    #
+    # Returns: [0.0123, -0.0456, 0.0789, ..., -0.0321]
+    # This list has exactly 1536 numbers for "text-embedding-3-small".
+
+
+# =============================================================================
+# SECTION 4: COSINE SIMILARITY FUNCTION
+# =============================================================================
+
+def cosine_similarity(vec1, vec2):
+    """
+    Compute cosine similarity between two vectors.
+    """
+    # PURPOSE: Given two vectors (lists of numbers), calculate HOW SIMILAR
+    #          they are in terms of the ANGLE between them.
+    #
+    # Why COSINE similarity and not just comparing the numbers directly?
+    #   Cosine similarity measures the ANGLE between two vectors, not their length.
+    #   Two vectors can have very different magnitudes but point in the same
+    #   direction → they're semantically similar.
+    #   This makes it robust to text length differences.
+    #
+    # Formula: cos(θ) = (A · B) / (||A|| × ||B||)
+    #   A · B    = dot product (sum of element-wise multiplications)
+    #   ||A||    = magnitude (length) of vector A
+    #   ||B||    = magnitude (length) of vector B
+    #
+    # Result range: -1.0 to 1.0
+    #   1.0  = identical direction (same meaning)
+    #   0.0  = perpendicular (completely unrelated meaning)
+    #  -1.0  = opposite direction (opposite meaning)
+    # For text, scores are typically 0.0 to 1.0.
+    #
+    # PARAMETERS:
+    #   vec1 (list) - First embedding vector (e.g. from job description)
+    #   vec2 (list) - Second embedding vector (e.g. from CV summary)
+    #
+    # RETURNS:
+    #   A float between -1.0 and 1.0
+
+    vec1 = np.array(vec1)
+    # Convert the Python list [0.012, -0.045, ...] into a NumPy array.
+    # NumPy arrays support mathematical operations that plain Python lists don't.
+    # e.g. You can't do list1 * list2 in Python, but numpy_array1 * numpy_array2 works.
+
+    vec2 = np.array(vec2)
+    # Same conversion for the second vector.
+
+    return np.dot(vec1, vec2) / (
+        np.linalg.norm(vec1) * np.linalg.norm(vec2)
+    )
+    # This is the cosine similarity formula:
+    #
+    # np.dot(vec1, vec2):
+    #   Computes the DOT PRODUCT of the two vectors.
+    #   Dot product = sum of (vec1[i] * vec2[i]) for all i
+    #   = vec1[0]*vec2[0] + vec1[1]*vec2[1] + ... + vec1[1535]*vec2[1535]
+    #   This measures "how much do these vectors align element by element?"
+    #
+    # np.linalg.norm(vec1):
+    #   Computes the MAGNITUDE (length) of vector 1.
+    #   norm = sqrt(vec1[0]² + vec1[1]² + ... + vec1[1535]²)
+    #   This normalizes for vector length so we only measure DIRECTION (meaning).
+    #
+    # np.linalg.norm(vec2):
+    #   Same for vector 2.
+    #
+    # Dividing the dot product by the product of both magnitudes gives us
+    # the cosine of the angle between the two vectors.
+    # High value (close to 1.0) = vectors point in same direction = similar meaning.
+
+
+# =============================================================================
+# SECTION 5: MAIN SEMANTIC MATCH FUNCTION
+# =============================================================================
+
+def semantic_match_score(job_description, cv_text):
+    """
+    Compute semantic similarity score between job and CV.
+    """
+    # PURPOSE: The "public" function called from app.py.
+    #          Orchestrates the embedding → similarity calculation pipeline
+    #          and returns a clean percentage score.
+    #
+    # PARAMETERS:
+    #   job_description (str) - The full job posting text
+    #   cv_text         (str) - The AI-generated CV summary text
+    #
+    # RETURNS:
+    #   A float from 0 to ~100 representing semantic similarity percentage.
+    #   e.g. 78.42
+
+    job_embedding = get_embedding(job_description)
+    # ↑ JUMPS TO: get_embedding() function above (in this same file)
+    # Calls OpenAI Embeddings API with the job description text.
+    # Returns: [0.012, -0.045, 0.078, ...] — a list of 1536 numbers
+    # FLOW: → OpenAI API call → vector returned here
+
+    cv_embedding = get_embedding(cv_text)
+    # ↑ JUMPS TO: get_embedding() function above again
+    # Calls OpenAI Embeddings API with the CV summary text.
+    # Returns: another list of 1536 numbers representing the CV's meaning.
+    # FLOW: → second OpenAI API call → second vector returned here
+    #
+    # NOTE: This means semantic_match_score() makes TWO OpenAI API calls total.
+    # Combined with the one call in ai_engine.py, the /api/generate route
+    # makes THREE OpenAI API calls in total per CV generation.
+
+    similarity = cosine_similarity(job_embedding, cv_embedding)
+    # ↑ JUMPS TO: cosine_similarity() function above (in this same file)
+    # Passes both vectors in, gets back a number between -1.0 and 1.0.
+    # For real text comparisons, this will typically be 0.6 to 0.95.
+    # e.g. similarity = 0.7842
+
+    score = similarity * 100
+    # Convert from decimal (0.0–1.0) to percentage (0–100).
+    # e.g. 0.7842 * 100 = 78.42
+
+    return round(score, 2)
+    # Round to 2 decimal places for clean display.
+    # e.g. 78.4200001 → 78.42
+    # FLOW: Returns 78.42 → back to app.py
+    #       app.py passes this score into analyze_ats() as the semantic_score parameter
+
 
 
 ======================================================================
@@ -5367,7 +5604,6 @@ FILE: ./backend\services\smart_jobs_service.py
 # ============================================================
 
 import os
-import json
 import zipfile
 import tempfile
 import numpy as np
@@ -5544,219 +5780,134 @@ def build_search_query(profile, user_query=None):
 
 
 # ============================================================
-# 4. GENERATE LATEX CV + COVER LETTER FOR ONE JOB
+# 4. GENERATE COMBINED LATEX FOR ONE JOB
+#    Uses the SAME builders as Bulk Generate:
+#      build_cv_tex()           from cv_latex.py
+#      build_cover_letter_tex() from cover_letter_latex.py
+#    Then combines them identically to BulkGenerate's buildCombined()
 # ============================================================
 
+from services.cv_latex import build_cv_tex
+from services.cover_letter_latex import build_cover_letter_tex
+from services.cover_letter_generator import generate_cover_letter
+from services.ai_engine import generate_cv_content
+
+
+def _build_combined(cv_tex, cl_tex):
+    """
+    Merge two standalone .tex documents into one file.
+    Identical logic to BulkGenerate.jsx buildCombined():
+      - Uses CV preamble (has all packages, colours, fonts)
+      - Cover letter body first, then \\newpage, then CV body
+    """
+    def extract_body(tex):
+        start = tex.find("\\begin{document}")
+        end   = tex.rfind("\\end{document}")
+        if start == -1 or end == -1:
+            return tex
+        return tex[start + len("\\begin{document}"):end].strip()
+
+    preamble = cv_tex[:cv_tex.find("\\begin{document}")].strip()
+    cv_body  = extract_body(cv_tex)
+    cl_body  = extract_body(cl_tex)
+
+    return "\n".join([
+        preamble,
+        "",
+        "\\begin{document}",
+        "",
+        "% ═══════════════════════════════════════════════════════════════════════",
+        "% COVER LETTER",
+        "% ═══════════════════════════════════════════════════════════════════════",
+        cl_body,
+        "",
+        "\\newpage",
+        "",
+        "% ═══════════════════════════════════════════════════════════════════════",
+        "% CURRICULUM VITAE",
+        "% ═══════════════════════════════════════════════════════════════════════",
+        cv_body,
+        "",
+        "\\end{document}",
+    ])
+
+
 def generate_latex_for_job(profile, job):
-    prompt_cv = f"""
-You are a professional CV writer. Given a candidate profile and a job description,
-return ONLY a JSON object with these fields:
+    """
+    Generate the combined CV + Cover Letter .tex for one job.
+    Uses EXACTLY the same pipeline as Bulk Generate:
 
-{{
-  "summary": "2-3 sentence professional summary tailored to this job",
-  "skills": ["skill1", "skill2", ...],
-  "experience": [
-    {{
-      "role": "Job Title",
-      "company": "Company Name",
-      "dates": "Start - End",
-      "bullets": ["bullet1", "bullet2", ...]
-    }}
-  ],
-  "projects": [
-    {{
-      "name": "Project Name",
-      "description": "Short description",
-      "bullets": ["bullet1", ...]
-    }}
-  ]
-}}
+    Step 1 — generate_cv_content()    → same AI engine as Generate CV page
+             (300-350 word summary, gpt-4o, full structured output)
+    Step 2 — generate_cover_letter()  → same as Cover Letter page
+    Step 3 — build_cv_tex()           → same as Download CV (.tex)
+    Step 4 — build_cover_letter_tex() → same as Download Cover Letter (.tex)
+    Step 5 — _build_combined()        → same as Bulk Generate combined tab
+    """
+    personal  = profile.get("personalInfo", {})
+    job_desc  = job.get("description", "")
 
-Keep all original companies and roles. Only enhance bullet points.
-Return STRICT JSON only. No markdown, no preamble.
+    # Extract profile fields in the format generate_cv_content() expects
+    # (same extraction the Generate CV page does before calling the API)
+    base_skills = []
+    for cat in profile.get("skills", []):
+        if isinstance(cat, dict):
+            for s in cat.get("skills_list", []):
+                if isinstance(s, dict):
+                    base_skills.append(s.get("skill", ""))
+                elif isinstance(s, str):
+                    base_skills.append(s)
+        elif isinstance(cat, str):
+            base_skills.append(cat)
 
-PROFILE:
-{json.dumps(profile, indent=2)}
+    base_experience    = profile.get("experience", [])
+    project_experience = [p for p in profile.get("projects", []) if p.get("includeInCV", True)]
+    education          = profile.get("education", [])
+    languages          = profile.get("languages", [])
+    references         = profile.get("references", "Available upon Request")
 
-JOB DESCRIPTION:
-{job['description'][:3000]}
-"""
-
-    prompt_cover = f"""
-Write a professional cover letter for this job application.
-Return ONLY the body text (no address, no date, no salutation header — just 3-4 paragraphs).
-
-CANDIDATE PROFILE:
-Name: {profile.get('full_name', 'Candidate')}
-Summary: {profile.get('summary', '')}
-Skills: {', '.join(profile.get('skills', []) if profile.get('skills') and isinstance(profile['skills'][0], str) else [])}
-
-JOB:
-Title: {job['title']}
-Company: {job['company']}
-Description: {job['description'][:2000]}
-"""
-
+    # ── Step 1: Same AI engine as Generate CV page ────────────────────────────
     try:
-        raw = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[{"role": "user", "content": prompt_cv}],
-            temperature=0.5
-        ).choices[0].message.content
-        try:
-            cv_data = json.loads(raw)
-        except json.JSONDecodeError:
-            cv_data = json.loads(raw[raw.find("{"):raw.rfind("}")+1])
-    except Exception as e:
-        print(f"[LaTeX Gen] CV AI error: {e}")
-        cv_data = profile
+        ai_result = generate_cv_content(
+            job_description    = job_desc,
+            base_skills        = base_skills,
+            base_experience    = base_experience,
+            project_experience = project_experience,
+            education          = education,
+            languages          = languages,
+            references         = references,
+        )
+    except Exception as ex:
+        print(f"[SmartJobs LaTeX] CV AI error: {ex}")
+        ai_result = {
+            "SUMMARY":          profile.get("summary", ""),
+            "skills":           profile.get("skills", []),
+            "experience":       base_experience,
+            "project_experience": project_experience,
+            "education":        education,
+            "languages":        languages,
+            "REFERENCE":        references,
+        }
 
+    # ── Step 2: Same cover letter generator as Cover Letter page ─────────────
     try:
-        cover_letter_body = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[{"role": "user", "content": prompt_cover}],
-            temperature=0.6
-        ).choices[0].message.content.strip()
-    except Exception as e:
-        print(f"[LaTeX Gen] Cover letter AI error: {e}")
-        cover_letter_body = "I am excited to apply for this position and believe my experience makes me an excellent candidate."
+        cl_result         = generate_cover_letter(job_desc, profile, tone="professional")
+        cover_letter_text = cl_result.get("cover_letter", "")
+    except Exception as ex:
+        print(f"[SmartJobs LaTeX] Cover letter AI error: {ex}")
+        cover_letter_text = (
+            f"I am writing to express my interest in the {job.get('title','')} position "
+            f"at {job.get('company','')}. My background and skills make me a strong "
+            "candidate for this role, and I would welcome the opportunity to contribute "
+            "to your team."
+        )
 
-    return build_latex_document(profile, cv_data, job, cover_letter_body)
+    # ── Step 3 + 4: Same LaTeX builders as Download CV/Cover Letter ───────────
+    cv_tex = build_cv_tex(profile, ai_result)
+    cl_tex = build_cover_letter_tex(profile, cover_letter_text, job_title=job.get("title", ""))
 
-
-def escape_latex(text):
-    if not text:
-        return ""
-    text = str(text)
-    for old, new in [
-        ("&", "\\&"), ("%", "\\%"), ("$", "\\$"), ("#", "\\#"),
-        ("_", "\\_"), ("{", "\\{"), ("}", "\\}"),
-        ("~", "\\textasciitilde{}"), ("^", "\\textasciicircum{}"),
-    ]:
-        text = text.replace(old, new)
-    return text
-
-
-def build_latex_document(profile, cv_data, job, cover_letter_body):
-    full_name        = escape_latex(profile.get("full_name", "Your Name"))
-    email            = escape_latex(profile.get("email", ""))
-    phone            = escape_latex(profile.get("phone", ""))
-    loc              = escape_latex(profile.get("location", ""))
-    linkedin         = escape_latex(profile.get("linkedin", ""))
-    website          = escape_latex(profile.get("website", ""))
-    job_title_target = escape_latex(job.get("title", ""))
-    company_name     = escape_latex(job.get("company", ""))
-
-    contact_line = " $\\bullet$ ".join([x for x in [email, phone, loc, linkedin, website] if x])
-
-    # Skills
-    skills_raw = cv_data.get("skills", profile.get("skills", []))
-    if skills_raw and isinstance(skills_raw[0], str):
-        skills_tex = ", ".join([escape_latex(s) for s in skills_raw])
-    else:
-        flat = []
-        for cat in skills_raw:
-            if isinstance(cat, dict):
-                for s in cat.get("skills_list", []):
-                    flat.append(escape_latex(s.get("skill", "")))
-        skills_tex = ", ".join(flat)
-
-    # Experience
-    exp_tex = ""
-    for exp in cv_data.get("experience", []):
-        bullets = "\n".join([f"    \\item {escape_latex(b)}" for b in exp.get("bullets", [])])
-        exp_tex += f"""
-\\noindent\\textbf{{{escape_latex(exp.get('role',''))}}} \\hfill \\textit{{{escape_latex(exp.get('dates',''))}}}\\\\
-\\textit{{{escape_latex(exp.get('company',''))}}}
-\\begin{{itemize}}[leftmargin=*, topsep=2pt, itemsep=1pt, parsep=0pt]
-{bullets}
-\\end{{itemize}}
-\\vspace{{4pt}}
-"""
-
-    # Projects
-    proj_tex = ""
-    for proj in cv_data.get("projects", []):
-        bullets = "\n".join([f"    \\item {escape_latex(b)}" for b in proj.get("bullets", [])])
-        proj_tex += f"""
-\\noindent\\textbf{{{escape_latex(proj.get('name',''))}}} --- \\textit{{{escape_latex(proj.get('description',''))}}}
-\\begin{{itemize}}[leftmargin=*, topsep=2pt, itemsep=1pt, parsep=0pt]
-{bullets}
-\\end{{itemize}}
-\\vspace{{4pt}}
-"""
-
-    summary = escape_latex(cv_data.get("summary", profile.get("summary", "")))
-
-    # Education
-    edu_tex = ""
-    for edu in profile.get("education", []):
-        edu_tex += f"\\noindent\\textbf{{{escape_latex(edu.get('degree',''))}}} --- {escape_latex(edu.get('school',''))} \\hfill \\textit{{{escape_latex(edu.get('dates',''))}}}\\\\\n"
-    education_section = f"\\section{{Education}}\n{edu_tex}" if edu_tex.strip() else ""
-
-    # Cover letter
-    cl_paragraphs = ""
-    for para in cover_letter_body.strip().split("\n\n"):
-        para = para.strip()
-        if para:
-            cl_paragraphs += f"\n{escape_latex(para)}\n\n\\medskip\n"
-
-    return f"""\\documentclass[11pt,a4paper]{{article}}
-\\usepackage[margin=2cm]{{geometry}}
-\\usepackage{{fontenc}}\\usepackage{{inputenc}}\\usepackage{{parskip}}
-\\usepackage{{titlesec}}\\usepackage{{enumitem}}\\usepackage{{hyperref}}
-\\usepackage{{xcolor}}\\usepackage{{array}}\\usepackage{{tabularx}}
-
-\\definecolor{{accent}}{{HTML}}{{2D5A3D}}
-\\definecolor{{dark}}{{HTML}}{{1E2018}}
-\\definecolor{{muted}}{{HTML}}{{6B6252}}
-
-\\hypersetup{{colorlinks=true, urlcolor=accent, linkcolor=dark}}
-\\titleformat{{\\section}}{{\\large\\bfseries\\color{{dark}}}}{{}}{{0em}}{{}}[\\titlerule]
-\\titlespacing{{\\section}}{{0pt}}{{8pt}}{{4pt}}
-\\pagestyle{{empty}}
-
-\\begin{{document}}
-
-\\begin{{center}}
-    {{\\Huge\\bfseries\\color{{dark}} {full_name}}}\\\\[4pt]
-    {{\\large\\color{{muted}} {job_title_target}}}\\\\[4pt]
-    {{\\small {contact_line}}}
-\\end{{center}}
-\\vspace{{8pt}}
-
-\\section{{Professional Summary}}
-{summary}
-
-\\section{{Skills}}
-{skills_tex}
-
-\\section{{Work Experience}}
-{exp_tex}
-
-\\section{{Projects}}
-{proj_tex}
-
-{education_section}
-
-\\newpage
-
-\\begin{{center}}
-    {{\\Huge\\bfseries\\color{{dark}} {full_name}}}\\\\[4pt]
-    {{\\small {contact_line}}}
-\\end{{center}}
-\\vspace{{16pt}}
-
-\\noindent Dear Hiring Manager at \\textbf{{{company_name}}},
-
-\\medskip
-{cl_paragraphs}
-
-\\noindent Sincerely,\\\\[16pt]
-\\noindent \\textbf{{{full_name}}}
-
-\\end{{document}}
-"""
+    # ── Step 5: Same combination as Bulk Generate combined tab ───────────────
+    return _build_combined(cv_tex, cl_tex)
 
 
 # ============================================================
@@ -5785,6 +5936,7 @@ def generate_batch_zip(profile, jobs):
 
     os.unlink(zip_buffer.name)
     return zip_bytes
+
 
 
 ======================================================================
@@ -35335,6 +35487,7 @@ export default function BulkGenerate() {
   const [jobs,    setJobs]    = useState([emptyJob()]);
   const [running, setRunning] = useState(false);
   const [copied,  setCopied]  = useState(null);
+  const [wishlistedIds, setWishlistedIds] = useState(new Set());
   const bottomRef = useRef(null);
 
   useEffect(() => {
@@ -35382,6 +35535,23 @@ export default function BulkGenerate() {
     } catch (err) {
       const msg = err.response?.data?.message || "Save failed. Please try again.";
       patchJob(job.id, { saving: false, saveError: msg });
+    }
+  };
+
+  const handleSaveWishlist = async (job) => {
+    if (wishlistedIds.has(job.id)) return;
+    try {
+      await api.post("/tracker", {
+        company: "",
+        role:    job.title || "",
+        status:  "Wishlist",
+        salary:  "",
+        notes:   job.description ? job.description.slice(0, 200) : "",
+        url:     "",
+      });
+      setWishlistedIds(prev => new Set([...prev, job.id]));
+    } catch (err) {
+      alert("Could not save to Wishlist. Please try again.");
     }
   };
 
@@ -35693,6 +35863,20 @@ export default function BulkGenerate() {
                           Saving…
                         </>
                       ) : job.saved ? "✓ Saved to Cabinet!" : "🗂 Save to Cabinet"}
+                    </button>
+                    <button
+                      onClick={() => handleSaveWishlist(job)}
+                      disabled={wishlistedIds.has(job.id)}
+                      style={{
+                        ...btn(
+                          wishlistedIds.has(job.id) ? "rgba(45,90,61,0.12)" : "transparent",
+                          "#2D5A3D"
+                        ),
+                        border: `1px solid ${wishlistedIds.has(job.id) ? "#2D5A3D" : "rgba(45,90,61,0.35)"}`,
+                        cursor: wishlistedIds.has(job.id) ? "default" : "pointer",
+                      }}
+                    >
+                      {wishlistedIds.has(job.id) ? "✓ Wishlisted!" : "⭐ Save to Wishlist"}
                     </button>
                     <button onClick={() => patchJob(job.id, { status: "idle", activeTab: "cv" })}
                       style={btn("rgba(139,32,32,0.08)", "#8B2020")}>
@@ -36475,1131 +36659,737 @@ function ConfirmDelete({ isConfirm, isDeleting, onRequest, onConfirm, onCancel }
 FILE: ./frontend\src\pages\CoverLetter.jsx
 ======================================================================
 
-
-
-// =============================================================================
-// FILE: frontend/src/pages/CoverLetter.jsx  (UPDATED — Lesson 4.1 Signature)
-// =============================================================================
-// WHAT'S NEW:
-//   ✅ Signature panel — upload PNG/JPG directly from this page
-//   ✅ Signature is saved back to the user's profile via POST /api/profile
-//   ✅ Shows preview of current signature, Replace and Remove buttons
-//   ✅ Appears at the bottom of the page above the history section
-//
-// DESIGN DECISION — why save signature here and not just link to Profile?
-//   The user might arrive at Cover Letter ready to download, then realise
-//   they haven't uploaded a signature yet. Making them navigate away to Profile,
-//   save, come back, and re-generate is a friction point. Embedding the upload
-//   here means they can do it inline without losing their generated letter.
-//   The signature is still stored in personalInfo.signature in the profile —
-//   exactly the same field the docx generator reads. No duplication.
-// =============================================================================
-
-import { useState, useEffect, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useEffect, useCallback } from "react";
 import api from "../services/api";
 import DashboardLayout from "../layouts/DashboardLayout";
 
-
-// ── TONE OPTIONS ──────────────────────────────────────────────────────────────
-// Each option has a value (sent to backend), label (shown in UI), and a short
-// description so the user understands the difference.
-const TONE_OPTIONS = [
-  {
-    value: "professional",
-    label: "Professional",
-    description: "Confident and formal. Demonstrates expertise without exclamation marks.",
+// ─────────────────────────────────────────────
+// STYLES — matches app colour scheme
+// ─────────────────────────────────────────────
+const S = {
+  page: {
+    minHeight: "100vh",
+    background: "#F4EFE6",
+    color: "#1E2018",
+    fontFamily: "'Libre Baskerville', Georgia, serif",
+    paddingTop: "110px",
+    paddingBottom: "60px",
   },
-  {
-    value: "enthusiastic",
-    label: "Enthusiastic",
-    description: "Warm and energetic. Shows genuine excitement about the role.",
+  inner: {
+    maxWidth: "860px",
+    margin: "0 auto",
+    padding: "0 32px",
   },
-  {
-    value: "concise",
-    label: "Concise",
-    description: "Short and punchy. 3 paragraphs max. Every sentence earns its place.",
+  pageHeader: { marginBottom: "32px" },
+  pageTitle: {
+    fontSize: "clamp(20px, 4vw, 32px)",
+    fontWeight: 900,
+    color: "#2D5A3D",
+    fontFamily: "'Libre Baskerville', Georgia, serif",
+    letterSpacing: "2px",
+    marginBottom: "6px",
   },
-];
-
-
-// ── HELPER: format ISO timestamp ──────────────────────────────────────────────
-function formatDate(isoString) {
-  if (!isoString) return "";
-  return new Date(isoString).toLocaleDateString("en-GB", {
-    day: "numeric", month: "short", year: "numeric",
-  });
-}
-
-
-export default function CoverLetter() {
-
-  // ── STATE ──────────────────────────────────────────────────────────────────
-  const [jobDescription, setJobDescription] = useState("");
-  const [tone, setTone]                     = useState("professional");
-  const [result, setResult]                 = useState("");
-  // result: the generated cover letter plain text. Empty string = not generated yet.
-
-  const [loading, setLoading]               = useState(false);
-  const [error, setError]                   = useState("");
-
-  const [copied, setCopied]                 = useState(false);
-  // copied: true for 2 seconds after clipboard copy — shows "✓ Copied!" flash.
-
-  const [saving, setSaving]                 = useState(false);
-  const [saved, setSaved]                   = useState(false);
-  const [saveError, setSaveError]           = useState("");
-  const [downloadError, setDownloadError]     = useState("");
-  const [downloadingTex, setDownloadingTex]   = useState(false);
-  const [downloadTexError, setDownloadTexError] = useState("");
-  // downloadError: shown on screen when .docx download fails — surfaces the real error message.
-
-  const [hasProfile, setHasProfile]         = useState(null);
-  // null = not checked yet, true = profile exists, false = no profile saved.
-  // Used to show a warning when no profile is saved.
-
-  const [history, setHistory]               = useState([]);
-  // history: array of saved cover letters from GET /api/cover-letter/saved
-  // Each item: { id, job_title, tone, cover_letter, preview, created_at }
-
-  const [historyLoading, setHistoryLoading] = useState(true);
-  const [expandedId, setExpandedId]         = useState(null);
-  // expandedId: the id of the history card currently showing full text.
-  // null = all collapsed. Click a card to expand it.
-
-  const [confirmDeleteId, setConfirmDeleteId] = useState(null);
-  const [deletingId, setDeletingId]           = useState(null);
-
-  // ── SIGNATURE STATE ───────────────────────────────────────────────────────
-  const fileInputRef                        = useRef(null);
-  const [signature, setSignature]           = useState("");
-  // signature: base64 data URL from the user's profile, e.g. "data:image/png;base64,..."
-  // Empty string = no signature saved yet.
-  const [fullProfile, setFullProfile]       = useState(null);
-  // fullProfile: the entire profile object — needed so we can POST the full
-  // profile back when saving just the signature field.
-  const [signatureError, setSigError]       = useState("");
-  const [sigSaving, setSigSaving]           = useState(false);
-  const [sigSaved, setSigSaved]             = useState(false);
-
-  const navigate = useNavigate();
-
-
-  // ── LOAD PROFILE + HISTORY ON MOUNT ──────────────────────────────────────
-  useEffect(() => {
-    const init = async () => {
-      // Load full profile so we can (a) check it exists, (b) read the signature,
-      // and (c) POST it back with an updated signature without losing other fields.
-      try {
-        const res = await api.get("/profile");
-        const data = res.data;
-        const exists = data && Object.keys(data).length > 0;
-        setHasProfile(exists);
-        if (exists) {
-          setFullProfile(data);
-          setSignature(data.personalInfo?.signature || "");
-        }
-      } catch {
-        setHasProfile(false);
-      }
-
-      // Load saved cover letter history
-      try {
-        const res = await api.get("/cover-letter/saved");
-        setHistory(res.data);
-      } catch (err) {
-        if (err.response?.status === 401) {
-          localStorage.removeItem("token");
-          navigate("/login");
-        }
-      } finally {
-        setHistoryLoading(false);
-      }
+  pageSubtitle: { color: "#1E2018", fontSize: "13px", opacity: 0.5 },
+  tabRow: {
+    display: "flex", gap: "4px", marginBottom: "28px",
+    borderBottom: "2px solid #DDD5C4", paddingBottom: "0",
+  },
+  tab: (active) => ({
+    padding: "10px 24px",
+    background: active ? "#2D5A3D" : "transparent",
+    color: active ? "#FDFAF5" : "#6B6252",
+    border: "none", borderRadius: "8px 8px 0 0",
+    cursor: "pointer", fontWeight: 700, fontSize: "13px",
+    fontFamily: "inherit", transition: "all 0.15s", marginBottom: "-2px",
+    borderBottom: active ? "2px solid #2D5A3D" : "2px solid transparent",
+  }),
+  tabBadge: {
+    display: "inline-flex", alignItems: "center", justifyContent: "center",
+    background: "#E8F0EB", color: "#2D5A3D", borderRadius: "10px",
+    fontSize: "11px", padding: "1px 7px", marginLeft: "6px", fontWeight: 700,
+  },
+  primaryBtn: (disabled) => ({
+    padding: "13px 28px",
+    background: disabled ? "#C8BCA8" : "#2D5A3D",
+    color: "#FDFAF5", border: "none", borderRadius: "8px",
+    cursor: disabled ? "not-allowed" : "pointer", fontWeight: 700,
+    fontSize: "14px", fontFamily: "inherit", transition: "all 0.15s",
+    whiteSpace: "nowrap", flexShrink: 0, opacity: disabled ? 0.55 : 1,
+  }),
+  secondaryBtn: (disabled) => ({
+    padding: "10px 20px", background: "transparent",
+    color: disabled ? "#C8BCA8" : "#2D5A3D",
+    border: `1px solid ${disabled ? "#C8BCA8" : "#2D5A3D"}`,
+    borderRadius: "8px", cursor: disabled ? "not-allowed" : "pointer",
+    fontWeight: 700, fontSize: "13px", fontFamily: "inherit",
+    transition: "all 0.15s", whiteSpace: "nowrap",
+  }),
+  dangerBtn: {
+    padding: "8px 18px", background: "transparent", color: "#8B2020",
+    border: "1px solid rgba(139,32,32,0.35)", borderRadius: "8px",
+    cursor: "pointer", fontWeight: 700, fontSize: "13px", fontFamily: "inherit",
+  },
+  successBtn: {
+    padding: "8px 18px", background: "rgba(45,90,61,0.12)", color: "#2D5A3D",
+    border: "1px solid #2D5A3D", borderRadius: "8px", cursor: "pointer",
+    fontWeight: 700, fontSize: "13px", fontFamily: "inherit",
+  },
+  jobGrid: { display: "flex", flexDirection: "column", gap: "10px" },
+  jobCard: (selected) => ({
+    background: "rgba(220,210,192,0.5)",
+    border: selected ? "1px solid rgba(45,90,61,0.5)" : "1px solid rgba(45,90,61,0.15)",
+    borderLeft: selected ? "4px solid #2D5A3D" : "4px solid rgba(45,90,61,0.2)",
+    borderRadius: "12px", padding: "20px 24px", transition: "all 0.15s",
+    cursor: "pointer", boxShadow: selected ? "0 0 0 3px #E8F0EB" : "none",
+  }),
+  jobCardTop: {
+    display: "flex", justifyContent: "space-between",
+    alignItems: "flex-start", gap: "16px", flexWrap: "wrap",
+  },
+  jobLeft: { flex: 1, minWidth: "200px" },
+  jobTitle: {
+    fontSize: "14px", fontWeight: 700, color: "#1E2018", marginBottom: "3px",
+    fontFamily: "'Libre Baskerville', serif",
+  },
+  jobCompany: {
+    fontSize: "13px", color: "#2D5A3D", fontWeight: 700, marginBottom: "8px",
+    fontFamily: "'Libre Baskerville', serif",
+  },
+  jobMeta: { display: "flex", gap: "6px", flexWrap: "wrap", marginBottom: "8px" },
+  metaTag: (color) => ({
+    padding: "2px 9px", background: "#E8F0EB",
+    border: `1px solid ${color || "#C8BCA8"}`,
+    borderRadius: "20px", fontSize: "11px", color: color || "#6B6252",
+    fontFamily: "'Libre Baskerville', serif",
+  }),
+  scoreRing: (score) => {
+    const color = score >= 70 ? "#2D5A3D" : score >= 50 ? "#B8860B" : "#8B2020";
+    return {
+      width: "58px", height: "58px", borderRadius: "50%",
+      border: `3px solid ${color}`, display: "flex", flexDirection: "column",
+      alignItems: "center", justifyContent: "center", flexShrink: 0,
+      background: "#FDFAF5",
     };
+  },
+  scoreNumber: (score) => ({
+    fontSize: "13px", fontWeight: 900,
+    color: score >= 70 ? "#2D5A3D" : score >= 50 ? "#B8860B" : "#8B2020",
+    lineHeight: 1, fontFamily: "'Libre Baskerville', serif",
+  }),
+  scoreLabel: { fontSize: "7px", color: "#6B6252", marginTop: "2px", letterSpacing: "0.5px" },
+  jobDesc: {
+    marginTop: "14px", padding: "14px 16px", background: "#EDE8DE",
+    borderRadius: "8px", fontSize: "12px", lineHeight: "1.7", color: "#6B6252",
+    whiteSpace: "pre-wrap",
+    border: "1px solid #DDD5C4", fontFamily: "'Libre Baskerville', serif",
+  },
+  jobCardActions: { display: "flex", gap: "8px", marginTop: "12px", flexWrap: "wrap", alignItems: "center" },
+  statusBadge: (status) => {
+    const map = {
+      ranked:    { bg: "#E8F0EB",               color: "#6B6252"  },
+      generated: { bg: "rgba(45,90,61,0.12)",   color: "#2D5A3D"  },
+      verified:  { bg: "rgba(184,134,11,0.12)", color: "#B8860B"  },
+      applied:   { bg: "rgba(45,90,61,0.08)",   color: "#3D7A55"  },
+    };
+    const s = map[status] || map.ranked;
+    return {
+      padding: "2px 10px", background: s.bg, color: s.color,
+      borderRadius: "20px", fontSize: "9px", fontWeight: 700,
+      textTransform: "uppercase", letterSpacing: "0.8px",
+      fontFamily: "'Libre Baskerville', serif",
+    };
+  },
+  checkbox: { width: "15px", height: "15px", accentColor: "#2D5A3D", cursor: "pointer", flexShrink: 0, marginTop: "3px" },
+  batchBar: {
+    display: "flex", alignItems: "center", justifyContent: "space-between",
+    padding: "12px 16px", background: "#E8F0EB",
+    border: "1px solid rgba(45,90,61,0.25)", borderRadius: "10px",
+    marginBottom: "16px", flexWrap: "wrap", gap: "10px",
+  },
+  batchBarText: { color: "#2D5A3D", fontWeight: 700, fontSize: "13px", fontFamily: "'Libre Baskerville', serif" },
+  queueCard: {
+    background: "#FDFAF5", border: "1px solid #DDD5C4",
+    borderRadius: "12px", padding: "18px 22px", marginBottom: "10px",
+  },
+  queueCardTitle: { fontSize: "14px", fontWeight: 700, color: "#1E2018", marginBottom: "3px", fontFamily: "'Libre Baskerville', serif" },
+  queueCardSub:   { fontSize: "12px", color: "#6B6252", marginBottom: "12px", fontFamily: "'Libre Baskerville', serif" },
+  queueActions:   { display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" },
+  applyNowBtn: {
+    padding: "10px 22px", background: "#2D5A3D", color: "#FDFAF5",
+    border: "none", borderRadius: "8px", cursor: "pointer", fontWeight: 700,
+    fontSize: "13px", fontFamily: "inherit", textDecoration: "none",
+    display: "inline-flex", alignItems: "center", gap: "6px",
+  },
+  emptyState: { textAlign: "center", padding: "60px 20px", color: "#6B6252" },
+  emptyIcon:  { fontSize: "3rem", marginBottom: "12px" },
+  loadingRow: {
+    display: "flex", alignItems: "center", justifyContent: "center",
+    gap: "12px", padding: "40px", color: "#6B6252",
+    fontFamily: "'Libre Baskerville', serif", fontSize: "13px",
+  },
+  spinner: {
+    width: "20px", height: "20px",
+    border: "2px solid #DDD5C4", borderTop: "2px solid #2D5A3D",
+    borderRadius: "50%", animation: "spin 0.8s linear infinite", flexShrink: 0,
+  },
+  progressBar: (pct) => ({
+    height: "3px", background: "#DDD5C4", borderRadius: "2px",
+    overflow: "hidden", marginTop: "8px", display: pct > 0 ? "block" : "none",
+  }),
+  progressFill: (pct) => ({
+    height: "100%", width: `${pct}%`, background: "#2D5A3D",
+    borderRadius: "2px", transition: "width 0.4s ease",
+  }),
+};
 
-    init();
-  }, [navigate]);
+// ─────────────────────────────────────────────
+// COMPONENT
+// ─────────────────────────────────────────────
+export default function SmartJobsPage() {
+  const [activeTab, setActiveTab] = useState("search"); // search | queue
+  const [query, setQuery] = useState("");
+  const [profile, setProfile] = useState({});
+  const [jobs, setJobs] = useState([]);
+  const [queueData, setQueueData] = useState({ ranked: [], generated: [], verified: [], applied: [] });
+  const [selectedIds, setSelectedIds] = useState(new Set());
+  const [expandedId, setExpandedId] = useState(null);
+  const [searching, setSearching] = useState(false);
+  const [generating, setGenerating] = useState(false);
+  const [generateProgress, setGenerateProgress] = useState(0);
+  const [page, setPage] = useState(1);
+  const [error, setError] = useState("");
+  const [successMsg, setSuccessMsg] = useState("");
 
+  // ── Load queue + profile from API on mount ──
+  useEffect(() => {
+    loadQueue();
+    api.get("/profile")
+      .then(res => { if (res.data && Object.keys(res.data).length > 0) setProfile(res.data); })
+      .catch(() => {});
+    const style = document.createElement("style");
+    style.textContent = `@keyframes spin { to { transform: rotate(360deg); } }`;
+    document.head.appendChild(style);
+  }, []);
 
-  // ── GENERATE HANDLER ──────────────────────────────────────────────────────
-  const handleGenerate = async () => {
-    if (!jobDescription.trim()) {
-      setError("Please paste a job description before generating.");
-      return;
-    }
-
-    setError("");
-    setLoading(true);
-    setResult("");
-    setSaved(false);
-    setSaveError("");
-
+  const loadQueue = async () => {
     try {
-      const response = await api.post("/cover-letter", {
-        jobDescription,
-        tone,
-      });
-      // The backend loads the profile from DB — we only send the JD and tone.
-
-      setResult(response.data.cover_letter || "");
-
-    } catch (err) {
-      if (err.response?.status === 401) {
-        localStorage.removeItem("token");
-        navigate("/login");
-      } else {
-        setError("Generation failed. Make sure the backend server is running.");
-      }
-    } finally {
-      setLoading(false);
+      const res = await api.get("/smart-jobs/queue");
+      setQueueData(res.data);
+    } catch (e) {
+      console.error("Queue load error:", e);
     }
   };
 
+  // ── SEARCH ──
+  const handleSearch = async () => {
+    if (searching) return;
+    setError("");
+    setSuccessMsg("");
+    setSearching(true);
+    setJobs([]);
+    setSelectedIds(new Set());
 
-  // ── COPY HANDLER ──────────────────────────────────────────────────────────
-  const handleCopy = (text) => {
-    // text param: allows copying from either the live result or a history card.
-    navigator.clipboard.writeText(text).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+    const currentProfile = profile;
+
+    try {
+      const res = await api.post("/smart-jobs/search", {
+        profile: currentProfile,
+        query: query.trim(),
+        page,
+      });
+      setJobs(res.data.jobs || []);
+      if ((res.data.jobs || []).length === 0) {
+        setError("No jobs found. Try a different search term, or make sure your JSEARCH_API_KEY is set.");
+      }
+    } catch (e) {
+      setError(e.response?.data?.message || "Search failed. Check your API key.");
+    } finally {
+      setSearching(false);
+    }
+  };
+
+  const handleLoadMore = async () => {
+    const nextPage = page + 1;
+    setPage(nextPage);
+    setSearching(true);
+    try {
+      const res = await api.post("/smart-jobs/search", {
+        profile: profile,
+        query: query.trim(),
+        page: nextPage,
+      });
+      const newJobs = res.data.jobs || [];
+      // Merge + re-sort by score
+      setJobs(prev => {
+        const combined = [...prev, ...newJobs];
+        return combined.sort((a, b) => b.match_score - a.match_score);
+      });
+    } catch (e) {
+      setError("Failed to load more jobs.");
+    } finally {
+      setSearching(false);
+    }
+  };
+
+  // ── SELECT JOBS ──
+  const toggleSelect = (e, jobId) => {
+    e.stopPropagation();
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      next.has(jobId) ? next.delete(jobId) : next.add(jobId);
+      return next;
     });
   };
 
-
-  // ── DOWNLOAD .DOCX HANDLER ──────────────────────────────────────────────────
-  const handleDownload = async (text, jobTitleStr = "Cover_Letter") => {
-    setDownloadError("");
-    try {
-      const response = await api.post(
-        "/download-cover-letter",
-        { cover_letter: text, job_title: jobTitleStr },
-        { responseType: "blob" }
-      );
-      const blob = response.data;
-      const url  = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href     = url;
-      const safe = jobTitleStr.replace(/[^a-zA-Z0-9\s]/g, "").replace(/\s+/g, "_").slice(0, 60);
-      link.download = `${safe}_Cover_Letter.docx`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-    } catch (err) {
-      if (err.response?.status === 401) {
-        localStorage.removeItem("token");
-        navigate("/login");
-      } else {
-        setDownloadError("Download failed. Make sure the backend is running.");
-      }
-    }
+  const selectAll = () => {
+    setSelectedIds(new Set(jobs.map(j => j.job_id)));
   };
 
+  const selectNone = () => setSelectedIds(new Set());
 
-  const handleDownloadTex = async (text, jobTitleStr = "Cover_Letter") => {
-    if (!text) return;
-    setDownloadingTex(true);
-    setDownloadTexError("");
-    try {
-      const response = await api.post(
-        "/download-cover-letter-tex",
-        { cover_letter: text, job_title: jobTitleStr },
-        { responseType: "blob" }
-      );
-      const blob = response.data;
-      const url  = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href     = url;
-      link.download = "Cover_Letter.tex";
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-    } catch (err) {
-      if (err.response?.status === 401) {
-        localStorage.removeItem("token");
-        navigate("/login");
-      } else {
-        setDownloadTexError("TeX download failed.");
-      }
-    } finally {
-      setDownloadingTex(false);
-    }
-  };
- 
+  // ── GENERATE BATCH ZIP ──
+  const handleGenerateBatch = async () => {
+    if (generating || selectedIds.size === 0) return;
+    setError("");
+    setSuccessMsg("");
+    setGenerating(true);
+    setGenerateProgress(5);
 
-  // ── SAVE HANDLER ──────────────────────────────────────────────────────────
-  const handleSave = async () => {
-    if (!result) return;
+    // Cap at 5 — each job = 2 AI calls (~15-30s), so 5 jobs ≈ 2 mins max
+    const selectedJobs = jobs.filter(j => selectedIds.has(j.job_id)).slice(0, 5);
+    const jobCount = selectedJobs.length;
 
-    setSaving(true);
-    setSaveError("");
-
-    // Extract job title from the first non-empty line of the job description.
-    const jobTitle = jobDescription.trim().split("\n").find(l => l.trim()) || "Untitled Role";
+    // Spread progress across expected duration so it doesn't hit 88% too fast
+    const tickInterval = Math.max(1500, (jobCount * 20000) / 25);
+    const ticker = setInterval(() => {
+      setGenerateProgress(p => Math.min(p + 3, 88));
+    }, tickInterval);
 
     try {
-      await api.post("/cover-letter/save", {
-        cover_letter: result,
-        job_title:    jobTitle.slice(0, 120),
-        tone,
+      const res = await api.post("/smart-jobs/generate-batch", {
+        profile: profile,
+        jobs: selectedJobs,
+      }, {
+        responseType: "blob",
+        timeout: jobCount * 3 * 60 * 1000, // 3 mins per job
       });
 
-      setSaved(true);
-      setTimeout(() => setSaved(false), 3000);
+      clearInterval(ticker);
+      setGenerateProgress(100);
 
-      // Refresh history list so the new entry appears immediately.
-      const res = await api.get("/cover-letter/saved");
-      setHistory(res.data);
+      // Trigger download
+      const url = window.URL.createObjectURL(new Blob([res.data]));
+      const link = document.createElement("a");
+      link.href = url;
+      link.setAttribute("download", "FrontendJobs_Applications.zip");
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
 
-    } catch (err) {
-      if (err.response?.status === 401) {
-        localStorage.removeItem("token");
-        navigate("/login");
-      } else {
-        setSaveError("Could not save. Please try again.");
+      setSuccessMsg(`✓ ZIP downloaded — ${jobCount} tailored CV + Cover Letter files ready. Verify each on Overleaf, then mark as Verified in your Apply Queue.`);
+
+      setJobs(prev => prev.map(j =>
+        selectedIds.has(j.job_id) ? { ...j, status: "generated" } : j
+      ));
+
+      await loadQueue();
+    } catch (e) {
+      clearInterval(ticker);
+      // axios blob responses wrap errors as blobs — read the real message
+      let errMsg = "Generation failed. Check the server terminal for the exact error.";
+      if (e.code === "ECONNABORTED" || e.message?.includes("timeout")) {
+        errMsg = "Request timed out. Try selecting just 1–2 jobs and try again.";
+      } else if (e.response?.data instanceof Blob) {
+        try {
+          const text = await e.response.data.text();
+          const parsed = JSON.parse(text);
+          if (parsed.message) errMsg = `Server error: ${parsed.message}`;
+        } catch { /* use default */ }
+      } else if (e.response?.data?.message) {
+        errMsg = `Server error: ${e.response.data.message}`;
       }
+      setError(errMsg);
     } finally {
-      setSaving(false);
+      setGenerating(false);
+      setTimeout(() => setGenerateProgress(0), 3000);
     }
   };
 
-
-  // ── DELETE HISTORY ITEM ───────────────────────────────────────────────────
-  const handleDelete = async (clId) => {
-    setDeletingId(clId);
-    setConfirmDeleteId(null);
+  // ── UPDATE STATUS ──
+  const updateStatus = async (jobId, status) => {
     try {
-      await api.delete(`/cover-letter/${clId}`);
-      setHistory(prev => prev.filter(cl => cl.id !== clId));
-    } catch (err) {
-      if (err.response?.status === 401) {
-        localStorage.removeItem("token");
-        navigate("/login");
-      }
-    } finally {
-      setDeletingId(null);
+      await api.patch("/smart-jobs/status", { job_id: jobId, status });
+      await loadQueue();
+      setSuccessMsg(`Status updated to "${status}"`);
+      setTimeout(() => setSuccessMsg(""), 3000);
+    } catch (e) {
+      setError("Failed to update status.");
     }
   };
 
-
-  // ── SIGNATURE HANDLERS ────────────────────────────────────────────────────
-  const handleSignatureUpload = (e) => {
-    setSigError("");
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (!["image/png", "image/jpeg", "image/jpg"].includes(file.type)) {
-      setSigError("Only PNG or JPEG images are accepted.");
-      return;
-    }
-    if (file.size > 2 * 1024 * 1024) {
-      setSigError("Image must be under 2MB.");
-      return;
-    }
-    const reader = new FileReader();
-    reader.onload = (event) => setSignature(event.target.result);
-    reader.readAsDataURL(file);
-    e.target.value = "";
+  // ── COPY COVER LETTER HINT ──
+  const handleApply = (job) => {
+    // Mark as applied
+    updateStatus(job.job_id, "applied");
+    // Open apply URL
+    window.open(job.apply_url, "_blank", "noopener,noreferrer");
   };
 
-  const handleRemoveSignature = () => {
-    setSignature("");
-    setSigError("");
-    setSigSaved(false);
+  // ─────────────────────────────────────────
+  // RENDER HELPERS
+  // ─────────────────────────────────────────
+
+  const renderJobCard = (job, showCheckbox = true) => {
+    const isSelected = selectedIds.has(job.job_id);
+    const isExpanded = expandedId === job.job_id;
+
+    return (
+      <div
+        key={job.job_id}
+        style={S.jobCard(isSelected)}
+        onClick={() => setExpandedId(isExpanded ? null : job.job_id)}
+      >
+        <div style={S.jobCardTop}>
+          {/* Checkbox */}
+          {showCheckbox && (
+            <input
+              type="checkbox"
+              style={S.checkbox}
+              checked={isSelected}
+              onChange={(e) => toggleSelect(e, job.job_id)}
+              onClick={(e) => e.stopPropagation()}
+            />
+          )}
+
+          {/* Job Info */}
+          <div style={S.jobLeft}>
+            <div style={S.jobTitle}>{job.title}</div>
+            <div style={S.jobCompany}>{job.company}</div>
+            <div style={S.jobMeta}>
+              {job.location && (
+                <span style={S.metaTag("#6B6252")}>📍 {job.location}</span>
+              )}
+              {job.work_type && (
+                <span style={S.metaTag(job.work_type === "Remote" ? "#2D5A3D" : "#6B6252")}>
+                  {job.work_type === "Remote" ? "🏠" : "🏢"} {job.work_type}
+                </span>
+              )}
+              {job.employment_type && (
+                <span style={S.metaTag("#6B6252")}>{job.employment_type}</span>
+              )}
+              <span style={S.metaTag(job.salary !== "Not disclosed" ? "#B8860B" : "#6B6252")}>
+                💰 {job.salary}
+              </span>
+            </div>
+            <span style={S.statusBadge(job.status)}>{job.status}</span>
+          </div>
+
+          {/* Match Score */}
+          <div style={S.scoreRing(job.match_score)}>
+            <span style={S.scoreNumber(job.match_score)}>
+              {Math.round(job.match_score)}
+            </span>
+            <span style={S.scoreLabel}>MATCH</span>
+          </div>
+        </div>
+
+        {/* Expanded Description */}
+        {isExpanded && (
+          <>
+            <div style={S.jobDesc}>
+              {job.description || "No description available."}
+            </div>
+            <div style={S.jobCardActions}>
+              {job.status === "verified" && (
+                <button
+                  style={S.applyNowBtn}
+                  onClick={(e) => { e.stopPropagation(); handleApply(job); }}
+                >
+                  ✈ Apply Now
+                </button>
+              )}
+              {job.status === "generated" && (
+                <button
+                  style={S.successBtn}
+                  onClick={(e) => { e.stopPropagation(); updateStatus(job.job_id, "verified"); }}
+                >
+                  ✓ Mark Verified
+                </button>
+              )}
+              {job.status === "applied" && (
+                <span style={{ color: "#3D7A55", fontSize: "0.85rem", fontWeight: 700 }}>
+                  ✈ Applied
+                </span>
+              )}
+            </div>
+          </>
+        )}
+      </div>
+    );
   };
 
-  const handleSaveSignature = async () => {
-    // Merge the new signature into the full profile and POST it back.
-    // This updates only personalInfo.signature — all other fields are unchanged.
-    if (!fullProfile) return;
-    setSigSaving(true);
-    setSigError("");
-    try {
-      const updated = {
-        ...fullProfile,
-        personalInfo: { ...fullProfile.personalInfo, signature },
-      };
-      await api.post("/profile", updated);
-      setFullProfile(updated);
-      setSigSaved(true);
-      setTimeout(() => setSigSaved(false), 3000);
-    } catch {
-      setSigError("Could not save signature. Please try again.");
-    } finally {
-      setSigSaving(false);
-    }
-  };
+  const totalQueue = queueData.verified?.length + queueData.generated?.length;
 
-
-  // ── RENDER ────────────────────────────────────────────────────────────────
+  // ─────────────────────────────────────────
+  // RENDER
+  // ─────────────────────────────────────────
   return (
     <DashboardLayout>
-      <div style={{ maxWidth: "min(1000px, 100%)", margin: "0 auto" }}>
+    <div style={S.page}>
+      <div style={S.inner}>
 
-        {/* ── PAGE HEADER ──────────────────────────────── */}
-        <div style={{ marginBottom: "28px" }}>
-          <h1 style={{
-            fontFamily: "'Libre Baskerville', serif",
-            fontSize: "clamp(20px, 4vw, 32px)", color: "#2D5A3D",
-            letterSpacing: "2px", marginBottom: "6px",
-          }}>
-            Cover Letter
-          </h1>
-          <p style={{ color: "#1E2018", opacity: 0.5, fontSize: "13px" }}>
-            Generate a tailored cover letter from your profile and a job description.
-          </p>
+        {/* Header */}
+        <div style={S.pageHeader}>
+          <div style={S.pageTitle}>⚡ Smart Job Hunt</div>
+          <div style={S.pageSubtitle}>
+            AI matches jobs to your profile · Auto-generates tailored CV + Cover Letter · Guided apply queue
+          </div>
         </div>
 
-
-        {/* ── NO PROFILE WARNING ───────────────────────── */}
-        {hasProfile === false && (
-          <div style={{
-            background: "rgba(255,179,71,0.08)",
-            border: "1px solid rgba(255,179,71,0.35)",
-            borderRadius: "10px",
-            padding: "14px 18px",
-            marginBottom: "20px",
-            display: "flex", flexWrap: "wrap", alignItems: "center", gap: "12px",
-          }}>
-            <span style={{ fontSize: "18px" }}>⚠</span>
-            <p style={{ color: "#FFB347", fontSize: "13px", margin: 0 }}>
-              No profile saved yet — the cover letter will be less personalised.{" "}
-              <span
-                onClick={() => navigate("/profile")}
-                style={{ textDecoration: "underline", cursor: "pointer" }}
-              >
-                Set up your profile
-              </span>{" "}
-              to get better results.
-            </p>
-          </div>
-        )}
-
-
-        {/* ══ INPUT CARD ════════════════════════════════════ */}
-        <div className="card" style={{ maxWidth: "100%", marginBottom: "24px" }}>
-
-          {/* Job Description */}
-          <h3 style={{
-            color: "#2D5A3D", fontFamily: "'Libre Baskerville', serif",
-            fontSize: "13px", letterSpacing: "2px", textTransform: "uppercase",
-            marginBottom: "14px", opacity: 0.8,
-          }}>
-            📋 Job Description
-          </h3>
-
-          <textarea
-            value={jobDescription}
-            onChange={(e) => setJobDescription(e.target.value)}
-            placeholder="Paste the full job description here..."
-            rows={8}
-            style={{
-              width: "100%", background: "#FFFFFF",
-              border: "1px solid rgba(45,90,61,0.2)", borderRadius: "8px",
-              color: "#1E2018", padding: "14px", fontSize: "13px",
-              lineHeight: "1.6", resize: "vertical",
-              fontFamily: "system-ui, sans-serif", marginBottom: "20px",
-            }}
-          />
-
-          {/* Tone Selector */}
-          <h3 style={{
-            color: "#2D5A3D", fontFamily: "'Libre Baskerville', serif",
-            fontSize: "13px", letterSpacing: "2px", textTransform: "uppercase",
-            marginBottom: "12px", opacity: 0.8,
-          }}>
-            🎨 Tone
-          </h3>
-
-          <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", marginBottom: "20px" }}>
-            {TONE_OPTIONS.map((option) => {
-              const isSelected = tone === option.value;
-              return (
-                <div
-                  key={option.value}
-                  onClick={() => setTone(option.value)}
-                  style={{
-                    flex: 1, minWidth: "140px",
-                    background: isSelected ? "rgba(45,90,61,0.12)" : "rgba(0,0,0,0.2)",
-                    border: isSelected
-                      ? "1px solid rgba(45,90,61,0.6)"
-                      : "1px solid rgba(45,90,61,0.15)",
-                    borderRadius: "10px",
-                    padding: "14px 16px",
-                    cursor: "pointer",
-                    transition: "all 0.15s ease",
-                  }}
-                >
-                  <p style={{
-                    color: isSelected ? "#2D5A3D" : "#1E2018",
-                    fontFamily: "'Libre Baskerville', serif",
-                    fontSize: "13px", marginBottom: "5px",
-                    fontWeight: "900",
-                  }}>
-                    {isSelected ? "● " : "○ "}{option.label}
-                  </p>
-                  <p style={{
-                    color: "#1E2018", fontSize: "11px",
-                    opacity: 0.45, lineHeight: "1.5", margin: 0,
-                    fontFamily: "system-ui, sans-serif",
-                  }}>
-                    {option.description}
-                  </p>
-                </div>
-              );
-            })}
-          </div>
-
-          {error && (
-            <p style={{ color: "#8B2020", fontSize: "13px", marginBottom: "12px" }}>{error}</p>
-          )}
-
-          {/* Generate Button */}
-          <button
-            className="primary-btn"
-            onClick={handleGenerate}
-            disabled={loading}
-            style={{
-              fontSize: "15px", padding: "13px 36px",
-              opacity: loading ? 0.65 : 1,
-              cursor: loading ? "not-allowed" : "pointer",
-              display: "flex", flexWrap: "wrap", alignItems: "center", gap: "8px",
-            }}
-          >
-            {loading ? (
-              <>
-                <span style={{
-                  display: "inline-block", width: "14px", height: "14px",
-                  border: "2px solid #2D5A3D", borderTopColor: "transparent",
-                  borderRadius: "50%", animation: "spin 0.7s linear infinite",
-                }} />
-                Writing...
-              </>
-            ) : "✦ Generate Cover Letter"}
+        {/* Tabs */}
+        <div style={S.tabRow}>
+          <button style={S.tab(activeTab === "search")} onClick={() => setActiveTab("search")}>
+            🔍 Search & Rank
           </button>
-
-          <style>{`
-            @keyframes spin  { to { transform: rotate(360deg); } }
-            @keyframes pulse { 0%,100%{opacity:0.4} 50%{opacity:0.9} }
-          `}</style>
+          <button style={S.tab(activeTab === "queue")} onClick={() => { setActiveTab("queue"); loadQueue(); }}>
+            ✈ Apply Queue
+            {totalQueue > 0 && <span style={S.tabBadge}>{totalQueue}</span>}
+          </button>
         </div>
 
-
-        {/* ══ LOADING SKELETON ════════════════════════════ */}
-        {loading && (
-          <div style={{
-            background: "#F0EAD8", borderRadius: "12px", padding: "32px",
-            marginBottom: "24px", border: "1px solid rgba(45,90,61,0.08)",
-          }}>
-            {[100, 95, 88, 92, 75, 85, 60].map((w, i) => (
-              <div key={i} style={{
-                height: "13px", background: "rgba(45,90,61,0.07)",
-                borderRadius: "6px", marginBottom: "14px", width: `${w}%`,
-                animation: "pulse 1.5s ease-in-out infinite",
-                animationDelay: `${i * 0.1}s`,
-              }} />
-            ))}
+        {/* Alerts */}
+        {error && (
+          <div style={{ padding: "12px 18px", background: "#FBF0F0", border: "1px solid rgba(139,32,32,0.25)", borderRadius: "8px", color: "#8B2020", marginBottom: "16px", fontSize: "0.88rem" }}>
+            ⚠ {error}
+          </div>
+        )}
+        {successMsg && (
+          <div style={{ padding: "12px 18px", background: "#E8F0EB", border: "1px solid rgba(45,90,61,0.3)", borderRadius: "8px", color: "#2D5A3D", marginBottom: "16px", fontSize: "0.88rem" }}>
+            {successMsg}
           </div>
         )}
 
-
-        {/* ══ RESULT PANEL ════════════════════════════════ */}
-        {result && !loading && (
-          <div className="card" style={{ maxWidth: "100%", marginBottom: "24px" }}>
-
-            {/* Header row: title + character count */}
-            <div style={{
-              display: "flex", justifyContent: "space-between",
-              alignItems: "center", flexWrap: "wrap", gap: "12px",
-              marginBottom: "20px",
-            }}>
-              <h3 style={{
-                color: "#2D5A3D", fontFamily: "'Libre Baskerville', serif",
-                fontSize: "13px", letterSpacing: "2px", textTransform: "uppercase",
-                opacity: 0.8, margin: 0,
-              }}>
-                ✉ Generated Cover Letter
-              </h3>
-              <span style={{
-                color: "#1E2018", fontSize: "11px", opacity: 0.35,
-                fontFamily: "'Libre Baskerville', serif",
-              }}>
-                {result.length} characters · {result.split(/\n\n+/).filter(p => p.trim()).length} paragraphs
-              </span>
-            </div>
-
-            {/* Cover letter text — shown in a readable panel */}
-            <div style={{
-              background: "#FFFFFF",
-              border: "1px solid rgba(45,90,61,0.1)",
-              borderRadius: "10px",
-              padding: "28px 32px",
-              marginBottom: "24px",
-              whiteSpace: "pre-wrap",
-              // pre-wrap: preserves newlines from the plain text response
-              // while still wrapping long lines. Essential for cover letter prose.
-              color: "#1E2018",
-              fontSize: "14px",
-              lineHeight: "1.85",
-              fontFamily: "system-ui, sans-serif",
-            }}>
-              {result}
-            </div>
-
-            {/* Action buttons row */}
-            <div style={{
-              display: "flex", gap: "12px", flexWrap: "wrap", alignItems: "flex-start",
-            }}>
-
-              {/* Copy */}
-              <button
-                className="primary-btn"
-                onClick={() => handleCopy(result)}
-                style={{
-                  fontSize: "14px", padding: "11px 24px",
-                  background: copied ? "#3D7A55" : "#2D5A3D",
-                }}
-              >
-                {copied ? "✓ Copied!" : "⎘ Copy"}
-              </button>
-
-              {/* ── Download .docx ── */}
-              <button
-                onClick={() => handleDownload(result, jobDescription.split("\n")[0] || "Cover_Letter")}
-                style={{
-                  background:   "transparent",
-                  border:       "1px solid rgba(45,90,61,0.4)",
-                  color:        "#2D5A3D",
-                  padding:      "11px 24px",
-                  borderRadius: "6px",
-                  cursor:       "pointer",
-                  fontSize:     "14px",
-                  fontFamily:   "'Libre Baskerville', serif",
-                  transition:   "background 0.15s ease",
-                }}
-                onMouseEnter={(e) => e.currentTarget.style.background = "rgba(45,90,61,0.08)"}
-                onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
-              >
-                ⬇ Download .docx
-              </button>
-              {downloadError && (
-                <p style={{ color: "#8B2020", fontSize: "12px", marginTop: "6px" }}>⚠ {downloadError}</p>
-              )}
-
-              {/* ── Download .tex + Overleaf suggestion ── */}
-              <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: "4px" }}>
-                <button
-                  onClick={() => handleDownloadTex(result, jobDescription.split("\n")[0] || "Cover_Letter")}
-                  disabled={downloadingTex}
-                  style={{
-                    background:   "#2D5A3D",
-                    border:       "none",
-                    color:        "#EDE8DE",
-                    padding:      "11px 24px",
-                    borderRadius: "6px",
-                    cursor:       downloadingTex ? "not-allowed" : "pointer",
-                    fontSize:     "14px",
-                    fontFamily:   "'Libre Baskerville', serif",
-                    fontWeight:   900,
-                    opacity:      downloadingTex ? 0.65 : 1,
-                    display:      "flex", alignItems: "center", gap: "8px",
-                  }}
-                >
-                  {downloadingTex ? (
-                    <>
-                      <span style={{
-                        display: "inline-block", width: "12px", height: "12px",
-                        border: "2px solid rgba(255,255,255,0.4)", borderTopColor: "white",
-                        borderRadius: "50%", animation: "spin 0.7s linear infinite",
-                      }} />
-                      Preparing...
-                    </>
-                  ) : "⬇ Download .tex"}
-                </button>
-                <span style={{ fontSize: "12px", color: "#1E2018", opacity: 0.55, lineHeight: "1.4" }}>
-                  Edit & compile free on{" "}
-                  <a href="https://www.overleaf.com" target="_blank" rel="noopener noreferrer"
-                    style={{ color: "#2D5A3D", fontWeight: 700, textDecoration: "underline" }}>
-                    overleaf.com
-                  </a>
-                </span>
-                {downloadTexError && (
-                  <p style={{ color: "#8B2020", fontSize: "12px", marginTop: "3px" }}>⚠ {downloadTexError}</p>
-                )}
-              </div>
-
-              {/* Save */}
-              <div>
-                <button
-                  className="primary-btn"
-                  onClick={handleSave}
-                  disabled={saving || saved}
-                  style={{
-                    fontSize: "14px", padding: "11px 24px",
-                    background: saved ? "#3D7A55" : saving ? "#2D5A3D" : "#2D5A3D",
-                    opacity: saving ? 0.75 : 1,
-                    cursor: (saving || saved) ? "not-allowed" : "pointer",
-                    display: "flex", flexWrap: "wrap", alignItems: "center", gap: "8px",
-                  }}
-                >
-                  {saving ? (
-                    <>
-                      <span style={{
-                        display: "inline-block", width: "12px", height: "12px",
-                        border: "2px solid #2D5A3D", borderTopColor: "transparent",
-                        borderRadius: "50%", animation: "spin 0.7s linear infinite",
-                      }} />
-                      Saving...
-                    </>
-                  ) : saved ? "✓ Saved!" : "💾 Save"}
-                </button>
-                {saveError && (
-                  <p style={{ color: "#8B2020", fontSize: "12px", marginTop: "6px" }}>
-                    {saveError}
-                  </p>
-                )}
-              </div>
-
-            </div>
-          </div>
-        )}
-
-
-        {/* ══ SIGNATURE PANEL ═════════════════════════════
-            Lets the user upload a signature image without leaving this page.
-            Saved directly to their profile so it's picked up on .docx download.
-        ════════════════════════════════════════════════ */}
-        <div className="card" style={{ maxWidth: "100%", marginBottom: "24px" }}>
-          <h3 style={{
-            color: "#2D5A3D", fontFamily: "'Libre Baskerville', serif",
-            fontSize: "13px", letterSpacing: "2px", textTransform: "uppercase",
-            marginBottom: "6px", opacity: 0.8,
-          }}>
-            ✍ Signature
-          </h3>
-          <p style={{
-            color: "#1E2018", fontSize: "13px", opacity: 0.45,
-            marginBottom: "20px", lineHeight: "1.6",
-            fontFamily: "system-ui, sans-serif",
-          }}>
-            Your signature appears at the bottom of the downloaded .docx cover letter.
-            Upload a photo or scan — PNG or JPEG, max 2MB.
-          </p>
-
-          {/* Hidden native file input */}
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/png,image/jpeg,image/jpg"
-            onChange={handleSignatureUpload}
-            style={{ display: "none" }}
-          />
-
-          {/* No signature — dashed upload zone */}
-          {!signature && (
-            <div
-              onClick={() => fileInputRef.current?.click()}
-              style={{
-                border: "2px dashed rgba(45,90,61,0.3)",
-                borderRadius: "12px", padding: "36px 20px",
-                textAlign: "center", cursor: "pointer",
-                transition: "border-color 0.2s ease, background 0.2s ease",
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.borderColor = "#2D5A3D";
-                e.currentTarget.style.background = "rgba(45,90,61,0.04)";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.borderColor = "rgba(45,90,61,0.3)";
-                e.currentTarget.style.background = "transparent";
-              }}
-            >
-              <div style={{ fontSize: "28px", marginBottom: "10px" }}>✍</div>
-              <p style={{
-                color: "#2D5A3D", fontFamily: "'Libre Baskerville', serif",
-                fontSize: "14px", marginBottom: "4px",
-              }}>
-                Click to upload signature
-              </p>
-              <p style={{ color: "#1E2018", fontSize: "12px", opacity: 0.35, fontFamily: "system-ui, sans-serif" }}>
-                PNG or JPEG · Max 2MB
-              </p>
-            </div>
-          )}
-
-          {/* Signature uploaded — preview + actions */}
-          {signature && (
-            <div>
-              {/* White background so the sig is visible on any paper colour */}
-              <div style={{
-                background: "#ffffff", borderRadius: "10px",
-                padding: "20px", marginBottom: "16px",
-                display: "inline-block",
-                border: "1px solid rgba(45,90,61,0.2)",
-              }}>
-                <img
-                  src={signature}
-                  alt="Signature preview"
-                  style={{ maxWidth: "220px", maxHeight: "90px", display: "block", objectFit: "contain" }}
+        {/* ═══════════════════════════════════ */}
+        {/* TAB: SEARCH */}
+        {/* ═══════════════════════════════════ */}
+        {activeTab === "search" && (
+          <>
+            {/* Search panel — matches Jobs page */}
+            <div style={{ background: "rgba(220,210,192,0.8)", border: "1px solid rgba(45,90,61,0.2)", borderRadius: "16px", padding: "24px", marginBottom: "24px" }}>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "12px", marginBottom: "14px" }}>
+                <input
+                  type="text"
+                  placeholder='Job title, keywords, or company...'
+                  value={query}
+                  onChange={e => setQuery(e.target.value)}
+                  onKeyDown={e => e.key === "Enter" && handleSearch()}
+                  style={{ flex: 1, minWidth: "220px", padding: "13px 16px", background: "#FFFFFF", border: "1px solid rgba(45,90,61,0.25)", borderRadius: "10px", color: "#1E2018", fontSize: "14px", fontFamily: "system-ui, sans-serif", outline: "none", boxSizing: "border-box" }}
                 />
-              </div>
-
-              <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", alignItems: "center" }}>
-                {/* Save to profile */}
-                <button
-                  className="primary-btn"
-                  onClick={handleSaveSignature}
-                  disabled={sigSaving || sigSaved}
-                  style={{
-                    fontSize: "13px", padding: "10px 22px",
-                    background: sigSaved ? "#3D7A55" : "#2D5A3D",
-                    opacity: sigSaving ? 0.7 : 1,
-                    cursor: (sigSaving || sigSaved) ? "not-allowed" : "pointer",
-                    display: "flex", flexWrap: "wrap", alignItems: "center", gap: "7px",
-                  }}
-                >
-                  {sigSaving ? (
-                    <>
-                      <span style={{
-                        display: "inline-block", width: "11px", height: "11px",
-                        border: "2px solid #2D5A3D", borderTopColor: "transparent",
-                        borderRadius: "50%", animation: "spin 0.7s linear infinite",
-                      }} />
-                      Saving...
-                    </>
-                  ) : sigSaved ? "✓ Saved to profile" : "💾 Save to profile"}
-                </button>
-
-                {/* Replace */}
-                <button
-                  onClick={() => fileInputRef.current?.click()}
-                  style={{
-                    background: "transparent",
-                    border: "1px solid rgba(45,90,61,0.35)",
-                    color: "#2D5A3D", padding: "10px 20px",
-                    borderRadius: "6px", cursor: "pointer",
-                    fontSize: "13px", fontFamily: "'Libre Baskerville', serif",
-                    transition: "background 0.15s ease",
-                  }}
-                  onMouseEnter={(e) => e.currentTarget.style.background = "rgba(45,90,61,0.08)"}
-                  onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
-                >
-                  Replace
-                </button>
-
-                {/* Remove */}
-                <button
-                  onClick={handleRemoveSignature}
-                  style={{
-                    background: "transparent",
-                    border: "1px solid rgba(255,107,107,0.3)",
-                    color: "#8B2020", padding: "10px 20px",
-                    borderRadius: "6px", cursor: "pointer",
-                    fontSize: "13px", fontFamily: "'Libre Baskerville', serif",
-                    opacity: 0.7, transition: "opacity 0.15s ease, background 0.15s ease",
-                  }}
-                  onMouseEnter={(e) => { e.currentTarget.style.opacity = "1"; e.currentTarget.style.background = "rgba(255,107,107,0.07)"; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.opacity = "0.7"; e.currentTarget.style.background = "transparent"; }}
-                >
-                  Remove
+                <button className="primary-btn" onClick={handleSearch} disabled={searching} style={{ padding: "13px 28px", fontSize: "14px", whiteSpace: "nowrap", flexShrink: 0 }}>
+                  {searching ? "Searching..." : "Search Jobs"}
                 </button>
               </div>
-            </div>
-          )}
-
-          {signatureError && (
-            <p style={{ color: "#8B2020", fontSize: "13px", marginTop: "12px" }}>
-              ⚠ {signatureError}
-            </p>
-          )}
-        </div>
-
-
-        {/* ══ SAVED HISTORY ═══════════════════════════════ */}
-        <div style={{ marginBottom: "40px" }}>
-
-          <h3 style={{
-            color: "#2D5A3D", fontFamily: "'Libre Baskerville', serif",
-            fontSize: "13px", letterSpacing: "2px", textTransform: "uppercase",
-            marginBottom: "16px", opacity: 0.8,
-          }}>
-            🗂 Saved Cover Letters
-            {history.length > 0 && (
-              <span style={{
-                marginLeft: "10px",
-                background: "rgba(45,90,61,0.15)",
-                border: "1px solid rgba(45,90,61,0.3)",
-                color: "#2D5A3D", fontSize: "11px",
-                padding: "2px 8px", borderRadius: "10px",
-                fontFamily: "'Libre Baskerville', serif",
-              }}>
-                {history.length}
-              </span>
-            )}
-          </h3>
-
-          {/* Loading skeletons */}
-          {historyLoading && (
-            <div>
-              {[1, 2].map(i => (
-                <div key={i} style={{
-                  background: "#F0EAD8", borderRadius: "12px", padding: "24px",
-                  marginBottom: "12px", border: "1px solid rgba(45,90,61,0.08)",
-                  animation: "pulse 1.5s ease-in-out infinite",
-                  animationDelay: `${i * 0.15}s`,
-                  height: "80px",
-                }} />
-              ))}
-            </div>
-          )}
-
-          {/* Empty state */}
-          {!historyLoading && history.length === 0 && (
-            <div style={{
-              background: "#F0EAD8",
-              border: "1px dashed rgba(45,90,61,0.2)",
-              borderRadius: "12px", padding: "40px",
-              textAlign: "center",
-            }}>
-              <p style={{ color: "#1E2018", opacity: 0.4, fontSize: "14px" }}>
-                No cover letters saved yet. Generate one above and click Save.
+              <p style={{ color: "#1E2018", fontSize: "12px", opacity: 0.5, fontFamily: "'Libre Baskerville', serif", lineHeight: 1.5 }}>
+                Jobs ranked against your profile using AI · Select up to 5 per batch → <strong>Generate ZIP</strong> → compile on{" "}
+                <a href="https://overleaf.com" target="_blank" rel="noopener noreferrer" style={{ color: "#2D5A3D" }}>Overleaf</a>
+                {" "}→ mark Verified → apply from the Apply Queue
               </p>
             </div>
-          )}
 
-          {/* History cards */}
-          {!historyLoading && history.map((cl) => {
-            const isExpanded  = expandedId === cl.id;
-            const isConfirming = confirmDeleteId === cl.id;
-            const isDeleting  = deletingId === cl.id;
+            {/* Batch actions bar */}
+            {jobs.length > 0 && (
+              <div style={S.batchBar}>
+                <div style={S.batchBarText}>
+                  {selectedIds.size} of {jobs.length} jobs selected
+                  {selectedIds.size > 0 && ` · ${Math.min(selectedIds.size, 5)} will be generated (5 per batch)`}
+                </div>
+                <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", alignItems: "center" }}>
+                  <button style={S.secondaryBtn(false)} onClick={selectAll}>Select All</button>
+                  <button style={S.secondaryBtn(selectedIds.size === 0)} onClick={selectNone} disabled={selectedIds.size === 0}>Clear</button>
+                  <button
+                    style={S.primaryBtn(generating || selectedIds.size === 0)}
+                    onClick={handleGenerateBatch}
+                    disabled={generating || selectedIds.size === 0}
+                  >
+                    {generating ? `Generating... ${generateProgress}%` : `⬇ Generate ZIP (${Math.min(selectedIds.size, 5)} jobs)`}
+                  </button>
+                </div>
+              </div>
+            )}
 
-            // Tone badge colour
-            const toneBadgeColor = {
-              professional: "rgba(45,90,61,0.15)",
-              enthusiastic: "rgba(255,179,71,0.12)",
-              concise:      "rgba(180,180,255,0.12)",
-            }[cl.tone] || "rgba(45,90,61,0.1)";
+            {/* Progress bar */}
+            {generating && (
+              <div style={S.progressBar(generateProgress)}>
+                <div style={S.progressFill(generateProgress)} />
+              </div>
+            )}
 
-            const toneBorderColor = {
-              professional: "rgba(45,90,61,0.35)",
-              enthusiastic: "rgba(255,179,71,0.35)",
-              concise:      "rgba(180,180,255,0.35)",
-            }[cl.tone] || "rgba(45,90,61,0.2)";
+            {/* Loading */}
+            {searching && (
+              <div style={S.loadingRow}>
+                <div style={S.spinner} />
+                <span>Fetching and ranking jobs against your profile...</span>
+              </div>
+            )}
 
-            const toneTextColor = {
-              professional: "#2D5A3D",
-              enthusiastic: "#FFB347",
-              concise:      "#B4B4FF",
-            }[cl.tone] || "#2D5A3D";
+            {/* Job list */}
+            {!searching && jobs.length > 0 && (
+              <div style={S.jobGrid}>
+                {jobs.map(job => renderJobCard(job, true))}
+              </div>
+            )}
 
-            return (
-              <div
-                key={cl.id}
-                style={{
-                  background: "#F0EAD8",
-                  borderRadius: "12px",
-                  padding: "20px 24px",
-                  marginBottom: "12px",
-                  border: "1px solid rgba(45,90,61,0.1)",
-                  transition: "border-color 0.2s ease",
-                }}
-                onMouseEnter={(e) => e.currentTarget.style.borderColor = "rgba(45,90,61,0.25)"}
-                onMouseLeave={(e) => e.currentTarget.style.borderColor = "rgba(45,90,61,0.1)"}
-              >
+            {/* Load more */}
+            {!searching && jobs.length > 0 && (
+              <div style={{ textAlign: "center", marginTop: "24px" }}>
+                <button style={S.secondaryBtn(searching)} onClick={handleLoadMore} disabled={searching}>
+                  Load 20 More Jobs
+                </button>
+              </div>
+            )}
 
-                {/* Card header row */}
-                <div style={{
-                  display: "flex", justifyContent: "space-between",
-                  alignItems: "flex-start", flexWrap: "wrap", gap: "10px",
-                  marginBottom: isExpanded ? "16px" : "0",
-                }}>
-                  <div>
-                    <p style={{
-                      color: "#1E2018", fontFamily: "'Libre Baskerville', serif",
-                      fontSize: "14px", marginBottom: "5px",
-                    }}>
-                      {cl.job_title}
-                    </p>
-                    <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
-                      {/* Date */}
-                      <span style={{ color: "#1E2018", fontSize: "12px", opacity: 0.35 }}>
-                        {formatDate(cl.created_at)}
-                      </span>
-                      {/* Tone badge */}
-                      <span style={{
-                        background: toneBadgeColor,
-                        border: `1px solid ${toneBorderColor}`,
-                        color: toneTextColor,
-                        fontSize: "10px", padding: "2px 8px",
-                        borderRadius: "10px",
-                        fontFamily: "'Libre Baskerville', serif",
-                        letterSpacing: "0.5px", textTransform: "capitalize",
-                      }}>
-                        {cl.tone}
-                      </span>
+            {/* Empty */}
+            {!searching && jobs.length === 0 && !error && (
+              <div style={S.emptyState}>
+                <div style={S.emptyIcon}>🎯</div>
+                <div style={{ fontWeight: 700, marginBottom: "8px" }}>Ready to find your next role</div>
+                <div style={{ fontSize: "0.85rem" }}>Search above or leave blank to auto-build a query from your profile</div>
+              </div>
+            )}
+          </>
+        )}
+
+        {/* ═══════════════════════════════════ */}
+        {/* TAB: APPLY QUEUE */}
+        {/* ═══════════════════════════════════ */}
+        {activeTab === "queue" && (
+          <>
+            {/* ── VERIFIED → READY TO APPLY ── */}
+            {queueData.verified?.length > 0 && (
+              <>
+                <div style={{ fontSize: "1rem", fontWeight: 700, color: "#B8860B", marginBottom: "12px" }}>
+                  ✅ Verified — Ready to Apply ({queueData.verified.length})
+                </div>
+                <div style={{ padding: "14px 18px", background: "#EDE8DE", border: "1px solid #DDD5C4", borderRadius: "8px", fontSize: "0.83rem", color: "#6B6252", lineHeight: "1.5", marginBottom: "20px" }}>
+                  These CVs have been verified on Overleaf. Click <strong>Apply Now</strong> to open the application page.
+                  Your cover letter will be in the .tex file you compiled.
+                </div>
+                {queueData.verified.map(job => (
+                  <div key={job.job_id} style={S.queueCard}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "12px" }}>
+                      <div>
+                        <div style={S.queueCardTitle}>{job.title}</div>
+                        <div style={S.queueCardSub}>
+                          {job.company} · {job.location} · {job.work_type} · 💰 {job.salary}
+                        </div>
+                        <div style={S.queueActions}>
+                          <a
+                            href={job.apply_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={S.applyNowBtn}
+                            onClick={() => updateStatus(job.job_id, "applied")}
+                          >
+                            ✈ Apply Now
+                          </a>
+                          <button style={S.dangerBtn} onClick={() => updateStatus(job.job_id, "ranked")}>
+                            Skip
+                          </button>
+                        </div>
+                      </div>
+                      <div style={S.scoreRing(job.match_score)}>
+                        <span style={S.scoreNumber(job.match_score)}>{Math.round(job.match_score)}</span>
+                        <span style={S.scoreLabel}>MATCH</span>
+                      </div>
                     </div>
                   </div>
+                ))}
+              </>
+            )}
 
-                  {/* Card action buttons */}
-                  <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
-
-                    {/* Expand / Collapse */}
-                    <button
-                      onClick={() => setExpandedId(isExpanded ? null : cl.id)}
-                      style={{
-                        background: "transparent",
-                        border: "1px solid rgba(45,90,61,0.3)",
-                        color: "#2D5A3D", padding: "6px 14px",
-                        borderRadius: "6px", cursor: "pointer",
-                        fontSize: "12px", fontFamily: "'Libre Baskerville', serif",
-                        transition: "background 0.15s ease",
-                      }}
-                      onMouseEnter={(e) => e.currentTarget.style.background = "rgba(45,90,61,0.08)"}
-                      onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
-                    >
-                      {isExpanded ? "▲ Collapse" : "▼ View"}
-                    </button>
-
-                    {/* Copy */}
-                    <button
-                      onClick={() => handleCopy(cl.cover_letter)}
-                      style={{
-                        background: "transparent",
-                        border: "1px solid rgba(45,90,61,0.3)",
-                        color: "#2D5A3D", padding: "6px 14px",
-                        borderRadius: "6px", cursor: "pointer",
-                        fontSize: "12px", fontFamily: "'Libre Baskerville', serif",
-                        transition: "background 0.15s ease",
-                      }}
-                      onMouseEnter={(e) => e.currentTarget.style.background = "rgba(45,90,61,0.08)"}
-                      onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
-                    >
-                      ⎘ Copy
-                    </button>
-
-                    {/* Download .docx */}
-                    <button
-                      onClick={() => handleDownload(cl.cover_letter, cl.job_title)}
-                      style={{
-                        background: "transparent",
-                        border: "1px solid rgba(45,90,61,0.3)",
-                        color: "#2D5A3D", padding: "6px 14px",
-                        borderRadius: "6px", cursor: "pointer",
-                        fontSize: "12px", fontFamily: "'Libre Baskerville', serif",
-                        transition: "background 0.15s ease",
-                      }}
-                      onMouseEnter={(e) => e.currentTarget.style.background = "rgba(45,90,61,0.08)"}
-                      onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
-                    >
-                      ⬇ .docx
-                    </button>
-
-                    {/* Download .tex */}
-                    <button
-                      onClick={() => handleDownloadTex(cl.cover_letter, cl.job_title)}
-                      style={{
-                        background: "#2D5A3D",
-                        border: "none",
-                        color: "#EDE8DE", padding: "6px 14px",
-                        borderRadius: "6px", cursor: "pointer",
-                        fontSize: "12px", fontFamily: "'Libre Baskerville', serif",
-                        fontWeight: 900,
-                      }}
-                    >
-                      ⬇ .tex
-                    </button>
-
-                    {/* Delete — two-step */}
-                    {!isConfirming && !isDeleting && (
-                      <button
-                        onClick={() => setConfirmDeleteId(cl.id)}
-                        style={{
-                          background: "transparent",
-                          border: "1px solid rgba(255,107,107,0.25)",
-                          color: "#8B2020", padding: "6px 14px",
-                          borderRadius: "6px", cursor: "pointer",
-                          fontSize: "12px", fontFamily: "'Libre Baskerville', serif",
-                          opacity: 0.6, transition: "opacity 0.15s ease, background 0.15s ease",
-                        }}
-                        onMouseEnter={(e) => { e.currentTarget.style.opacity = "1"; e.currentTarget.style.background = "rgba(255,107,107,0.07)"; }}
-                        onMouseLeave={(e) => { e.currentTarget.style.opacity = "0.6"; e.currentTarget.style.background = "transparent"; }}
-                      >
-                        Delete
-                      </button>
-                    )}
-
-                    {isConfirming && (
-                      <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "6px" }}>
-                        <span style={{ color: "#1E2018", fontSize: "11px", opacity: 0.5 }}>Sure?</span>
-                        <button
-                          onClick={() => handleDelete(cl.id)}
-                          style={{
-                            background: "rgba(255,107,107,0.15)",
-                            border: "1px solid rgba(255,107,107,0.5)",
-                            color: "#8B2020", padding: "5px 12px",
-                            borderRadius: "6px", cursor: "pointer",
-                            fontSize: "11px", fontFamily: "'Libre Baskerville', serif",
-                          }}
-                        >
-                          Yes
-                        </button>
-                        <button
-                          onClick={() => setConfirmDeleteId(null)}
-                          style={{
-                            background: "transparent",
-                            border: "1px solid rgba(255,255,255,0.15)",
-                            color: "#1E2018", padding: "5px 12px",
-                            borderRadius: "6px", cursor: "pointer",
-                            fontSize: "11px", fontFamily: "'Libre Baskerville', serif",
-                            opacity: 0.5,
-                          }}
-                        >
-                          Cancel
-                        </button>
-                      </div>
-                    )}
-
-                    {isDeleting && (
-                      <span style={{ color: "#1E2018", fontSize: "12px", opacity: 0.4 }}>
-                        Deleting...
-                      </span>
-                    )}
-
-                  </div>
+            {/* ── GENERATED → NEEDS OVERLEAF VERIFY ── */}
+            {queueData.generated?.length > 0 && (
+              <>
+                <div style={{ fontSize: "1rem", fontWeight: 700, color: "#2D5A3D", marginBottom: "12px", marginTop: "28px" }}>
+                  📄 Generated — Awaiting Overleaf Verification ({queueData.generated.length})
                 </div>
-
-                {/* Expanded full text */}
-                {isExpanded && (
-                  <div style={{
-                    background: "#FFFFFF",
-                    border: "1px solid rgba(45,90,61,0.08)",
-                    borderRadius: "8px",
-                    padding: "20px 24px",
-                    whiteSpace: "pre-wrap",
-                    color: "#1E2018",
-                    fontSize: "13px",
-                    lineHeight: "1.85",
-                    fontFamily: "system-ui, sans-serif",
-                  }}>
-                    {cl.cover_letter}
+                <div style={{ padding: "14px 18px", background: "#EDE8DE", border: "1px solid #DDD5C4", borderRadius: "8px", fontSize: "0.83rem", color: "#6B6252", lineHeight: "1.5", marginBottom: "20px" }}>
+                  Download already done. Open each .tex file in Overleaf, fix any compile errors, then come back and click <strong>Mark Verified</strong>.
+                </div>
+                {queueData.generated.map(job => (
+                  <div key={job.job_id} style={S.queueCard}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "12px" }}>
+                      <div>
+                        <div style={S.queueCardTitle}>{job.title}</div>
+                        <div style={S.queueCardSub}>{job.company} · {job.location} · 💰 {job.salary}</div>
+                        <div style={S.queueActions}>
+                          <button style={S.successBtn} onClick={() => updateStatus(job.job_id, "verified")}>
+                            ✓ Mark Verified
+                          </button>
+                          <a
+                            href="https://overleaf.com"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{ ...S.secondaryBtn(false), textDecoration: "none", display: "inline-flex", alignItems: "center" }}
+                          >
+                            Open Overleaf ↗
+                          </a>
+                          <button style={S.dangerBtn} onClick={() => updateStatus(job.job_id, "ranked")}>
+                            Reset
+                          </button>
+                        </div>
+                      </div>
+                      <div style={S.scoreRing(job.match_score)}>
+                        <span style={S.scoreNumber(job.match_score)}>{Math.round(job.match_score)}</span>
+                        <span style={S.scoreLabel}>MATCH</span>
+                      </div>
+                    </div>
                   </div>
-                )}
+                ))}
+              </>
+            )}
 
+            {/* ── APPLIED ── */}
+            {queueData.applied?.length > 0 && (
+              <>
+                <div style={{ fontSize: "1rem", fontWeight: 700, color: "#3D7A55", marginBottom: "12px", marginTop: "28px" }}>
+                  ✈ Applied ({queueData.applied.length})
+                </div>
+                {queueData.applied.map(job => (
+                  <div key={job.job_id} style={{ ...S.queueCard, opacity: 0.7 }}>
+                    <div style={S.queueCardTitle}>{job.title}</div>
+                    <div style={S.queueCardSub}>{job.company} · {job.location}</div>
+                    <span style={S.statusBadge("applied")}>Applied ✓</span>
+                  </div>
+                ))}
+              </>
+            )}
+
+            {/* Empty state */}
+            {!queueData.verified?.length && !queueData.generated?.length && !queueData.applied?.length && (
+              <div style={S.emptyState}>
+                <div style={S.emptyIcon}>📋</div>
+                <div style={{ fontWeight: 700, marginBottom: "8px" }}>Your apply queue is empty</div>
+                <div style={{ fontSize: "0.85rem" }}>
+                  Search for jobs, select your top picks, generate the ZIP, then come back here after verifying on Overleaf.
+                </div>
+                <button
+                  style={{ ...S.primaryBtn(false), marginTop: "20px" }}
+                  onClick={() => setActiveTab("search")}
+                >
+                  Go to Search →
+                </button>
               </div>
-            );
-          })}
-
-        </div>
+            )}
+          </>
+        )}
 
       </div>
+    </div>
     </DashboardLayout>
   );
 }
-
-
-
-
-
 
 
 ======================================================================
@@ -38080,6 +37870,8 @@ export default function Generate() {
   const [downloadError, setDownloadError]       = useState("");
   const [downloadingTex, setDownloadingTex]     = useState(false);
   const [downloadTexError, setDownloadTexError] = useState("");
+  const [downloadingCombined, setDownloadingCombined] = useState(false);
+  const [downloadCombinedError, setDownloadCombinedError] = useState("");
  
   const [saving, setSaving]                 = useState(false);
   const [saved, setSaved]                   = useState(false);
@@ -38242,6 +38034,84 @@ useEffect(() => {
       }
     } finally {
       setDownloadingTex(false);
+    }
+  };
+
+
+  // ── DOWNLOAD COMBINED CV + COVER LETTER .tex ──────────────────────────────
+  const handleDownloadCombinedTex = async () => {
+    if (!result) return;
+    setDownloadingCombined(true);
+    setDownloadCombinedError("");
+
+    try {
+      // Step 1 — Generate cover letter using the same job description
+      const clResp = await api.post("/cover-letter", {
+        jobDescription: jobDescription,
+        tone: "professional",
+      });
+      const coverLetterText = clResp.data.cover_letter || "";
+
+      // Step 2 — Build LaTeX for both (same as Bulk Generate)
+      const texResp = await api.post("/bulk-tex", {
+        ai_result:    result,
+        cover_letter: coverLetterText,
+        job_title:    jobTitle,
+      });
+      const cvTex = texResp.data.cv_tex           || "";
+      const clTex = texResp.data.cover_letter_tex || "";
+
+      // Step 3 — Combine (same as BulkGenerate buildCombined)
+      const extractBody = (tex) => {
+        const start = tex.indexOf("\\begin{document}");
+        const end   = tex.lastIndexOf("\\end{document}");
+        if (start === -1 || end === -1) return tex;
+        return tex.slice(start + "\\begin{document}".length, end).trim();
+      };
+      const preamble = cvTex.slice(0, cvTex.indexOf("\\begin{document}")).trim();
+      const combined = [
+        preamble, "",
+        "\\begin{document}", "",
+        "% ═══════════════════════════════════════════════════════════════════════",
+        "% COVER LETTER",
+        "% ═══════════════════════════════════════════════════════════════════════",
+        extractBody(clTex), "",
+        "\\newpage", "",
+        "% ═══════════════════════════════════════════════════════════════════════",
+        "% CURRICULUM VITAE",
+        "% ═══════════════════════════════════════════════════════════════════════",
+        extractBody(cvTex), "",
+        "\\end{document}",
+      ].join("\n");
+
+      // Step 4 — Download
+      const firstName = profile?.personalInfo?.firstName || "";
+      const lastName  = profile?.personalInfo?.lastName  || "";
+      const fullName  = `${firstName}${lastName ? "_" + lastName : ""}`.trim();
+      const titleSlug = jobTitle.trim().replace(/\s+/g, "_").replace(/[^a-zA-Z0-9_]/g, "").slice(0, 50);
+      const filename  = [fullName, titleSlug, "CV_CoverLetter"].filter(Boolean).join("_") + ".tex";
+
+      const blob = new Blob([combined], { type: "text/plain" });
+      const url  = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href     = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+    } catch (err) {
+      if (err.response?.status === 401) {
+        localStorage.removeItem("token");
+        navigate("/login");
+      } else {
+        setDownloadCombinedError(
+          err.response?.data?.message || "Failed to generate combined file."
+        );
+      }
+    } finally {
+      setDownloadingCombined(false);
     }
   };
 
@@ -39250,6 +39120,49 @@ useEffect(() => {
                 )}
               </div>
 
+              {/* ── Download Combined CV + Cover Letter .tex ── */}
+              <div style={{ textAlign: "center" }}>
+                <button
+                  onClick={handleDownloadCombinedTex}
+                  disabled={downloadingCombined}
+                  style={{
+                    fontSize: "15px", padding: "13px 36px",
+                    opacity:      downloadingCombined ? 0.65 : 1,
+                    cursor:       downloadingCombined ? "not-allowed" : "pointer",
+                    background:   "#2D5A3D",
+                    border:       "none",
+                    color:        "#EDE8DE",
+                    borderRadius: "6px",
+                    fontFamily:   "'Libre Baskerville', serif",
+                    fontWeight:   900,
+                    display:      "flex", alignItems: "center", gap: "8px",
+                  }}
+                >
+                  {downloadingCombined ? (
+                    <>
+                      <span style={{
+                        display: "inline-block", width: "14px", height: "14px",
+                        border: "2px solid rgba(255,255,255,0.4)", borderTopColor: "white",
+                        borderRadius: "50%", animation: "spin 0.7s linear infinite",
+                      }} />
+                      Generating…
+                    </>
+                  ) : "📄 Download CV + Cover Letter (.tex)"}
+                </button>
+                <p style={{ color: "#1E2018", fontSize: "12px", opacity: 0.55, marginTop: "8px", maxWidth: "200px", lineHeight: "1.5" }}>
+                  Combined file — cover letter + CV ready for{" "}
+                  <a href="https://www.overleaf.com" target="_blank" rel="noopener noreferrer"
+                    style={{ color: "#2D5A3D", fontWeight: 700, textDecoration: "underline" }}>
+                    Overleaf
+                  </a>
+                </p>
+                {downloadCombinedError && (
+                  <p style={{ color: "#8B2020", fontSize: "12px", marginTop: "4px", maxWidth: "260px" }}>
+                    {downloadCombinedError}
+                  </p>
+                )}
+              </div>
+
               {/* ── Save to Cabinet ── */}
               <div style={{ textAlign: "center" }}>
                 <button
@@ -39323,6 +39236,9 @@ useEffect(() => {
     </DashboardLayout>
   );
 }
+
+
+
 
 
 
@@ -40546,7 +40462,118 @@ function JobRow({ job, onClick }) {
 }
 
 // ── JOB DETAIL MODAL ──────────────────────────────────────────────────────────
-function JobModal({ job, onClose, onGenerateCV }) {
+function JobModal({ job, onClose, onGenerateCV, profile }) {
+  const [copied,   setCopied]   = useState(false);
+  const [saved,    setSaved]    = useState(false);
+  const [saving,   setSaving]   = useState(false);
+
+  // Combined LaTeX generation state
+  const [texStatus, setTexStatus] = useState("idle"); // idle | generating | done | error
+  const [texError,  setTexError]  = useState("");
+
+  const handleGenerateCombinedTex = async () => {
+    if (texStatus === "generating") return;
+    if (!profile || !Object.keys(profile).length) {
+      setTexError("Profile not loaded. Please save your profile first.");
+      setTexStatus("error");
+      return;
+    }
+    setTexStatus("generating");
+    setTexError("");
+    try {
+      // Step 1 — Generate AI CV content (same as Generate CV page)
+      const cvResp = await api.post("/generate", {
+        jobDescription:    job.description || job.title,
+        personalInfo:      profile.personalInfo      || {},
+        baseSkills:        profile.skills            || [],
+        baseExperience:    profile.experience        || [],
+        projectExperience: profile.projects          || [],
+        education:         profile.education         || [],
+        languages:         profile.languages         || [],
+        references:        profile.references        || "Available upon Request",
+      });
+      const aiResult = cvResp.data;
+
+      // Step 2 — Generate cover letter text (same as Cover Letter page)
+      const clResp = await api.post("/cover-letter", {
+        jobDescription: job.description || job.title,
+        tone:           "professional",
+      });
+      const coverLetterText = clResp.data.cover_letter || "";
+
+      // Step 3 — Build LaTeX server-side (same as Bulk Generate)
+      const texResp = await api.post("/bulk-tex", {
+        ai_result:    aiResult,
+        cover_letter: coverLetterText,
+        job_title:    job.title,
+      });
+      const cvTex = texResp.data.cv_tex           || "";
+      const clTex = texResp.data.cover_letter_tex || "";
+
+      // Step 4 — Combine (same logic as BulkGenerate buildCombined)
+      const extractBody = (tex) => {
+        const start = tex.indexOf("\\begin{document}");
+        const end   = tex.lastIndexOf("\\end{document}");
+        if (start === -1 || end === -1) return tex;
+        return tex.slice(start + "\\begin{document}".length, end).trim();
+      };
+      const preamble = cvTex.slice(0, cvTex.indexOf("\\begin{document}")).trim();
+      const combined = [
+        preamble, "",
+        "\\begin{document}", "",
+        "% ═══════════════════════════════════════════════════════════════════════",
+        "% COVER LETTER",
+        "% ═══════════════════════════════════════════════════════════════════════",
+        extractBody(clTex), "",
+        "\\newpage", "",
+        "% ═══════════════════════════════════════════════════════════════════════",
+        "% CURRICULUM VITAE",
+        "% ═══════════════════════════════════════════════════════════════════════",
+        extractBody(cvTex), "",
+        "\\end{document}",
+      ].join("\n");
+
+      // Step 5 — Download the .tex file
+      const slug     = job.title.replace(/\s+/g, "_").replace(/[^a-zA-Z0-9_]/g, "");
+      const filename = `${slug}_CV_CoverLetter.tex`;
+      const blob     = new Blob([combined], { type: "text/plain" });
+      const url      = URL.createObjectURL(blob);
+      const a        = document.createElement("a");
+      a.href         = url;
+      a.download     = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+
+      setTexStatus("done");
+      setTimeout(() => setTexStatus("idle"), 4000);
+    } catch (e) {
+      setTexError(e.response?.data?.message || "Generation failed. Check your profile and API keys.");
+      setTexStatus("error");
+    }
+  };
+
+  const handleSaveWishlist = async () => {
+    if (saving || saved) return;
+    setSaving(true);
+    try {
+      await api.post("/tracker", {
+        company: job.company || "",
+        role:    job.title   || "",
+        status:  "Wishlist",
+        salary:  job.salary  || "",
+        notes:   "",
+        url:     job.url     || "",
+      });
+      setSaved(true);
+    } catch (e) {
+      alert("Could not save to Wishlist. Please try again.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   // Close on Escape key
   useEffect(() => {
     const handler = (e) => { if (e.key === "Escape") onClose(); };
@@ -40682,6 +40709,26 @@ function JobModal({ job, onClose, onGenerateCV }) {
           }}>
             {job.description || "No description available."}
           </p>
+          {/* Warning when API truncated the description */}
+          {job.description && (
+            job.description.trimEnd().endsWith("...") ||
+            job.description.trimEnd().endsWith("…") ||
+            job.description.length < 300
+          ) && job.url && (
+            <div style={{
+              marginTop: "16px", padding: "12px 16px",
+              background: "rgba(184,134,11,0.08)",
+              border: "1px solid rgba(184,134,11,0.3)",
+              borderRadius: "8px", fontSize: "12px", color: "#7A5800",
+              fontFamily: "'Libre Baskerville', serif",
+            }}>
+              ⚠ This description was shortened by the job board.{" "}
+              <a href={job.url} target="_blank" rel="noopener noreferrer"
+                style={{ color: "#2D5A3D", fontWeight: 700 }}>
+                View the full listing →
+              </a>
+            </div>
+          )}
         </div>
 
         {/* Modal footer — action buttons */}
@@ -40693,13 +40740,95 @@ function JobModal({ job, onClose, onGenerateCV }) {
           flexShrink:   0,
           flexWrap:     "wrap",
         }}>
-          {/* Generate CV for this job — key feature */}
+          {/* Generate CV for this job — navigates to /generate */}
           <button
             className="primary-btn"
             onClick={() => onGenerateCV(job)}
             style={{ flex: 1, fontSize: "14px", padding: "12px 20px" }}
           >
             ✨ Generate CV for This Job
+          </button>
+
+          {/* Generate combined CV + Cover Letter .tex and download it */}
+          <button
+            onClick={handleGenerateCombinedTex}
+            disabled={texStatus === "generating"}
+            style={{
+              background:   texStatus === "done"       ? "rgba(45,90,61,0.15)"
+                          : texStatus === "generating" ? "rgba(45,90,61,0.06)"
+                          : "transparent",
+              border:       `1px solid ${texStatus === "done" ? "#2D5A3D" : "rgba(45,90,61,0.3)"}`,
+              borderRadius: "6px",
+              color:        texStatus === "error" ? "#8B2020" : "#2D5A3D",
+              padding:      "12px 20px",
+              fontSize:     "14px",
+              fontFamily:   "'Libre Baskerville', serif",
+              fontWeight:   900,
+              cursor:       texStatus === "generating" ? "not-allowed" : "pointer",
+              whiteSpace:   "nowrap",
+              transition:   "all 0.2s",
+              display:      "flex",
+              alignItems:   "center",
+              gap:          "8px",
+            }}
+          >
+            {texStatus === "generating" && (
+              <span style={{
+                display: "inline-block", width: "12px", height: "12px",
+                border: "2px solid #2D5A3D", borderTopColor: "transparent",
+                borderRadius: "50%", animation: "spin 0.7s linear infinite",
+              }} />
+            )}
+            {texStatus === "done"       ? "✓ Downloaded!"
+           : texStatus === "generating" ? "Generating…"
+           : "📄 Download CV + Cover Letter (.tex)"}
+          </button>
+
+          {/* Save to Wishlist */}
+          <button
+            onClick={handleSaveWishlist}
+            disabled={saving || saved}
+            style={{
+              background:   saved ? "rgba(45,90,61,0.12)" : "transparent",
+              border:       `1px solid ${saved ? "#2D5A3D" : "rgba(45,90,61,0.3)"}`,
+              borderRadius: "6px",
+              color:        "#2D5A3D",
+              padding:      "12px 20px",
+              fontSize:     "14px",
+              fontFamily:   "'Libre Baskerville', serif",
+              fontWeight:   900,
+              cursor:       saving || saved ? "default" : "pointer",
+              whiteSpace:   "nowrap",
+              transition:   "all 0.2s",
+              opacity:      saving ? 0.6 : 1,
+            }}
+          >
+            {saved ? "✓ Saved to Wishlist!" : saving ? "Saving…" : "⭐ Save to Wishlist"}
+          </button>
+
+          {/* Copy description */}
+          <button
+            onClick={() => {
+              navigator.clipboard.writeText(job.description || "").then(() => {
+                setCopied(true);
+                setTimeout(() => setCopied(false), 2000);
+              });
+            }}
+            style={{
+              background:   copied ? "rgba(45,90,61,0.1)" : "transparent",
+              border:       "1px solid rgba(45,90,61,0.3)",
+              borderRadius: "6px",
+              color:        "#2D5A3D",
+              padding:      "12px 20px",
+              fontSize:     "14px",
+              fontFamily:   "'Libre Baskerville', serif",
+              fontWeight:   900,
+              cursor:       "pointer",
+              whiteSpace:   "nowrap",
+              transition:   "all 0.2s",
+            }}
+          >
+            {copied ? "✓ Copied!" : "📋 Copy Description"}
           </button>
 
           {/* Open original listing */}
@@ -40726,6 +40855,20 @@ function JobModal({ job, onClose, onGenerateCV }) {
             </a>
           )}
         </div>
+
+        {/* Tex generation error */}
+        {texStatus === "error" && (
+          <div style={{
+            padding: "12px 32px", background: "rgba(139,32,32,0.06)",
+            borderTop: "1px solid rgba(139,32,32,0.15)",
+            fontSize: "12px", color: "#8B2020",
+            fontFamily: "'Libre Baskerville', serif",
+          }}>
+            ⚠ {texError}
+          </div>
+        )}
+
+        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
       </div>
     </>
   );
@@ -40787,6 +40930,12 @@ export default function Jobs() {
 
   // ── MODAL STATE ─────────────────────────────────────────────────────────────
   const [selectedJob,    setSelectedJob]    = useState(null);
+  const [profile,        setProfile]        = useState({});
+
+  // Load profile on mount so the combined LaTeX generation has access to it
+  useEffect(() => {
+    api.get("/profile").then(r => { if (r.data) setProfile(r.data); }).catch(() => {});
+  }, []);
 
   const queryInputRef = useRef(null);
 
@@ -41173,6 +41322,7 @@ export default function Jobs() {
           job={selectedJob}
           onClose={() => setSelectedJob(null)}
           onGenerateCV={handleGenerateCV}
+          profile={profile}
         />
       )}
 
@@ -44055,7 +44205,7 @@ const S = {
   jobDesc: {
     marginTop: "14px", padding: "14px 16px", background: "#EDE8DE",
     borderRadius: "8px", fontSize: "12px", lineHeight: "1.7", color: "#6B6252",
-    maxHeight: "240px", overflowY: "auto", whiteSpace: "pre-wrap",
+    whiteSpace: "pre-wrap",
     border: "1px solid #DDD5C4", fontFamily: "'Libre Baskerville', serif",
   },
   jobCardActions: { display: "flex", gap: "8px", marginTop: "12px", flexWrap: "wrap", alignItems: "center" },
@@ -44128,6 +44278,8 @@ export default function SmartJobsPage() {
   const [queueData, setQueueData] = useState({ ranked: [], generated: [], verified: [], applied: [] });
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [expandedId, setExpandedId] = useState(null);
+  const [copiedId, setCopiedId] = useState(null);
+  const [wishlistIds, setWishlistIds] = useState(new Set());
   const [searching, setSearching] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [generateProgress, setGenerateProgress] = useState(0);
@@ -44311,6 +44463,23 @@ export default function SmartJobsPage() {
     window.open(job.apply_url, "_blank", "noopener,noreferrer");
   };
 
+  const saveToWishlist = async (job) => {
+    if (wishlistIds.has(job.job_id)) return;
+    try {
+      await api.post("/tracker", {
+        company: job.company  || "",
+        role:    job.title    || "",
+        status:  "Wishlist",
+        salary:  job.salary   || "",
+        notes:   "",
+        url:     job.apply_url || "",
+      });
+      setWishlistIds(prev => new Set([...prev, job.job_id]));
+    } catch (e) {
+      console.error("Wishlist save failed:", e);
+    }
+  };
+
   // ─────────────────────────────────────────
   // RENDER HELPERS
   // ─────────────────────────────────────────
@@ -44375,7 +44544,64 @@ export default function SmartJobsPage() {
             <div style={S.jobDesc}>
               {job.description || "No description available."}
             </div>
+            {/* Warning when API truncated the description */}
+            {job.description && (
+              job.description.trimEnd().endsWith("...") ||
+              job.description.trimEnd().endsWith("…") ||
+              job.description.length < 300
+            ) && job.apply_url && (
+              <div
+                onClick={(e) => e.stopPropagation()}
+                style={{
+                  marginTop: "8px", padding: "10px 14px",
+                  background: "rgba(184,134,11,0.08)",
+                  border: "1px solid rgba(184,134,11,0.3)",
+                  borderRadius: "8px", fontSize: "12px", color: "#7A5800",
+                  fontFamily: "inherit",
+                }}
+              >
+                ⚠ Description shortened by the job board.{" "}
+                <a href={job.apply_url} target="_blank" rel="noopener noreferrer"
+                  style={{ color: "#2D5A3D", fontWeight: 700 }}>
+                  View full listing →
+                </a>
+              </div>
+            )}
             <div style={S.jobCardActions}>
+              {/* Copy description — always visible */}
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  navigator.clipboard.writeText(job.description || "").then(() => {
+                    setCopiedId(job.job_id);
+                    setTimeout(() => setCopiedId(null), 2000);
+                  });
+                }}
+                style={{
+                  padding: "8px 14px",
+                  background: copiedId === job.job_id ? "rgba(45,90,61,0.12)" : "transparent",
+                  color: copiedId === job.job_id ? "#2D5A3D" : "#6B6252",
+                  border: `1px solid ${copiedId === job.job_id ? "#2D5A3D" : "#C8BCA8"}`,
+                  borderRadius: "8px", cursor: "pointer", fontWeight: 700,
+                  fontSize: "12px", fontFamily: "inherit", transition: "all 0.2s",
+                }}
+              >
+                {copiedId === job.job_id ? "✓ Copied!" : "📋 Copy Description"}
+              </button>
+              {/* Save to Wishlist — always visible */}
+              <button
+                onClick={(e) => { e.stopPropagation(); saveToWishlist(job); }}
+                style={{
+                  padding: "8px 14px",
+                  background: wishlistIds.has(job.job_id) ? "rgba(45,90,61,0.12)" : "transparent",
+                  color: "#2D5A3D",
+                  border: `1px solid ${wishlistIds.has(job.job_id) ? "#2D5A3D" : "#C8BCA8"}`,
+                  borderRadius: "8px", cursor: wishlistIds.has(job.job_id) ? "default" : "pointer",
+                  fontWeight: 700, fontSize: "12px", fontFamily: "inherit", transition: "all 0.2s",
+                }}
+              >
+                {wishlistIds.has(job.job_id) ? "✓ Wishlisted!" : "⭐ Save to Wishlist"}
+              </button>
               {job.status === "verified" && (
                 <button
                   style={S.applyNowBtn}
@@ -44568,6 +44794,37 @@ export default function SmartJobsPage() {
                           >
                             ✈ Apply Now
                           </a>
+                          <button
+                            onClick={() => {
+                              navigator.clipboard.writeText(job.description || "").then(() => {
+                                setCopiedId(job.job_id);
+                                setTimeout(() => setCopiedId(null), 2000);
+                              });
+                            }}
+                            style={{
+                              padding: "8px 14px",
+                              background: copiedId === job.job_id ? "rgba(45,90,61,0.12)" : "transparent",
+                              color: copiedId === job.job_id ? "#2D5A3D" : "#6B6252",
+                              border: `1px solid ${copiedId === job.job_id ? "#2D5A3D" : "#C8BCA8"}`,
+                              borderRadius: "8px", cursor: "pointer", fontWeight: 700,
+                              fontSize: "12px", fontFamily: "inherit", transition: "all 0.2s",
+                            }}
+                          >
+                            {copiedId === job.job_id ? "✓ Copied!" : "📋 Copy Description"}
+                          </button>
+                          <button
+                            onClick={() => saveToWishlist(job)}
+                            style={{
+                              padding: "8px 14px",
+                              background: wishlistIds.has(job.job_id) ? "rgba(45,90,61,0.12)" : "transparent",
+                              color: "#2D5A3D",
+                              border: `1px solid ${wishlistIds.has(job.job_id) ? "#2D5A3D" : "#C8BCA8"}`,
+                              borderRadius: "8px", cursor: wishlistIds.has(job.job_id) ? "default" : "pointer",
+                              fontWeight: 700, fontSize: "12px", fontFamily: "inherit", transition: "all 0.2s",
+                            }}
+                          >
+                            {wishlistIds.has(job.job_id) ? "✓ Wishlisted!" : "⭐ Save to Wishlist"}
+                          </button>
                           <button style={S.dangerBtn} onClick={() => updateStatus(job.job_id, "ranked")}>
                             Skip
                           </button>
@@ -44610,6 +44867,37 @@ export default function SmartJobsPage() {
                           >
                             Open Overleaf ↗
                           </a>
+                          <button
+                            onClick={() => {
+                              navigator.clipboard.writeText(job.description || "").then(() => {
+                                setCopiedId(job.job_id);
+                                setTimeout(() => setCopiedId(null), 2000);
+                              });
+                            }}
+                            style={{
+                              padding: "8px 14px",
+                              background: copiedId === job.job_id ? "rgba(45,90,61,0.12)" : "transparent",
+                              color: copiedId === job.job_id ? "#2D5A3D" : "#6B6252",
+                              border: `1px solid ${copiedId === job.job_id ? "#2D5A3D" : "#C8BCA8"}`,
+                              borderRadius: "8px", cursor: "pointer", fontWeight: 700,
+                              fontSize: "12px", fontFamily: "inherit", transition: "all 0.2s",
+                            }}
+                          >
+                            {copiedId === job.job_id ? "✓ Copied!" : "📋 Copy Description"}
+                          </button>
+                          <button
+                            onClick={() => saveToWishlist(job)}
+                            style={{
+                              padding: "8px 14px",
+                              background: wishlistIds.has(job.job_id) ? "rgba(45,90,61,0.12)" : "transparent",
+                              color: "#2D5A3D",
+                              border: `1px solid ${wishlistIds.has(job.job_id) ? "#2D5A3D" : "#C8BCA8"}`,
+                              borderRadius: "8px", cursor: wishlistIds.has(job.job_id) ? "default" : "pointer",
+                              fontWeight: 700, fontSize: "12px", fontFamily: "inherit", transition: "all 0.2s",
+                            }}
+                          >
+                            {wishlistIds.has(job.job_id) ? "✓ Wishlisted!" : "⭐ Save to Wishlist"}
+                          </button>
                           <button style={S.dangerBtn} onClick={() => updateStatus(job.job_id, "ranked")}>
                             Reset
                           </button>
@@ -44732,9 +45020,19 @@ function getColumnColor(status) {
 // APPLICATION CARD
 // =============================================================================
 
-function AppCard({ app, onDragStart, onEdit, onDelete }) {
+// Pipeline progression map
+const NEXT_STATUS = {
+  Wishlist:  { next: "Applied",   nextLabel: "📤 Move to Applied",    nextColor: "#2D5A3D" },
+  Applied:   { next: "Interview", nextLabel: "🎙 Move to Interview",  nextColor: "#A78BFA" },
+  Interview: { next: "Offer",     nextLabel: "🎉 Move to Offer",      nextColor: "#4ADE80" },
+  Offer:     { next: null,        nextLabel: null,                    nextColor: null      },
+  Rejected:  { next: "Wishlist",  nextLabel: "↩ Restore to Wishlist", nextColor: "#60A5FA" },
+};
+
+function AppCard({ app, onDragStart, onEdit, onDelete, onMove }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const col = COLUMNS.find(c => c.id === app.status);
+  const pipeline = NEXT_STATUS[app.status] || {};
 
   return (
     <div
@@ -44805,12 +45103,63 @@ function AppCard({ app, onDragStart, onEdit, onDelete }) {
         </p>
       )}
 
+      {/* ── Stage progression buttons ── */}
+      <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginBottom: "10px" }}>
+        {/* Advance to next stage */}
+        {pipeline.next && (
+          <button
+            onClick={(e) => { e.stopPropagation(); onMove(app.id, pipeline.next); }}
+            style={{
+              flex:         1,
+              background:   `${pipeline.nextColor}18`,
+              border:       `1px solid ${pipeline.nextColor}55`,
+              borderRadius: "6px",
+              color:        pipeline.nextColor,
+              fontSize:     "11px",
+              fontFamily:   "'Libre Baskerville', serif",
+              fontWeight:   900,
+              padding:      "5px 8px",
+              cursor:       "pointer",
+              textAlign:    "center",
+              transition:   "background 0.15s",
+            }}
+            onMouseEnter={e => e.currentTarget.style.background = `${pipeline.nextColor}30`}
+            onMouseLeave={e => e.currentTarget.style.background = `${pipeline.nextColor}18`}
+          >
+            {pipeline.nextLabel}
+          </button>
+        )}
+        {/* Reject — shown on all stages except Offer and Rejected */}
+        {app.status !== "Rejected" && app.status !== "Offer" && (
+          <button
+            onClick={(e) => { e.stopPropagation(); onMove(app.id, "Rejected"); }}
+            style={{
+              background:   "rgba(139,32,32,0.08)",
+              border:       "1px solid rgba(139,32,32,0.3)",
+              borderRadius: "6px",
+              color:        "#8B2020",
+              fontSize:     "11px",
+              fontFamily:   "'Libre Baskerville', serif",
+              fontWeight:   900,
+              padding:      "5px 8px",
+              cursor:       "pointer",
+              transition:   "background 0.15s",
+              whiteSpace:   "nowrap",
+            }}
+            onMouseEnter={e => e.currentTarget.style.background = "rgba(139,32,32,0.15)"}
+            onMouseLeave={e => e.currentTarget.style.background = "rgba(139,32,32,0.08)"}
+          >
+            ❌ Reject
+          </button>
+        )}
+      </div>
+
       {/* Footer row */}
       <div style={{
         display:        "flex",
         justifyContent: "space-between",
         alignItems:     "center",
-        marginTop:      "8px",
+        marginTop:      "4px",
         paddingTop:     "8px",
         borderTop:      "1px solid rgba(0,0,0,0.06)",
       }}>
@@ -44891,7 +45240,7 @@ function AppCard({ app, onDragStart, onEdit, onDelete }) {
 // KANBAN COLUMN
 // =============================================================================
 
-function KanbanColumn({ column, apps, onDragStart, onDrop, onDragOver, onEdit, onDelete, onAddCard }) {
+function KanbanColumn({ column, apps, onDragStart, onDrop, onDragOver, onEdit, onDelete, onAddCard, onMove }) {
   const [isDragOver, setIsDragOver] = useState(false);
 
   return (
@@ -44968,6 +45317,7 @@ function KanbanColumn({ column, apps, onDragStart, onDrop, onDragOver, onEdit, o
             onDragStart={onDragStart}
             onEdit={onEdit}
             onDelete={onDelete}
+            onMove={onMove}
           />
         ))}
       </div>
@@ -45320,6 +45670,24 @@ export default function Tracker() {
   };
 
 
+  // ── MOVE HANDLER (stage progression buttons) ──────────────────────────────
+  const handleMove = async (id, newStatus) => {
+    const app = apps.find(a => a.id === id);
+    if (!app || app.status === newStatus) return;
+
+    // Optimistic update
+    setApps(prev => prev.map(a => a.id === id ? { ...a, status: newStatus } : a));
+
+    try {
+      await api.patch(`/tracker/${id}`, { status: newStatus });
+    } catch {
+      // Revert on failure
+      setApps(prev => prev.map(a => a.id === id ? { ...a, status: app.status } : a));
+      setError("Failed to update status. Please try again.");
+    }
+  };
+
+
   // ── ADD HANDLER ────────────────────────────────────────────────────────────
   const handleAdd = (status = "Wishlist") => {
     setEditingApp({ ...EMPTY_FORM, status });
@@ -45490,6 +45858,7 @@ export default function Tracker() {
                 onEdit={(app) => { setEditingApp(app); setModalOpen(true); }}
                 onDelete={handleDelete}
                 onAddCard={handleAdd}
+                onMove={handleMove}
               />
             ))}
           </div>
@@ -45536,6 +45905,9 @@ export default function Tracker() {
     </DashboardLayout>
   );
 }
+
+
+
 
 
 
