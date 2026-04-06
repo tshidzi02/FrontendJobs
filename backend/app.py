@@ -400,8 +400,6 @@ def generate():
         education=education, languages=languages, references=references
     )
 
-    print("=== AI RESPONSE ===")
-    print(json.dumps(ai_content, indent=2))
 
     summary    = ai_content.get("SUMMARY", "")
     skills     = ai_content.get("skills", [])
@@ -1658,6 +1656,7 @@ def smart_jobs_queue():
         "total": len(all_jobs)
     })
  
-
+ 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(debug=True, use_reloader=False)  # ← add use_reloader=False
+    

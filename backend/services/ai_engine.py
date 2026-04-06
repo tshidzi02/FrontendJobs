@@ -4,6 +4,7 @@
 
 from openai import OpenAI
 import json
+import math
 
 client = OpenAI()
 
@@ -43,6 +44,16 @@ def generate_cv_content(
     }
 
     # =========================================================================
+    # BUILD EXPERIENCE ROLE LIST — used in prompt to prevent AI from skipping
+    # =========================================================================
+
+    experience_count = len(base_experience) if base_experience else 0
+    experience_role_list = "\n".join(
+        f"  {i+1}. {exp.get('role', 'Unknown Role')} @ {exp.get('company', 'Unknown Company')} ({exp.get('startYear', '')} - {exp.get('endYear', '')})"
+        for i, exp in enumerate(base_experience or [])
+    )
+
+    # =========================================================================
     # MAIN CALL — Summary, Experience, Projects, Education
     # =========================================================================
 
@@ -55,25 +66,30 @@ CANDIDATE BACKGROUND:
 
 RULES:
 1. Do NOT invent new job roles or companies.
-2. For each experience entry:
+2. CRITICAL — EXPERIENCE COUNT: You MUST return EXACTLY {experience_count} experience entries.
+   Do NOT merge, combine, skip, or drop any entry even if they share the same company or dates.
+   Each entry is a SEPARATE role and must appear separately in the output in the EXACT same order.
+   The candidate has these exact roles — every single one must appear:
+{experience_role_list}
+3. For each experience entry:
    - Copy role, company, city, country, startYear, endYear EXACTLY as provided.
    - Keep EVERY original bullet point the candidate wrote — do not delete any.
    - You may rewrite bullets to be stronger (better verbs, measurable impact).
    - You may ADD new bullets relevant to the job description after the originals.
    - The dates field must be formatted as "startYear - endYear" using the provided startYear and endYear values.
-3. For each project_experience entry:
+4. For each project_experience entry:
    - Copy title and tech_stack EXACTLY as provided.
    - Keep EVERY original bullet point the candidate wrote — do not delete any.
    - You may rewrite bullets to be stronger (better verbs, measurable impact).
    - You MUST ADD at least 2 new bullets per project that align it to the job description.
    - Every project bullet must connect the project work to what the job description requires.
    - If the candidate provided 0 bullets, you must still write at least 3 strong bullets.
-4. Do NOT modify education. Copy every field exactly including minimumAverage.
-5. Do NOT modify languages. Copy exactly.
-6. Do NOT modify references. Copy exactly.
-7. SUMMARY: 300-350 words, professional, first person, tailored to this job.
-8. For each coursework item: format as "Course Name: One sentence on what it covers and why it is relevant to this specific job."
-9. Return valid JSON only. No markdown. No backticks.
+5. Do NOT modify education. Copy every field exactly including minimumAverage.
+6. Do NOT modify languages. Copy exactly.
+7. Do NOT modify references. Copy exactly.
+8. SUMMARY: 300-350 words, professional, first person, tailored to this job.
+9. For each coursework item: format as "Course Name: One sentence on what it covers and why it is relevant to this specific job."
+10. Return valid JSON only. No markdown. No backticks.
 
 CANDIDATE EXPERIENCE:
 {base_experience}
@@ -98,7 +114,7 @@ Return this exact JSON structure:
   "SUMMARY": "300-350 word summary tailored to the job description, written in first person, professional tone.",
   "experience": [
     {{
-      "role": "exact job title from profile",
+      "role": "all exact job title from profile - make sure you do all of them do not combine the roles",
       "company": "exact company from profile",
       "city": "exact city from profile",
       "country": "exact country from profile",
@@ -107,7 +123,13 @@ Return this exact JSON structure:
       "dates": "startYear - endYear",
       "bullets": [
         "Original bullet 1 — enhanced or kept as-is",
-        "AI-added bullet relevant to this job description"
+        "Original bullet 2 — enhanced or kept as-is",
+        "Original bullet 3 — enhanced or kept as-is",
+        "Original bullet 4 — enhanced or kept as-is",
+        "Original bullet 5 — enhanced or kept as-is",
+        "AI-added bullet 1 relevant to this job description",
+        "AI-added bullet 2 relevant to this job description",
+        "AI-added bullet 3 relevant to this job description"
       ]
     }}
   ],
@@ -115,6 +137,7 @@ Return this exact JSON structure:
     {{
       "title": "exact title from profile",
       "tech_stack": "exact tech_stack from profile",
+      "urls": "list of URLs from profile, if any",
       "bullets": [
         "Original bullet 1 — enhanced with strong verbs and impact",
         "AI-added bullet directly aligned to the job description requirements"
@@ -132,7 +155,27 @@ Return this exact JSON structure:
       "graduationYear": "exact year",
       "minimumAverage": "exact value — mandatory",
       "coursework": [
-        "Course Name: Why it is relevant to this job."
+        "all coursework items from profile, rewritten to be relevant to this job description, formatted as:
+         Course Name 1: Why it is relevant to this job
+         Course Name 2: Why it is relevant to this job
+         Course Name 3: Why it is relevant to this job
+         Course Name 4: Why it is relevant to this job
+         Course Name 5: Why it is relevant to this job
+         Course Name 6: Why it is relevant to this job
+         Course Name 7: Why it is relevant to this job
+         Course Name 8: Why it is relevant to this job
+         Course Name 9: Why it is relevant to this job
+         Course Name 10: Why it is relevant to this job
+         Course Name 11: Why it is relevant to this job
+         Course Name 12: Why it is relevant to this job
+         Course Name 13: Why it is relevant to this job
+         Course Name 14: Why it is relevant to this job
+         Course Name 15: Why it is relevant to this job
+         Course Name 16: Why it is relevant to this job
+         Course Name 17: Why it is relevant to this job
+         Course Name 18: Why it is relevant to this job
+         Course Name 19: Why it is relevant to this job
+         Course Name 20: Why it is relevant to this job"
       ]
     }}
   ],
@@ -156,11 +199,21 @@ Return this exact JSON structure:
         ],
         response_format={"type": "json_object"},
         temperature=0.5,
-        max_tokens=3500,
+        max_tokens=10000,
     )
 
     main_data = json.loads(main_response.choices[0].message.content)
     summary = main_data.get("SUMMARY", "")
+
+    # =========================================================================
+    # SAFETY CHECK — if AI dropped experience entries, log a warning
+    # =========================================================================
+
+    returned_experience = main_data.get("experience", [])
+    if len(returned_experience) != experience_count:
+        print(f"⚠️  WARNING: Expected {experience_count} experience entries, got {len(returned_experience)}")
+        print(f"   Expected roles: {[exp.get('role') for exp in (base_experience or [])]}")
+        print(f"   Returned roles: {[exp.get('role') for exp in returned_experience]}")
 
     # =========================================================================
     # SKILLS GAP CALL — extracts ALL skills from JD, excludes ones user has
@@ -228,62 +281,110 @@ RULES:
             {"role": "user", "content": skills_prompt}
         ],
         response_format={"type": "json_object"},
-        temperature=0.2,   # lower = more deterministic/complete extraction
-        max_tokens=4000,   # was 1500 — the main reason skills were being cut off
+        temperature=0.5,   # lower = more deterministic/complete extraction
+        max_tokens=10000,   # was 1500 — the main reason skills were being cut off
     )
 
     skills_data = json.loads(skills_response.choices[0].message.content)
     new_skill_categories = skills_data.get("new_skill_categories", [])
 
     # =========================================================================
-    # DESCRIPTIONS CALL — short descriptions for user's own skills
+    # DESCRIPTIONS CALL — short descriptions for user's own skills (batched)
     # =========================================================================
+
+    def chunk_list(lst, size):
+        for i in range(0, len(lst), size):
+            yield lst[i:i + size]
 
     own_skills_descriptions = {}
 
     if own_skill_names:
-        desc_prompt = f"""You are a CV skills writer. Return valid JSON only.
+        for batch in chunk_list(own_skill_names, 20):
+            batch_str = ", ".join(batch)
+            desc_prompt = f"""You are a CV skills writer. Return valid JSON only.
 
-For each skill below, write one short sentence (max 25 words) explaining
+For each skill below, write one short sentence (min 50 words) explaining
 what it is and why it is relevant to this job.
 
-Skills: {own_skills_str}
+Act as a professional career assistant helping me write strong, first-person skill statements for a CV or 
+job application.
 
-Job (summary): {job_description[:600]}
+I will provide a list of skills.
 
+For EACH skill, you MUST follow these rules strictly:
+
+-Write in FIRST PERSON only (use "I", "my", "me").
+-DO NOT give a generic definition of the skill.
+-DO NOT explain the skill in a textbook or informational way.
+-Instead, describe HOW I have USED this skill in real situations.
+-Include SPECIFIC actions (what I did, how I applied the skill, what tools or environments I used).
+-Explain WHY this skill makes me valuable and how I would use it in a job.
+-Each skill must be ONE paragraph with a MINIMUM of 50 words.
+-Keep it concise but impactful, avoiding repetition.
+-Make it sound natural, confident, and professional (not robotic).
+
+Structure each response like this:
+
+-Start with how I have used the skill
+-Then explain what I did with it
+-End with why it is valuable and how I would apply it in a job
+
+Example format (DO NOT COPY, just follow style):
+"I have applied adaptability in fast-paced environments where I had to quickly learn new systems, 
+adjust to changing requirements, and manage multiple responsibilities simultaneously. By doing this, 
+I ensured efficiency and continuity in my work, and I would bring this same flexibility and 
+problem-solving mindset to this role."
+
+Now write for the following skills:
+Skills: {batch_str}
+
+Job (summary): {job_description[:400]}
+
+Return ONLY this JSON:
 {{
   "descriptions": {{
-    "SkillName": "One relevant sentence.",
-    "AnotherSkill": "Another sentence."
+    "SkillName": "First person paragraph here.",
+    "AnotherSkill": "First person paragraph here."
   }}
 }}"""
 
-        desc_response = client.chat.completions.create(
-            model="gpt-4o",
-            messages=[
-                {"role": "system", "content": "Return valid JSON only."},
-                {"role": "user", "content": desc_prompt}
-            ],
-            response_format={"type": "json_object"},
-            temperature=0.3,
-            max_tokens=1500,  # bumped from 1000 — handles large skill sets
-        )
+            desc_response = client.chat.completions.create(
+                model="gpt-4o",
+                messages=[
+                    {"role": "system", "content": "Return valid JSON only. You MUST write a description for EVERY skill listed. Do not skip any."},
+                    {"role": "user", "content": desc_prompt}
+                ],
+                response_format={"type": "json_object"},
+                temperature=0.3,
+                max_tokens=10000,
+            )
 
-        desc_data = json.loads(desc_response.choices[0].message.content)
-        own_skills_descriptions = desc_data.get("descriptions", {})
+            batch_data = json.loads(desc_response.choices[0].message.content)
+            own_skills_descriptions.update(batch_data.get("descriptions", {}))
+
+            print("*****" * 50)
+            print("*****" * 50)
+            print("*****" * 50)
+            print("TOTAL DESCRIPTIONS COLLECTED:", len(own_skills_descriptions))
+            print("KEYS:", list(own_skills_descriptions.keys()))
+            print("*****" * 50)
+            print("*****" * 50)
+            print("*****" * 50)
 
     # =========================================================================
     # BUILD SKILLS IN PYTHON — guaranteed, no AI involvement
     # =========================================================================
+
+    # Build a lowercase lookup map
+    desc_lookup = {k.lower(): v for k, v in own_skills_descriptions.items()}
 
     your_skills_category = {
         "category": "My Skills",
         "skills_list": [
             {
                 "skill": skill_name,
-                "description": own_skills_descriptions.get(
-                    skill_name,
-                    "Core skill from your profile, relevant to this role."
+                "description": desc_lookup.get(
+                    skill_name.lower(), "A skill I have that is relevant to this job."
                 ),
                 "is_new": False
             }
@@ -292,10 +393,17 @@ Job (summary): {job_description[:600]}
     }
 
     final_skills = []
+
+    # Add user's own skills FIRST
     if your_skills_category["skills_list"]:
         final_skills.append(your_skills_category)
+
+    # Then add gap skills
     for cat in new_skill_categories:
         if isinstance(cat, dict) and cat.get("skills_list"):
+            for skill_obj in cat["skills_list"]:
+                if not skill_obj.get("description"):
+                    skill_obj["description"] = f"{skill_obj.get('skill', 'This skill')} is relevant to this role."
             final_skills.append(cat)
 
     # Re-attach the project URLs (AI doesn't return them — source from profile)
