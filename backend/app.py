@@ -69,7 +69,7 @@ app.config["JWT_SECRET_KEY"] = "change-this-to-long-random-secret"
 app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///users.db"
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 app.config["MAX_CONTENT_LENGTH"] = 32 * 1024 * 1024
-CORS(app, origins=["https://frontendjobs.online", "http://localhost:5173", "http://127.0.0.1:5173"])
+CORS(app, origins=[ "https://frontendjobs.co.za","https://www.frontendjobs.co.za","https://frontendjobs.online", "http://localhost:5173", "http://127.0.0.1:5173"])
 
 bcrypt = Bcrypt(app)
 jwt = JWTManager(app)

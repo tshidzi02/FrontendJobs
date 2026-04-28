@@ -60,7 +60,7 @@ def generate_cv_content(
     main_prompt = f"""You are a professional CV writer. Return valid JSON only.
 
 CANDIDATE BACKGROUND:
-- Final-year BSc student in Applied Mathematics and Computer Science
+- Graduated BSc student in Applied Mathematics and Computer Science
 - Strong Python and JavaScript developer
 - Built academic and independent technical projects
 
