@@ -22,3 +22,4 @@ numpy                    # Math library (used in semantic_matcher for cosine sim
 google-auth              # Google OAuth token verification
 docxtpl                  # Word document template engine (for CV generation)
 requests 
+gunicorn
