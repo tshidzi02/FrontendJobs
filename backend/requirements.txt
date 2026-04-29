@@ -23,3 +23,4 @@ google-auth              # Google OAuth token verification
 docxtpl                  # Word document template engine (for CV generation)
 requests 
 gunicorn
+flask-migrate
