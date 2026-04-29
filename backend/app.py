@@ -65,12 +65,29 @@ app = Flask(__name__)
 app.config.from_object(Config)
 
 # Force SQLite - ignore any environment DATABASE_URL
-app.config["JWT_SECRET_KEY"] = "change-this-to-long-random-secret"
-app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///users.db"
+app.config["JWT_SECRET_KEY"] = os.environ.get("JWT_SECRET_KEY", "change-this-to-long-random-secret")
+app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get("DATABASE_URL", "sqlite:///users.db")
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 app.config["MAX_CONTENT_LENGTH"] = 32 * 1024 * 1024
-CORS(app, origins=[ "https://frontendjobs.co.za","https://www.frontendjobs.co.za","https://frontendjobs.online", "http://localhost:5173", "http://127.0.0.1:5173"])
 
+CORS(app, 
+    origins=[
+        "https://frontendjobs.co.za",
+        "https://www.frontendjobs.co.za",
+        "http://localhost:5173",
+        "http://127.0.0.1:5173"
+    ],
+    methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Content-Type", "Authorization"],
+    supports_credentials=True
+)
+
+@app.before_request
+def handle_options():
+    if request.method == "OPTIONS":
+        response = app.make_default_options_response()
+        return response
+    
 bcrypt = Bcrypt(app)
 jwt = JWTManager(app)
 db = SQLAlchemy(app)
