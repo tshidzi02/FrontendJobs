@@ -21,4 +21,4 @@ openai                   # OpenAI API client (GPT-4, embeddings)
 numpy                    # Math library (used in semantic_matcher for cosine similarity)
 google-auth              # Google OAuth token verification
 docxtpl                  # Word document template engine (for CV generation)
-requests --break-system-packages
+requests 
