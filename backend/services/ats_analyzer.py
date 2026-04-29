@@ -12,7 +12,12 @@ consisted entirely of CV documents, not job descriptions.
 
 import re
 import os
-import spacy
+
+try:
+    import spacy
+    _SPACY_AVAILABLE = True
+except ImportError:
+    _SPACY_AVAILABLE = False
 
 # ============================================================
 # LOAD NER MODEL
@@ -21,18 +26,8 @@ import spacy
 _NER_MODEL = None
 
 def _get_nlp():
-    global _NER_MODEL
-    if _NER_MODEL is None:
-        model_path = os.path.join(os.path.dirname(__file__), "ner_model")
-        try:
-            _NER_MODEL = spacy.load(model_path)
-        except Exception as e:
-            raise RuntimeError(
-                f"Could not load NER model from '{model_path}'.\n"
-                f"pip install 'spacy>=3.7.5,<3.8.0'\n"
-                f"Error: {e}"
-            )
-    return _NER_MODEL
+    return None
+
 
 
 # ============================================================
