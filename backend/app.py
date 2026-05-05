@@ -59,6 +59,10 @@ app.config["JWT_SECRET_KEY"] = os.environ.get("JWT_SECRET_KEY", "fallback-dev-se
 app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get("DATABASE_URL")
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 app.config["MAX_CONTENT_LENGTH"] = 32 * 1024 * 1024
+app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
+    "pool_pre_ping": True,
+    "connect_args": {"connect_timeout": 10}
+}
 
 CORS(app, 
     origins=[
@@ -196,14 +200,6 @@ class SmartJobApplication(db.Model):
     posted_at    = db.Column(db.String(100))
     created_at   = db.Column(db.DateTime, server_default=db.func.now())
  
-
-
-
-with app.app_context():
-    db.create_all()
-    # db.create_all() creates SavedCoverLetter automatically on first run.
-    # Existing tables (User, Profile, SavedCV) are left untouched.
-
 
 # =============================================================================
 # HELPERS
@@ -1669,6 +1665,10 @@ def smart_jobs_queue():
         "total": len(all_jobs)
     })
  
+@app.cli.command("init-db")
+def init_db():
+    db.create_all()
+    print("Database initialized.")
  
 if __name__ == "__main__":
     app.run(debug=True, use_reloader=False)  # ← add use_reloader=False
