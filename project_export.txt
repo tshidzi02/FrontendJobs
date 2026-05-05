@@ -102,12 +102,29 @@ app = Flask(__name__)
 app.config.from_object(Config)
 
 # Force SQLite - ignore any environment DATABASE_URL
-app.config["JWT_SECRET_KEY"] = "change-this-to-long-random-secret"
-app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///users.db"
+app.config["JWT_SECRET_KEY"] = os.environ.get("JWT_SECRET_KEY", "change-this-to-long-random-secret")
+app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get("DATABASE_URL", "sqlite:///users.db")
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 app.config["MAX_CONTENT_LENGTH"] = 32 * 1024 * 1024
-CORS(app, origins=["https://frontendjobs.online", "http://localhost:5173", "http://127.0.0.1:5173"])
 
+CORS(app, 
+    origins=[
+        "https://frontendjobs.co.za",
+        "https://www.frontendjobs.co.za",
+        "http://localhost:5173",
+        "http://127.0.0.1:5173"
+    ],
+    methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Content-Type", "Authorization"],
+    supports_credentials=True
+)
+
+@app.before_request
+def handle_options():
+    if request.method == "OPTIONS":
+        response = app.make_default_options_response()
+        return response
+    
 bcrypt = Bcrypt(app)
 jwt = JWTManager(app)
 db = SQLAlchemy(app)
@@ -437,8 +454,6 @@ def generate():
         education=education, languages=languages, references=references
     )
 
-    print("=== AI RESPONSE ===")
-    print(json.dumps(ai_content, indent=2))
 
     summary    = ai_content.get("SUMMARY", "")
     skills     = ai_content.get("skills", [])
@@ -1695,9 +1710,10 @@ def smart_jobs_queue():
         "total": len(all_jobs)
     })
  
-
+ 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(debug=True, use_reloader=False)  # ← add use_reloader=False
+    
 
 
 ======================================================================
@@ -1804,6 +1820,187 @@ class Config:
 # at startup (which it already does via config.py), the keys are available.
 
 
+
+
+
+======================================================================
+FILE: ./backend\debug.py
+======================================================================
+
+from flask import Flask, jsonify, request, send_file
+from flask_cors import CORS
+from flask_bcrypt import Bcrypt
+from flask_jwt_extended import (
+    JWTManager,
+    create_access_token,
+    jwt_required,
+    get_jwt_identity
+)
+from flask_migrate import Migrate
+from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy import func
+import re
+import os
+import json
+import traceback
+import json as _json
+import io     
+from openai import OpenAI
+
+from config import Config
+
+from app import app, db, Profile
+from services.ai_engine import generate_cv_content, semantic_match_score, analyze_ats
+
+JOB_DESCRIPTION = """💼 Full Stack Developer & IT Operations Specialist
+
+Responsible for designing, developing, and maintaining scalable full-stack applications while 
+supporting IT operations and business processes. Builds high-performance systems using Python,
+ JavaScript, React, HTML, CSS, and SQL, ensuring reliability, scalability, and user-focused 
+ design.
+
+Develops and integrates RESTful APIs, automates workflows, and optimizes data pipelines to improve
+ efficiency and reduce manual processes. Designs and manages databases, applying algorithms, 
+ data structures, and object-oriented programming to deliver maintainable and efficient 
+ solutions.
+
+Implements test automation and QA practices, troubleshoots and resolves technical issues, and 
+enhances system performance and reliability. Provides IT and application support, ensuring 
+system uptime through monitoring, maintenance, and optimization.
+
+Collaborates with cross-functional teams using Git-based version control to deliver and 
+maintain systems. Develops automation scripts using Google Apps Script and command-line 
+tools to streamline operations.
+
+Supports project coordination, including planning, scheduling, reporting, and performance 
+tracking. Contributes to administrative operations, documentation, and workflow management.
+
+Handles customer queries, supports client relationships, and contributes to sales operations 
+through technical support and product demonstrations. Delivers training, creates technical 
+documentation, and supports knowledge transfer across teams.
+
+Applies analytical thinking, problem-solving, and mathematical modelling to improve systems 
+and support data-driven decision-making.
+
+🧠 Key Skills & Competencies
+
+Python, Java, JavaScript, React, HTML, CSS, SQL, RESTful APIs, API Integration, Full Stack 
+Development, Software Development, Web Development, Database Management, Data Analysis, 
+Mathematical Modelling, Algorithms and Data Structures, Object-Oriented Programming, 
+Automation, Workflow Optimization, Scripting, Debugging, Test Automation, QA Testing, Git, 
+GitHub, GitLab, Google Apps Script, Command Line Tools, Technical Documentation, IT Support, 
+Help Desk Support, Application Support, Systems Support, Project Management, Operations 
+Management, Administrative Coordination, Customer Service, Account Management, Technical Sales 
+Support, Training and Development, Problem Solving, Analytical Thinking, Communication, 
+Collaboration, Time Management, Adaptability"""
+  
+
+# ── GENERATE CV ───────────────────────────────────────────────────────────────
+def generate():
+    with app.app_context():
+        data = Profile.query.first()
+        data = json.loads(data.data)
+        print("=" * 60)
+        print("RAW PROFILE DATA:")
+        print("=" * 60)
+        #print(json.dumps(data, indent=2))
+        #print(f"Job Description: {JOB_DESCRIPTION}")
+
+        job_description   = JOB_DESCRIPTION
+        base_skills       = data.get("skills", [])
+        base_experience   = data.get("Experience", [])
+        project_experience = data.get("projectExperience", [])
+        personal_info      = data.get("personalInfo", {})
+        education          = data.get("education", [])
+        languages          = data.get("languages", [])
+        references         = data.get("references", "Available upon Request")
+
+        
+        ai_content = generate_cv_content(
+            job_description, base_skills, base_experience, project_experience,
+            education=education, languages=languages, references=references
+        )
+
+        print("=== AI RESPONSE ===")
+        print(json.dumps(ai_content, indent=2))
+
+    # summary    = ai_content.get("SUMMARY", "")
+    # skills     = ai_content.get("skills", [])
+    # experience = ai_content.get("experience", [])
+
+    # ai_projects_raw      = ai_content.get("project_experience") or ai_content.get("projects") or []
+    # profile_projects_raw = data.get("projectExperience", [])
+    # project_experience_out = []
+
+    # for i, prof_proj in enumerate(profile_projects_raw):
+    #     if not isinstance(prof_proj, dict): continue
+    #     if prof_proj.get("includeInCV") is False: continue
+    #     title      = prof_proj.get("name", prof_proj.get("title", ""))
+    #     tech_stack = prof_proj.get("technologies", prof_proj.get("tech_stack", ""))
+    #     profile_bullets = [b for b in prof_proj.get("bullets", []) if isinstance(b, str) and b.strip()]
+    #     ai_bullets = []
+    #     if i < len(ai_projects_raw) and isinstance(ai_projects_raw[i], dict):
+    #         ai_bullets = [b for b in ai_projects_raw[i].get("bullets", []) if isinstance(b, str) and b.strip()]
+    #     final_bullets = list(ai_bullets)
+    #     for orig in profile_bullets:
+    #         orig_lower = orig.lower().strip()
+    #         already_present = any(
+    #             orig_lower[:40] in ai_b.lower() or ai_b.lower()[:40] in orig_lower
+    #             for ai_b in final_bullets
+    #         )
+    #         if not already_present:
+    #             final_bullets.insert(0, orig)
+    #     if not final_bullets:
+    #         final_bullets = profile_bullets
+    #     project_experience_out.append({"title": title, "tech_stack": tech_stack, "bullets": final_bullets})
+
+    # if not profile_projects_raw and ai_projects_raw:
+    #     project_experience_out = ai_projects_raw
+
+    # ai_education  = ai_content.get("education", [])
+    # education_out = []
+    # for i, prof_edu in enumerate(education):
+    #     merged = dict(prof_edu)
+    #     if i < len(ai_education):
+    #         ai_coursework = ai_education[i].get("coursework", [])
+    #         if ai_coursework:
+    #             merged["coursework"] = [c for c in ai_coursework if isinstance(c, str) and c.strip()]
+    #     merged["minimumAverage"]   = prof_edu.get("minimumAverage", "")
+    #     merged["degree"]           = prof_edu.get("degree", "")
+    #     merged["institution"]      = prof_edu.get("institution", "")
+    #     merged["city"]             = prof_edu.get("city", "")
+    #     merged["country"]          = prof_edu.get("country", "")
+    #     merged["graduationYear"]   = prof_edu.get("graduationYear", "")
+    #     merged["graduationMonth"]  = prof_edu.get("graduationMonth", "")
+    #     merged["graduationStatus"] = prof_edu.get("graduationStatus", "graduated")
+    #     education_out.append(merged)
+
+    # languages_out  = languages
+    # references_out = ai_content.get("REFERENCE") or references
+
+    # skills_text = " ".join(
+    #     skill_obj.get("skill", "")
+    #     for cat in skills if isinstance(cat, dict)
+    #     for skill_obj in cat.get("skills_list", [])
+    #     if isinstance(skill_obj, dict)
+    # )
+    # experience_text = " ".join(
+    #     bullet
+    #     for exp in experience if isinstance(exp, dict)
+    #     for bullet in exp.get("bullets", [])
+    # )
+    # combined_cv_text = f"{summary} {skills_text} {experience_text}".strip()
+    # semantic_score   = semantic_match_score(job_description, combined_cv_text)
+    # ats_results      = analyze_ats({"skills": skills, "experience": experience}, job_description, semantic_score)
+
+    # return jsonify({
+    #     "SUMMARY": summary, "skills": skills, "experience": experience,
+    #     "project_experience": project_experience_out, "education": education_out,
+    #     "languages": languages_out, "references": references_out,
+    #     "personalInfo": personal_info, "ats": ats_results
+    # })
+
+    generate();
 
 
 
@@ -2064,6 +2261,14 @@ if __name__ == "__main__":
 
 
 ======================================================================
+FILE: ./backend\railway.toml
+======================================================================
+
+[deploy]
+startCommand = "gunicorn app:app --bind 0.0.0.0:$PORT"
+
+
+======================================================================
 FILE: ./backend\requirements.txt
 ======================================================================
 
@@ -2090,7 +2295,10 @@ openai                   # OpenAI API client (GPT-4, embeddings)
 numpy                    # Math library (used in semantic_matcher for cosine similarity)
 google-auth              # Google OAuth token verification
 docxtpl                  # Word document template engine (for CV generation)
-requests --break-system-packages
+requests 
+gunicorn
+flask-migrate
+
 
 
 ======================================================================
@@ -2383,6 +2591,7 @@ FILE: ./backend\services\ai_engine.py
 
 from openai import OpenAI
 import json
+import math
 
 client = OpenAI()
 
@@ -2422,37 +2631,52 @@ def generate_cv_content(
     }
 
     # =========================================================================
+    # BUILD EXPERIENCE ROLE LIST — used in prompt to prevent AI from skipping
+    # =========================================================================
+
+    experience_count = len(base_experience) if base_experience else 0
+    experience_role_list = "\n".join(
+        f"  {i+1}. {exp.get('role', 'Unknown Role')} @ {exp.get('company', 'Unknown Company')} ({exp.get('startYear', '')} - {exp.get('endYear', '')})"
+        for i, exp in enumerate(base_experience or [])
+    )
+
+    # =========================================================================
     # MAIN CALL — Summary, Experience, Projects, Education
     # =========================================================================
 
     main_prompt = f"""You are a professional CV writer. Return valid JSON only.
 
 CANDIDATE BACKGROUND:
-- Final-year BSc student in Applied Mathematics and Computer Science
+- Graduated BSc student in Applied Mathematics and Computer Science
 - Strong Python and JavaScript developer
 - Built academic and independent technical projects
 
 RULES:
 1. Do NOT invent new job roles or companies.
-2. For each experience entry:
+2. CRITICAL — EXPERIENCE COUNT: You MUST return EXACTLY {experience_count} experience entries.
+   Do NOT merge, combine, skip, or drop any entry even if they share the same company or dates.
+   Each entry is a SEPARATE role and must appear separately in the output in the EXACT same order.
+   The candidate has these exact roles — every single one must appear:
+{experience_role_list}
+3. For each experience entry:
    - Copy role, company, city, country, startYear, endYear EXACTLY as provided.
    - Keep EVERY original bullet point the candidate wrote — do not delete any.
    - You may rewrite bullets to be stronger (better verbs, measurable impact).
    - You may ADD new bullets relevant to the job description after the originals.
    - The dates field must be formatted as "startYear - endYear" using the provided startYear and endYear values.
-3. For each project_experience entry:
+4. For each project_experience entry:
    - Copy title and tech_stack EXACTLY as provided.
    - Keep EVERY original bullet point the candidate wrote — do not delete any.
    - You may rewrite bullets to be stronger (better verbs, measurable impact).
    - You MUST ADD at least 2 new bullets per project that align it to the job description.
    - Every project bullet must connect the project work to what the job description requires.
    - If the candidate provided 0 bullets, you must still write at least 3 strong bullets.
-4. Do NOT modify education. Copy every field exactly including minimumAverage.
-5. Do NOT modify languages. Copy exactly.
-6. Do NOT modify references. Copy exactly.
-7. SUMMARY: 300-350 words, professional, first person, tailored to this job.
-8. For each coursework item: format as "Course Name: One sentence on what it covers and why it is relevant to this specific job."
-9. Return valid JSON only. No markdown. No backticks.
+5. Do NOT modify education. Copy every field exactly including minimumAverage.
+6. Do NOT modify languages. Copy exactly.
+7. Do NOT modify references. Copy exactly.
+8. SUMMARY: 300-350 words, professional, first person, tailored to this job.
+9. For each coursework item: format as "Course Name: One sentence on what it covers and why it is relevant to this specific job."
+10. Return valid JSON only. No markdown. No backticks.
 
 CANDIDATE EXPERIENCE:
 {base_experience}
@@ -2569,6 +2793,16 @@ Return this exact JSON structure:
     summary = main_data.get("SUMMARY", "")
 
     # =========================================================================
+    # SAFETY CHECK — if AI dropped experience entries, log a warning
+    # =========================================================================
+
+    returned_experience = main_data.get("experience", [])
+    if len(returned_experience) != experience_count:
+        print(f"⚠️  WARNING: Expected {experience_count} experience entries, got {len(returned_experience)}")
+        print(f"   Expected roles: {[exp.get('role') for exp in (base_experience or [])]}")
+        print(f"   Returned roles: {[exp.get('role') for exp in returned_experience]}")
+
+    # =========================================================================
     # SKILLS GAP CALL — extracts ALL skills from JD, excludes ones user has
     # =========================================================================
 
@@ -2642,13 +2876,19 @@ RULES:
     new_skill_categories = skills_data.get("new_skill_categories", [])
 
     # =========================================================================
-    # DESCRIPTIONS CALL — short descriptions for user's own skills
+    # DESCRIPTIONS CALL — short descriptions for user's own skills (batched)
     # =========================================================================
+
+    def chunk_list(lst, size):
+        for i in range(0, len(lst), size):
+            yield lst[i:i + size]
 
     own_skills_descriptions = {}
 
     if own_skill_names:
-        desc_prompt = f"""You are a CV skills writer. Return valid JSON only.
+        for batch in chunk_list(own_skill_names, 20):
+            batch_str = ", ".join(batch)
+            desc_prompt = f"""You are a CV skills writer. Return valid JSON only.
 
 For each skill below, write one short sentence (min 50 words) explaining
 what it is and why it is relevant to this job.
@@ -2660,7 +2900,7 @@ I will provide a list of skills.
 
 For EACH skill, you MUST follow these rules strictly:
 
--Write in FIRST PERSON only (use “I”, “my”, “me”).
+-Write in FIRST PERSON only (use "I", "my", "me").
 -DO NOT give a generic definition of the skill.
 -DO NOT explain the skill in a textbook or informational way.
 -Instead, describe HOW I have USED this skill in real situations.
@@ -2677,48 +2917,61 @@ Structure each response like this:
 -End with why it is valuable and how I would apply it in a job
 
 Example format (DO NOT COPY, just follow style):
-“I have applied adaptability in fast-paced environments where I had to quickly learn new systems, 
+"I have applied adaptability in fast-paced environments where I had to quickly learn new systems, 
 adjust to changing requirements, and manage multiple responsibilities simultaneously. By doing this, 
 I ensured efficiency and continuity in my work, and I would bring this same flexibility and 
-problem-solving mindset to this role.”
+problem-solving mindset to this role."
 
 Now write for the following skills:
-Skills: {own_skills_str}
+Skills: {batch_str}
 
-Job (summary): {job_description[:600]}
+Job (summary): {job_description[:400]}
 
+Return ONLY this JSON:
 {{
   "descriptions": {{
-    "SkillName": "One relevant sentence.",
-    "AnotherSkill": "Another sentence."
+    "SkillName": "First person paragraph here.",
+    "AnotherSkill": "First person paragraph here."
   }}
 }}"""
 
-        desc_response = client.chat.completions.create(
-            model="gpt-4o",
-            messages=[
-                {"role": "system", "content": "Return valid JSON only."},
-                {"role": "user", "content": desc_prompt}
-            ],
-            response_format={"type": "json_object"},
-            temperature=0.3,
-            max_tokens=10000,  # bumped from 1000 — handles large skill sets
-        )
+            desc_response = client.chat.completions.create(
+                model="gpt-4o",
+                messages=[
+                    {"role": "system", "content": "Return valid JSON only. You MUST write a description for EVERY skill listed. Do not skip any."},
+                    {"role": "user", "content": desc_prompt}
+                ],
+                response_format={"type": "json_object"},
+                temperature=0.3,
+                max_tokens=10000,
+            )
 
-        desc_data = json.loads(desc_response.choices[0].message.content)
-        own_skills_descriptions = desc_data.get("descriptions", {})
+            batch_data = json.loads(desc_response.choices[0].message.content)
+            own_skills_descriptions.update(batch_data.get("descriptions", {}))
+
+            print("*****" * 50)
+            print("*****" * 50)
+            print("*****" * 50)
+            print("TOTAL DESCRIPTIONS COLLECTED:", len(own_skills_descriptions))
+            print("KEYS:", list(own_skills_descriptions.keys()))
+            print("*****" * 50)
+            print("*****" * 50)
+            print("*****" * 50)
 
     # =========================================================================
     # BUILD SKILLS IN PYTHON — guaranteed, no AI involvement
     # =========================================================================
+
+    # Build a lowercase lookup map
+    desc_lookup = {k.lower(): v for k, v in own_skills_descriptions.items()}
 
     your_skills_category = {
         "category": "My Skills",
         "skills_list": [
             {
                 "skill": skill_name,
-                "description": own_skills_descriptions.get(
-                    skill_name, "A skill I have that is relevant to this job."
+                "description": desc_lookup.get(
+                    skill_name.lower(), "A skill I have that is relevant to this job."
                 ),
                 "is_new": False
             }
@@ -2727,14 +2980,18 @@ Job (summary): {job_description[:600]}
     }
 
     final_skills = []
+
+    # Add user's own skills FIRST
     if your_skills_category["skills_list"]:
         final_skills.append(your_skills_category)
+
+    # Then add gap skills
     for cat in new_skill_categories:
         if isinstance(cat, dict) and cat.get("skills_list"):
+            for skill_obj in cat["skills_list"]:
+                if not skill_obj.get("description"):
+                    skill_obj["description"] = f"{skill_obj.get('skill', 'This skill')} is relevant to this role."
             final_skills.append(cat)
-
-    print("FINAL SKILLS STRUCTURE TO RETURN:")
-    print(json.dumps(final_skills, indent=2))
 
     # Re-attach the project URLs (AI doesn't return them — source from profile)
     ai_projects = main_data.get("project_experience", [])
@@ -2776,7 +3033,12 @@ consisted entirely of CV documents, not job descriptions.
 
 import re
 import os
-import spacy
+
+try:
+    import spacy
+    _SPACY_AVAILABLE = True
+except ImportError:
+    _SPACY_AVAILABLE = False
 
 # ============================================================
 # LOAD NER MODEL
@@ -2785,18 +3047,8 @@ import spacy
 _NER_MODEL = None
 
 def _get_nlp():
-    global _NER_MODEL
-    if _NER_MODEL is None:
-        model_path = os.path.join(os.path.dirname(__file__), "ner_model")
-        try:
-            _NER_MODEL = spacy.load(model_path)
-        except Exception as e:
-            raise RuntimeError(
-                f"Could not load NER model from '{model_path}'.\n"
-                f"pip install 'spacy>=3.7.5,<3.8.0'\n"
-                f"Error: {e}"
-            )
-    return _NER_MODEL
+    return None
+
 
 
 # ============================================================
@@ -4665,6 +4917,279 @@ from services.cv_latex import generate_cv_pdf  # noqa: F401 — re-export
 # generate_cv_pdf is imported and re-exported here so app.py can import
 # from services.cv_pdf without needing to know the implementation detail.
 
+
+
+======================================================================
+FILE: ./backend\services\debug.py
+======================================================================
+
+
+
+
+======================================================================
+FILE: ./backend\services\debug_generate.py
+======================================================================
+
+"""
+Debug script — run from the backend/services/ directory:
+    python debug_generate.py
+
+Or from the backend/ directory:
+    python services/debug_generate.py
+"""
+
+import sys
+import os
+import json
+
+# ── Make sure Python can find ai_engine.py regardless of where you run from ──
+THIS_DIR = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, THIS_DIR)                        # adds services/
+sys.path.insert(0, os.path.dirname(THIS_DIR))       # adds backend/
+
+from ai_engine import generate_cv_content
+
+# =============================================================================
+# TEST DATA — edit these to match a real user's profile
+# =============================================================================
+
+JOB_DESCRIPTION = """
+We are looking for a Frontend Developer with experience in React, TypeScript,
+and REST APIs. You will build scalable UI components, collaborate with designers,
+and integrate backend services. Experience with testing frameworks and CI/CD is a plus.
+"""
+
+BASE_SKILLS = [
+    "React", "JavaScript", "TypeScript", "HTML", "CSS",
+    "Git", "REST APIs", "Node.js"
+]
+
+BASE_EXPERIENCE = [
+    {
+        "role": "Junior Frontend Developer",
+        "company": "Tech Startup",
+        "city": "Cape Town",
+        "country": "South Africa",
+        "startYear": "2023",
+        "endYear": "Present",
+        "bullets": [
+            "Built reusable React components for the dashboard",
+            "Integrated REST APIs to fetch and display live data",
+            "Improved page load speed by 30% through code splitting"
+        ]
+    }
+]
+
+PROJECT_EXPERIENCE = [
+    {
+        "name": "Portfolio Website",
+        "title": "Portfolio Website",
+        "tech_stack": "React, CSS, Netlify",
+        "url": "https://example.com",
+        "includeInCV": True,
+        "bullets": [
+            "Designed and deployed a personal portfolio site",
+            "Implemented dark mode and responsive layout"
+        ]
+    }
+]
+
+EDUCATION = [
+    {
+        "degree": "BSc Applied Mathematics and Computer Science",
+        "institution": "University of Cape Town",
+        "city": "Cape Town",
+        "country": "South Africa",
+        "graduationStatus": "Expected",
+        "graduationMonth": "December",
+        "graduationYear": "2025",
+        "minimumAverage": "65%",
+        "coursework": [
+            "Data Structures", "Algorithms", "Web Development",
+            "Machine Learning", "Database Systems"
+        ]
+    }
+]
+
+LANGUAGES = [
+    {"name": "English", "level": 5},
+    {"name": "Tshivenda", "level": 5}
+]
+
+REFERENCES = "Available upon Request"
+
+# =============================================================================
+# RUN
+# =============================================================================
+
+if __name__ == "__main__":
+    print("\n" + "="*60)
+    print("  CALLING generate_cv_content ...")
+    print("="*60 + "\n")
+
+    result = generate_cv_content(
+        job_description=JOB_DESCRIPTION,
+        base_skills=BASE_SKILLS,
+        base_experience=BASE_EXPERIENCE,
+        project_experience=PROJECT_EXPERIENCE,
+        education=EDUCATION,
+        languages=LANGUAGES,
+        references=REFERENCES,
+    )
+
+    print("\n" + "="*60)
+    print("  FULL RESULT:")
+    print("="*60)
+    print(json.dumps(result, indent=2))
+
+    # ── Per-section breakdown ──────────────────────────────────────────────
+    print("\n" + "="*60)
+    print("  SUMMARY:")
+    print("="*60)
+    print(result.get("SUMMARY", "NOT FOUND"))
+
+    print("\n" + "="*60)
+    print("  SKILLS:")
+    print("="*60)
+    for cat in result.get("skills", []):
+        print(f"\n  [{cat.get('category')}]")
+        for s in cat.get("skills_list", []):
+            desc = s.get("description", "")
+            missing = " ⚠️  NO DESCRIPTION" if not desc or desc == "A skill I have that is relevant to this job." else ""
+            print(f"    • {s.get('skill')}: {desc[:80]}{missing}")
+
+    print("\n" + "="*60)
+    print("  EXPERIENCE:")
+    print("="*60)
+    for exp in result.get("experience", []):
+        print(f"\n  {exp.get('role')} @ {exp.get('company')}")
+        for b in exp.get("bullets", []):
+            print(f"    - {b}")
+
+    print("\n" + "="*60)
+    print("  PROJECTS:")
+    print("="*60)
+    for proj in result.get("project_experience", []):
+        print(f"\n  {proj.get('title')} [{proj.get('tech_stack')}]")
+        for b in proj.get("bullets", []):
+            print(f"    - {b}")
+
+    print("\n" + "="*60)
+    print("  Done.")
+    print("="*60 + "\n")
+    
+
+
+======================================================================
+FILE: ./backend\services\example.py
+======================================================================
+
+from openai import OpenAI
+import json
+from flask import Flask, jsonify, request, send_file
+from flask_cors import CORS
+from flask_bcrypt import Bcrypt
+from flask_jwt_extended import (
+    JWTManager,
+    create_access_token,
+    jwt_required,
+    get_jwt_identity
+)
+from flask_migrate import Migrate
+from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy import func
+import re
+import os
+import traceback
+import json as _json
+import io     
+
+from config import Config
+
+# =============================================================================
+# APP SETUP
+# =============================================================================
+
+app = Flask(__name__)
+app.config.from_object(Config)
+
+# Force SQLite - ignore any environment DATABASE_URL
+app.config["JWT_SECRET_KEY"] = "change-this-to-long-random-secret"
+app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///users.db"
+app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+app.config["MAX_CONTENT_LENGTH"] = 32 * 1024 * 1024
+CORS(app, origins=["https://frontendjobs.online", "http://localhost:5173", "http://127.0.0.1:5173"])
+
+bcrypt = Bcrypt(app)
+jwt = JWTManager(app)
+db = SQLAlchemy(app)
+migrate = Migrate(app, db)
+
+
+# =============================================================================
+# DATABASE MODELS
+# =============================================================================
+
+class User(db.Model):
+    id       = db.Column(db.Integer, primary_key=True)
+    email    = db.Column(db.String(120), unique=True, nullable=False)
+    password = db.Column(db.String(200), nullable=False)
+
+
+class Profile(db.Model):
+    id      = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), unique=True, nullable=False)
+    data    = db.Column(db.Text, nullable=False, default="{}")
+
+client = OpenAI()
+
+@app.route("/api/generate", methods=["POST"])
+@jwt_required()
+def generate():
+    data = request.get_json()
+    job_description    = data.get("jobDescription", "")
+    base_skills        = data.get("baseSkills", [])
+    base_experience    = data.get("baseExperience", [])
+    project_experience = data.get("projectExperience", [])
+    personal_info      = data.get("personalInfo", {})
+    education          = data.get("education", [])
+    languages          = data.get("languages", [])
+    references         = data.get("references", "Available upon Request")
+
+    ai_content = generate_cv_content(
+        job_description, base_skills, base_experience, project_experience,
+        education=education, languages=languages, references=references
+    )
+    return jsonify(ai_content)
+
+
+def generate_cv_content(
+    job_description,
+    base_skills,
+    base_experience,
+    project_experience,
+    education=None,
+    languages=None,
+    references=None
+):
+    own_skill_names = [
+        s.strip() for s in (base_skills or [])
+        if isinstance(s, str) and s.strip()
+    ]
+
+    filtered_projects = [
+        p for p in (project_experience or [])
+        if p.get("includeInCV", True)
+    ]
+
+    print("Received data for CV generation:")
+    print(f"Job Description: {job_description}")
+    print(f"Base Skills: {base_skills}")
+    print(f"Base Experience: {base_experience}")
+    print(f"Project Experience: {project_experience}")
+    print(f"Education: {education}")
+    print(f"Languages: {languages}")
+    print(f"References: {references}")
 
 
 ======================================================================
@@ -34244,7 +34769,7 @@ function BackgroundWrapper({ children }) {
       <video autoPlay muted loop playsInline style={{
         position: "fixed", top: 0, left: 0, width: "100vw", height: "100vh", objectFit: "cover", zIndex: -2,
       }}>
-        <source src="/hero2-video.mp4" type="video/mp4" />
+        <source src="/nature-video.mp4" type="video/mp4" />
       </video>
       <div style={{ position: "fixed", top: 0, left: 0, width: "100vw", height: "100vh", background: "rgba(0,0,0,0.55)", zIndex: -1, pointerEvents: "none" }} />
       <Navbar />

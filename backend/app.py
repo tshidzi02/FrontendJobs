@@ -1,12 +1,3 @@
-# FILE: backend/app.py  (UPDATED — Lesson 4.1: Cover Letter Generator)
-# =============================================================================
-# WHAT'S NEW vs Lesson 3.4:
-#   ✅ POST /api/cover-letter  — generates a tailored cover letter via GPT-4o
-#   ✅ POST /api/cover-letter/save — saves cover letter to SavedCoverLetter table
-#   ✅ GET  /api/cover-letter       — returns all saved cover letters, newest first
-#   ✅ DELETE /api/cover-letter/<id> — deletes one saved cover letter
-#   ✅ New DB model: SavedCoverLetter
-# =============================================================================
 
 from flask import Flask, jsonify, request, send_file
 from flask_cors import CORS
@@ -64,9 +55,8 @@ from openai import OpenAI
 app = Flask(__name__)
 app.config.from_object(Config)
 
-# Force SQLite - ignore any environment DATABASE_URL
-app.config["JWT_SECRET_KEY"] = os.environ.get("JWT_SECRET_KEY", "change-this-to-long-random-secret")
-app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get("DATABASE_URL", "sqlite:///users.db")
+app.config["JWT_SECRET_KEY"] = os.environ.get("JWT_SECRET_KEY", "fallback-dev-secret")
+app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get("DATABASE_URL")
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 app.config["MAX_CONTENT_LENGTH"] = 32 * 1024 * 1024
 
