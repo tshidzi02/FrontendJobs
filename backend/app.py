@@ -46,6 +46,8 @@ from services.smart_jobs_service import (
 from google.oauth2 import id_token
 from google.auth.transport import requests as google_requests
 from openai import OpenAI
+from dotenv import load_dotenv
+load_dotenv()
 
 
 # =============================================================================
@@ -1664,6 +1666,9 @@ def smart_jobs_queue():
 def init_db():
     db.create_all()
     print("Database initialized.")
+
+with app.app_context():
+    db.create_all()
  
 if __name__ == "__main__":
     app.run(debug=True, use_reloader=False)  # ← add use_reloader=False
