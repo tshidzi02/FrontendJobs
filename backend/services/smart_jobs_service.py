@@ -7,6 +7,7 @@ import os
 import math
 import zipfile
 import tempfile
+import numpy as np
 from openai import OpenAI
 from services.job_search import search_jobs
 
@@ -27,9 +28,7 @@ def fetch_all_jobs(query, location="", page=1):
         date_posted="",
         remote_only=False,
     )
-
     normalised = [normalise_job(job) for job in raw_jobs]
-
     start = (page - 1) * 20
     end   = start + 20
     return normalised[start:end], len(normalised)
@@ -113,13 +112,9 @@ def get_embedding(text):
 
 
 def cosine_similarity(v1, v2):
-    """Pure Python cosine similarity — no numpy required."""
-    dot   = sum(a * b for a, b in zip(v1, v2))
-    norm1 = math.sqrt(sum(a * a for a in v1))
-    norm2 = math.sqrt(sum(b * b for b in v2))
-    if norm1 == 0 or norm2 == 0:
-        return 0.0
-    return dot / (norm1 * norm2)
+    v1 = np.array(v1)
+    v2 = np.array(v2)
+    return float(np.dot(v1, v2) / (np.linalg.norm(v1) * np.linalg.norm(v2)))
 
 
 def rank_jobs(jobs, profile):
@@ -211,8 +206,7 @@ def _build_combined(cv_tex, cl_tex):
 
 
 def generate_latex_for_job(profile, job):
-    personal  = profile.get("personalInfo", {})
-    job_desc  = job.get("description", "")
+    job_desc = job.get("description", "")
 
     base_skills = []
     for cat in profile.get("skills", []):
