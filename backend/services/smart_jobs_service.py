@@ -1,10 +1,17 @@
+======================================================================
+FILE: ./backend\services\smart_jobs_service.py
+======================================================================
+
 # ============================================================
 # services/smart_jobs_service.py
 # Smart Job Search + LaTeX CV+CoverLetter Generator
+#
+# Job fetching now uses ALL 4 APIs via the existing search_jobs()
+# from job_search.py (JSearch + Adzuna + TheMuse + RemoteOK)
+# running in parallel — same engine as the regular Job Search page.
 # ============================================================
 
 import os
-import math
 import zipfile
 import tempfile
 import numpy as np
@@ -19,6 +26,13 @@ client = OpenAI()
 # ============================================================
 
 def fetch_all_jobs(query, location="", page=1):
+    """
+    Calls search_jobs() which queries JSearch + Adzuna + TheMuse + RemoteOK
+    in parallel (same as the regular Job Search page) and returns a
+    deduplicated list of up to 100+ results.
+
+    We paginate in batches of 20 using the `page` parameter.
+    """
     raw_jobs = search_jobs(
         query=query,
         location=location,
@@ -28,13 +42,21 @@ def fetch_all_jobs(query, location="", page=1):
         date_posted="",
         remote_only=False,
     )
+
     normalised = [normalise_job(job) for job in raw_jobs]
+
+    # Return 20 per page
     start = (page - 1) * 20
     end   = start + 20
     return normalised[start:end], len(normalised)
 
 
 def normalise_job(raw):
+    """
+    Convert a job from job_search.py's unified format into Smart Jobs format.
+    job_search.py returns: id, title, company, location, type, salary,
+                           posted, description, url, source
+    """
     job_id  = raw.get("id", "") or raw.get("job_id", "")
     salary  = raw.get("salary", "") or "Not disclosed"
     if not salary.strip():
@@ -44,12 +66,15 @@ def normalise_job(raw):
     if not work_type:
         work_type = "Remote" if raw.get("job_is_remote") else "Onsite"
 
+    # Get description — Adzuna free tier often returns empty strings
     description = (
         raw.get("description", "")
         or raw.get("job_description", "")
         or ""
     ).strip()
 
+    # If description is empty, build a minimal one from available fields
+    # so AI ranking still has something to work with
     if not description:
         title   = raw.get("title", "") or raw.get("job_title", "")
         company = raw.get("company", "") or raw.get("employer_name", "")
@@ -164,6 +189,10 @@ def build_search_query(profile, user_query=None):
 
 # ============================================================
 # 4. GENERATE COMBINED LATEX FOR ONE JOB
+#    Uses the SAME builders as Bulk Generate:
+#      build_cv_tex()           from cv_latex.py
+#      build_cover_letter_tex() from cover_letter_latex.py
+#    Then combines them identically to BulkGenerate's buildCombined()
 # ============================================================
 
 from services.cv_latex import build_cv_tex
@@ -173,6 +202,12 @@ from services.ai_engine import generate_cv_content
 
 
 def _build_combined(cv_tex, cl_tex):
+    """
+    Merge two standalone .tex documents into one file.
+    Identical logic to BulkGenerate.jsx buildCombined():
+      - Uses CV preamble (has all packages, colours, fonts)
+      - Cover letter body first, then \\newpage, then CV body
+    """
     def extract_body(tex):
         start = tex.find("\\begin{document}")
         end   = tex.rfind("\\end{document}")
@@ -206,8 +241,22 @@ def _build_combined(cv_tex, cl_tex):
 
 
 def generate_latex_for_job(profile, job):
-    job_desc = job.get("description", "")
+    """
+    Generate the combined CV + Cover Letter .tex for one job.
+    Uses EXACTLY the same pipeline as Bulk Generate:
 
+    Step 1 — generate_cv_content()    → same AI engine as Generate CV page
+             (300-350 word summary, gpt-4o, full structured output)
+    Step 2 — generate_cover_letter()  → same as Cover Letter page
+    Step 3 — build_cv_tex()           → same as Download CV (.tex)
+    Step 4 — build_cover_letter_tex() → same as Download Cover Letter (.tex)
+    Step 5 — _build_combined()        → same as Bulk Generate combined tab
+    """
+    personal  = profile.get("personalInfo", {})
+    job_desc  = job.get("description", "")
+
+    # Extract profile fields in the format generate_cv_content() expects
+    # (same extraction the Generate CV page does before calling the API)
     base_skills = []
     for cat in profile.get("skills", []):
         if isinstance(cat, dict):
@@ -225,6 +274,7 @@ def generate_latex_for_job(profile, job):
     languages          = profile.get("languages", [])
     references         = profile.get("references", "Available upon Request")
 
+    # ── Step 1: Same AI engine as Generate CV page ────────────────────────────
     try:
         ai_result = generate_cv_content(
             job_description    = job_desc,
@@ -238,15 +288,16 @@ def generate_latex_for_job(profile, job):
     except Exception as ex:
         print(f"[SmartJobs LaTeX] CV AI error: {ex}")
         ai_result = {
-            "SUMMARY":            profile.get("summary", ""),
-            "skills":             profile.get("skills", []),
-            "experience":         base_experience,
+            "SUMMARY":          profile.get("summary", ""),
+            "skills":           profile.get("skills", []),
+            "experience":       base_experience,
             "project_experience": project_experience,
-            "education":          education,
-            "languages":          languages,
-            "REFERENCE":          references,
+            "education":        education,
+            "languages":        languages,
+            "REFERENCE":        references,
         }
 
+    # ── Step 2: Same cover letter generator as Cover Letter page ─────────────
     try:
         cl_result         = generate_cover_letter(job_desc, profile, tone="professional")
         cover_letter_text = cl_result.get("cover_letter", "")
@@ -259,9 +310,11 @@ def generate_latex_for_job(profile, job):
             "to your team."
         )
 
+    # ── Step 3 + 4: Same LaTeX builders as Download CV/Cover Letter ───────────
     cv_tex = build_cv_tex(profile, ai_result)
     cl_tex = build_cover_letter_tex(profile, cover_letter_text, job_title=job.get("title", ""))
 
+    # ── Step 5: Same combination as Bulk Generate combined tab ───────────────
     return _build_combined(cv_tex, cl_tex)
 
 
@@ -291,3 +344,6 @@ def generate_batch_zip(profile, jobs):
 
     os.unlink(zip_buffer.name)
     return zip_bytes
+
+
+
