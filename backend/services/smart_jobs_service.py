@@ -1,7 +1,3 @@
-======================================================================
-FILE: ./backend\services\smart_jobs_service.py
-======================================================================
-
 # ============================================================
 # services/smart_jobs_service.py
 # Smart Job Search + LaTeX CV+CoverLetter Generator
