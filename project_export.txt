@@ -86,6 +86,8 @@ from openai import OpenAI
 from dotenv import load_dotenv
 load_dotenv()
 
+from gevent import monkey
+monkey.patch_all()
 
 # =============================================================================
 # APP SETUP
@@ -2260,7 +2262,7 @@ if __name__ == "__main__":
 FILE: ./backend\Procfile
 ======================================================================
 
-web: gunicorn app:app --workers 1 --threads 2 --timeout 120
+web: gunicorn app:app --workers 1 --threads 4 --timeout 120 --bind 0.0.0.0:8080
 
 
 ======================================================================
@@ -2288,6 +2290,7 @@ Flask-JWT-Extended==4.7.1
 Flask-Migrate==4.1.0
 Flask-SQLAlchemy==3.1.1
 google-auth==2.48.0
+gevent==26.5.0
 greenlet==3.3.2
 gunicorn==26.0.0
 httpx==0.28.1
@@ -2295,6 +2298,7 @@ itsdangerous==2.2.0
 Jinja2==3.1.6
 Mako==1.3.10
 MarkupSafe==3.0.3
+numpy==1.26.4
 openai==2.24.0
 packaging==26.0
 psycopg2-binary==2.9.11
@@ -3033,21 +3037,41 @@ Return ONLY this JSON:
 FILE: ./backend\services\ats_analyzer.py
 ======================================================================
 
+
 """
 ats_analyzer.py — Hybrid ATS scoring
 
 ARCHITECTURE:
-  - CV side:  structured data extraction (NER removed — not available on server)
-  - JD side:  keyword extraction
+  - CV side:  NER model extracts skills (what it was trained for)
+  - JD side:  keyword extraction (NER wasn't trained on JDs)
   - Score:    how many JD keywords appear in CV skills + experience
+
+This is the correct approach given the NER model's training data
+consisted entirely of CV documents, not job descriptions.
 """
 
 import re
 import os
 
+try:
+    import spacy
+    _SPACY_AVAILABLE = True
+except ImportError:
+    _SPACY_AVAILABLE = False
 
 # ============================================================
-# CV SIDE — extract skills directly from CV data structure
+# LOAD NER MODEL
+# ============================================================
+
+_NER_MODEL = None
+
+def _get_nlp():
+    return None
+
+
+
+# ============================================================
+# NER — CV SIDE
 # ============================================================
 
 def preprocess(text):
@@ -3056,10 +3080,100 @@ def preprocess(text):
     return text.strip()
 
 
+def extract_cv_entities(text):
+    """Run NER on CV text. Returns list of [label, entity_text]."""
+    nlp = _get_nlp()
+    doc = nlp(preprocess(text))
+    return [[ent.label_, ent.text.strip()] for ent in doc.ents]
+
+
+def parse_skills_block(skills_text):
+    """
+    NER returns SKILLS as one big block:
+      "Python, JavaScript, Manual Testing • Agile (1 year), Docker"
+    Split into individual skill terms.
+    """
+    # Remove parenthetical notes like "(Less than 1 year)"
+    text = re.sub(r'\([^)]*\)', '', skills_text)
+
+    # Split on bullets, commas, pipes, semicolons, slashes
+    parts = re.split(r'[•\|\n,;/]+', text)
+
+    skills = set()
+    for part in parts:
+        part = part.strip(' .-–•')
+        # Strip leading section labels like "Programming language:"
+        part = re.sub(r'^[A-Za-z\s]{3,20}:\s*', '', part).strip()
+        if 2 <= len(part) <= 60:
+            skills.add(part.lower())
+
+    return skills
+
+
+def get_cv_skills_via_ner(cv_text):
+    """
+    Use NER model to extract skills from CV text.
+    Returns set of individual skill strings.
+    """
+    entities = extract_cv_entities(cv_text)
+    all_skills = set()
+    for label, text in entities:
+        if label == "SKILLS":
+            all_skills.update(parse_skills_block(text))
+    return all_skills
+
+
+# ============================================================
+# BUILD CV TEXT — structured to help NER recognise skills
+# ============================================================
+
+def build_cv_text(cv_data):
+    """
+    Build CV text that resembles the NER training data format.
+    Training data was full CV documents — we include all sections.
+    Crucially: skills are listed as a comma-separated block WITHOUT
+    the word 'SKILLS' as a header (which confuses the NAME detector).
+    """
+    parts = []
+
+    # Experience section first (like a real CV)
+    for exp in cv_data.get("experience", []):
+        if isinstance(exp, dict):
+            role = exp.get("role", "")
+            company = exp.get("company", "")
+            if role and company:
+                parts.append(f"{role} - {company}")
+            for bullet in exp.get("bullets", []):
+                parts.append(bullet)
+
+    # Skills as a plain comma-separated list (no header)
+    skill_names = []
+    for category in cv_data.get("skills", []):
+        if isinstance(category, dict):
+            for skill_obj in category.get("skills_list", []):
+                if isinstance(skill_obj, dict):
+                    skill = skill_obj.get("skill", "")
+                    if skill:
+                        skill_names.append(skill)
+        elif isinstance(category, str):
+            skill_names.append(category)
+
+    if skill_names:
+        parts.append(", ".join(skill_names))
+
+    return "\n".join(p for p in parts if p.strip())
+
+
+# ============================================================
+# FALLBACK: extract skills directly from CV data structure
+# (used when NER extracts nothing)
+# ============================================================
+
 def get_cv_skills_from_structure(cv_data):
     """
     Direct extraction from the structured cv_data dict.
-    Guaranteed to get skills regardless of any model availability.
+    This is the reliable fallback — guaranteed to get skills
+    regardless of NER model behaviour.
     """
     skills = set()
     for category in cv_data.get("skills", []):
@@ -3144,6 +3258,7 @@ def extract_jd_keywords(job_description):
     Returns set of normalized keyword strings.
     """
     jd_lower = job_description.lower()
+    # Remove common JD boilerplate sections
     jd_lower = re.sub(r'(location|salary|job type|employment type)\s*:.*', '', jd_lower)
 
     tokens = re.findall(r"[a-zA-Z][a-zA-Z0-9\+\#\.]*", jd_lower)
@@ -3165,11 +3280,17 @@ def extract_jd_keywords(job_description):
 # ============================================================
 
 def skill_in_jd(skill_str, jd_normalized_text, jd_keywords):
-    """Check if a CV skill matches the JD."""
+    """
+    Check if a CV skill matches the JD.
+    Uses both substring match on full JD text and keyword set match.
+    """
     skill_words = re.split(r'[\s/&,]+', skill_str.strip())
     norm_words = [normalize(w) for w in skill_words if len(w) > 1]
+
     if not norm_words:
         return False
+
+    # OR logic: any meaningful word from the skill found in JD
     return any(w in jd_keywords or w in jd_normalized_text for w in norm_words)
 
 
@@ -3180,8 +3301,9 @@ def skill_in_jd(skill_str, jd_normalized_text, jd_keywords):
 def analyze_ats(cv_data, job_description, semantic_score):
     """
     Hybrid ATS scoring:
-      - Structured cv_data extraction for CV skills
-      - Keyword extraction for JD
+      - NER model extracts skills from CV (what it was trained for)
+      - Keyword extraction for JD (NER not trained on JDs)
+      - Falls back to structured cv_data if NER finds nothing
 
     Weights:
         - Semantic similarity : 30%
@@ -3202,10 +3324,19 @@ def analyze_ats(cv_data, job_description, semantic_score):
         }
 
     # --------------------------------------------------
-    # 2. EXTRACT CV SKILLS from structured data
+    # 2. EXTRACT CV SKILLS
+    # Try NER first, fall back to structured data
     # --------------------------------------------------
-    cv_skills = get_cv_skills_from_structure(cv_data)
-    print(f"[ATS DEBUG] Struct skills count: {len(cv_skills)}")
+    cv_text = build_cv_text(cv_data)
+    cv_skills_ner = get_cv_skills_via_ner(cv_text)
+    cv_skills_struct = get_cv_skills_from_structure(cv_data)
+
+    # Use NER results if it found something, otherwise use structured data
+    cv_skills = cv_skills_ner if cv_skills_ner else cv_skills_struct
+
+    print(f"[ATS DEBUG] NER skills: {cv_skills_ner}")
+    print(f"[ATS DEBUG] Struct skills: {cv_skills_struct}")
+    print(f"[ATS DEBUG] Using: {'NER' if cv_skills_ner else 'STRUCT'}")
 
     # --------------------------------------------------
     # 3. EXTRACT JD KEYWORDS
@@ -3215,6 +3346,8 @@ def analyze_ats(cv_data, job_description, semantic_score):
 
     # --------------------------------------------------
     # 4. SKILLS MATCH (50% weight)
+    # How many CV skills appear in the JD?
+    # (Same direction as internet ATS: cv count / jd count)
     # --------------------------------------------------
     skill_hits = sum(
         1 for skill in cv_skills
@@ -3256,6 +3389,7 @@ def analyze_ats(cv_data, job_description, semantic_score):
 
     # --------------------------------------------------
     # 7. MISSING KEYWORDS
+    # JD keywords not found in CV skills or experience
     # --------------------------------------------------
     all_cv_words = set()
     for skill in cv_skills:
@@ -3277,6 +3411,9 @@ def analyze_ats(cv_data, job_description, semantic_score):
         "experience_match": round(experience_match, 2),
         "missing_keywords": missing[:10]
     }
+
+
+
 
 
 ======================================================================
@@ -5155,6 +5292,8 @@ def _dedup(jobs):
 
 # =============================================================================
 # SOURCE 1 — ADZUNA
+# Queries ZA, US and GB in parallel. Each country can return up to `results`
+# per page. We fetch page 1 and page 2 for each country to maximise volume.
 # =============================================================================
 
 def _fetch_adzuna(query, location, employment_type, salary_min, salary_max,
@@ -5199,6 +5338,7 @@ def _fetch_adzuna(query, location, employment_type, salary_min, salary_max,
         data = resp.json()
         jobs = []
         for item in data.get("results", []):
+            # Salary
             sal_min = item.get("salary_min")
             sal_max = item.get("salary_max")
             if sal_min and sal_max:
@@ -5208,6 +5348,7 @@ def _fetch_adzuna(query, location, employment_type, salary_min, salary_max,
             else:
                 salary_str = ""
 
+            # Location
             loc_parts = []
             loc_obj = item.get("location", {})
             area = loc_obj.get("area", [])
@@ -5225,6 +5366,7 @@ def _fetch_adzuna(query, location, employment_type, salary_min, salary_max,
                 "posted":      _relative_date(item.get("created", "")),
                 "description": item.get("description", ""),
                 "url":         item.get("redirect_url", ""),
+                #"source":      "Adzuna",
             })
         return jobs
     except Exception as e:
@@ -5233,7 +5375,10 @@ def _fetch_adzuna(query, location, employment_type, salary_min, salary_max,
 
 
 def search_adzuna(query, location, employment_type, salary_min, salary_max, date_posted):
-    """Run Adzuna across ZA (p1+p2), US (p1), GB (p1) concurrently."""
+    """
+    Run Adzuna across ZA (p1+p2), US (p1), GB (p1) concurrently.
+    Target: up to 80 raw results before dedup.
+    """
     tasks = [
         ("za", 1, 20),
         ("za", 2, 20),
@@ -5253,6 +5398,7 @@ def search_adzuna(query, location, employment_type, salary_min, salary_max, date
             jobs = future.result()
             all_jobs.extend(jobs)
 
+    # ZA results first, then US, then GB
     za = [j for j in all_jobs if "za" in j["id"]]
     other = [j for j in all_jobs if "za" not in j["id"]]
     combined = za + other
@@ -5263,6 +5409,7 @@ def search_adzuna(query, location, employment_type, salary_min, salary_max, date
 
 # =============================================================================
 # SOURCE 2 — THE MUSE
+# Free tier, no auth required (key optional). Returns up to 20 per page.
 # =============================================================================
 
 def search_the_muse(query, location):
@@ -5289,15 +5436,21 @@ def search_the_muse(query, location):
                 break
             data = resp.json()
             for item in data.get("results", []):
+                # Filter by query keywords if provided
                 title = item.get("name", "")
                 if query:
                     q_words = query.lower().split()
                     if not any(w in title.lower() for w in q_words):
                         continue
 
+                # Location
                 locations = item.get("locations", [])
                 loc_str = locations[0].get("name", "") if locations else ""
+
+                # Remote detection
                 job_type = "Remote" if "remote" in loc_str.lower() else "On-site"
+
+                # Description
                 desc = _strip_html(item.get("contents", ""))
 
                 all_jobs.append({
@@ -5310,6 +5463,7 @@ def search_the_muse(query, location):
                     "posted":      _relative_date(item.get("publication_date", "")),
                     "description": desc,
                     "url":         item.get("refs", {}).get("landing_page", ""),
+                    #"source":      "TheMuse",
                 })
         except Exception as e:
             print(f"[TheMuse p{page}] Error: {e}")
@@ -5321,6 +5475,7 @@ def search_the_muse(query, location):
 
 # =============================================================================
 # SOURCE 3 — REMOTEOK
+# No auth. Returns all remote jobs; we filter by query keywords.
 # =============================================================================
 
 def search_remoteok(query):
@@ -5335,8 +5490,10 @@ def search_remoteok(query):
             return []
 
         data = resp.json()
+        # First item is a notice object, skip it
         jobs_raw = [item for item in data if isinstance(item, dict) and item.get("id")]
 
+        # Broaden keyword matching — check title AND tags AND description
         keywords = query.lower().split() if query else []
         matched = []
         for item in jobs_raw:
@@ -5363,6 +5520,7 @@ def search_remoteok(query):
                 "posted":      _relative_date(item.get("epoch", time.time())),
                 "description": _strip_html(item.get("description", "")),
                 "url":         item.get("url", ""),
+                #"source":      "RemoteOK",
             })
 
         print(f"[JobSearch] RemoteOK: {len(result)} results")
@@ -5375,6 +5533,7 @@ def search_remoteok(query):
 
 # =============================================================================
 # SOURCE 4 — JSEARCH (RapidAPI)
+# When available, fetches 2 pages × 10 = up to 20 results.
 # =============================================================================
 
 def search_jsearch(query, location, employment_type, date_posted):
@@ -5383,10 +5542,12 @@ def search_jsearch(query, location, employment_type, date_posted):
     if not api_key:
         return []
 
+    # Build query string
     q = query or "software developer"
     if location:
         q = f"{q} in {location}"
 
+    # Map employment type
     type_map = {
         "fulltime":   "FULLTIME",
         "parttime":   "PARTTIME",
@@ -5395,6 +5556,7 @@ def search_jsearch(query, location, employment_type, date_posted):
     }
     emp_type = type_map.get((employment_type or "").lower())
 
+    # Map date posted
     date_map = {
         "today": "today",
         "3days": "3days",
@@ -5431,6 +5593,7 @@ def search_jsearch(query, location, employment_type, date_posted):
 
             data = resp.json()
             for item in data.get("data", []):
+                # Salary
                 sal_min = item.get("job_min_salary")
                 sal_max = item.get("job_max_salary")
                 sal_cur = item.get("job_salary_currency", "")
@@ -5441,6 +5604,7 @@ def search_jsearch(query, location, employment_type, date_posted):
                 else:
                     salary_str = ""
 
+                # Type
                 emp = (item.get("job_employment_type") or "").upper()
                 type_map_rev = {
                     "FULLTIME": "Full-time", "PARTTIME": "Part-time",
@@ -5448,6 +5612,7 @@ def search_jsearch(query, location, employment_type, date_posted):
                 }
                 job_type = "Remote" if item.get("job_is_remote") else type_map_rev.get(emp, "On-site")
 
+                # Posted
                 ts = item.get("job_posted_at_timestamp")
                 posted = _relative_date(ts) if ts else item.get("job_posted_at_datetime_utc", "")
 
@@ -5461,6 +5626,7 @@ def search_jsearch(query, location, employment_type, date_posted):
                     "posted":      posted,
                     "description": (item.get("job_description") or ""),
                     "url":         item.get("job_apply_link") or item.get("job_google_link", ""),
+                    #"source":      "JSearch",
                 })
 
         except Exception as e:
@@ -5476,18 +5642,23 @@ def search_jsearch(query, location, employment_type, date_posted):
 # =============================================================================
 
 def search_jobs(
-    query           = "",
-    location        = "",
+    query          = "",
+    location       = "",
     employment_type = "",
-    salary_min      = None,
-    salary_max      = None,
-    date_posted     = "",
-    remote_only     = False,
+    salary_min     = None,
+    salary_max     = None,
+    date_posted    = "",
+    remote_only    = False,
 ):
     """
     Query all sources concurrently and return a deduplicated, merged list.
     Target: 50+ results when sources are available.
+
+    Source priority for dedup (first-wins):
+        JSearch → Adzuna → TheMuse → RemoteOK
     """
+
+    # If remote_only is set, force query to include "remote"
     effective_query = query
     if remote_only and "remote" not in (query or "").lower():
         effective_query = f"remote {query}".strip()
@@ -5519,6 +5690,7 @@ def search_jobs(
                 print(f"[JobSearch] {source} failed: {e}")
                 results[source] = []
 
+    # Merge in priority order: JSearch first (richest data), then Adzuna, TheMuse, RemoteOK
     merged = (
         results.get("jsearch",  []) +
         results.get("adzuna",   []) +
@@ -5526,13 +5698,16 @@ def search_jobs(
         results.get("remoteok", [])
     )
 
+    # If remote_only filter, remove non-remote results
     if remote_only:
         merged = [j for j in merged if j.get("type") == "Remote"]
 
+    # Deduplicate by title + company
     final = _dedup(merged)
 
     print(f"[JobSearch] Total after dedup: {len(final)} results")
     return final
+
 
 
 ======================================================================
@@ -5542,39 +5717,240 @@ FILE: ./backend\services\semantic_matcher.py
 # =============================================================================
 # FILE: backend/services/semantic_matcher.py
 # =============================================================================
+# PURPOSE: Measures how "semantically similar" a CV summary is to a job description.
+#
+#          KEYWORD MATCHING vs SEMANTIC MATCHING — what's the difference?
+#
+#          Keyword matching (in ats_analyzer.py) checks:
+#            "Does the word 'python' appear in both the CV and the JD?"
+#            Problem: "engineered scalable systems" and "built robust infrastructure"
+#            mean the SAME thing but share ZERO keywords.
+#
+#          Semantic matching (this file) checks:
+#            "Do these two texts MEAN similar things?"
+#            It converts text into mathematical vectors (lists of numbers) that
+#            capture MEANING. Similar meanings → vectors point in similar directions.
+#            "engineered scalable systems" ≈ "built robust infrastructure"
+#            → high similarity score, even without shared words.
+#
+#          This is much more powerful and accurate than keyword matching alone.
+#          That's why it's weighted at 50% in the ATS score (the biggest weight).
+#
+# HOW IT FITS IN THE FLOW:
+#   app.py (generate route):
+#     1. Calls semantic_match_score(job_description, SUMMARY)
+#        → THIS FILE sends BOTH texts to OpenAI Embeddings API
+#        → Gets back two vectors (lists of ~1536 numbers each)
+#        → Calculates cosine similarity between them
+#        → Returns a score 0–100
+#     2. That score is passed INTO analyze_ats() as semantic_score parameter
+#        (semantic_matcher.py result feeds directly into ats_analyzer.py)
+# =============================================================================
+
+
+# =============================================================================
+# SECTION 1: IMPORTS
+# =============================================================================
 
 from openai import OpenAI
-import math
+# The official OpenAI Python client library.
+# Used here to call the Embeddings API (not the Chat/Completions API).
+# Embeddings API converts text → a list of numbers (a "vector").
+
+import numpy as np
+# NumPy = Numerical Python.
+# The go-to library for mathematical operations on arrays and matrices.
+# We use it here for:
+#   - Converting Python lists to NumPy arrays (np.array())
+#   - Dot product calculation (np.dot())
+#   - Vector magnitude/norm calculation (np.linalg.norm())
+# Install with: pip install numpy
+
+
+# =============================================================================
+# SECTION 2: CREATE OPENAI CLIENT
+# =============================================================================
 
 client = OpenAI()
+# Creates the OpenAI client.
+# Automatically reads OPENAI_API_KEY from environment variables.
+# Same pattern as ai_engine.py — one client per module, reused for all requests.
+# Note: This creates a SECOND OpenAI client (ai_engine.py also creates one).
+# In a larger app, you'd share one client across modules, but this works fine here.
 
+
+# =============================================================================
+# SECTION 3: EMBEDDING FUNCTION
+# =============================================================================
 
 def get_embedding(text):
-    """Convert text into embedding vector using OpenAI model."""
-    # Truncate to 1000 chars to reduce memory on free/starter tier
+    """
+    Convert text into embedding vector using OpenAI model.
+    """
+    # PURPOSE: Take any string of text and convert it to a vector (list of numbers)
+    #          that represents its MEANING in mathematical space.
+    #
+    # What is an "embedding"?
+    #   Imagine a 3D space where "cat", "dog", "pet" are close together
+    #   and "car", "truck", "vehicle" are close together, but "cat" and "car" are far apart.
+    #   Embeddings do this in ~1536 DIMENSIONS (not just 3).
+    #   The more similar in meaning, the closer together the vectors.
+    #
+    # PARAMETER:
+    #   text (str) - Any text: job description, CV summary, skill list, etc.
+    #
+    # RETURNS:
+    #   A Python list of ~1536 floating point numbers.
+    #   e.g. [0.0123, -0.0456, 0.0789, ..., -0.0321]  (1536 numbers total)
+
     response = client.embeddings.create(
         model="text-embedding-3-small",
-        input=text[:1000]
-    )
-    return response.data[0].embedding
+        # OpenAI's embedding model.
+        # "text-embedding-3-small" is:
+        #   - Fast and cheap (much cheaper than GPT models per token)
+        #   - High quality (1536 dimensions)
+        #   - Good for semantic similarity tasks
+        # Other option: "text-embedding-3-large" (3072 dimensions, more accurate, costs more)
 
+        input=text
+        # The text we want to embed.
+        # OpenAI will process this text and return a vector representing its meaning.
+    )
+    # FLOW: HTTP request sent to OpenAI Embeddings API
+    #       Server processes text → returns response object with the vector inside
+
+    return response.data[0].embedding
+    # Breaking this down:
+    #   response         → the full API response object
+    #   .data            → a list of embedding results (we only sent one text, so one result)
+    #   [0]              → the first (and only) result
+    #   .embedding       → the actual list of numbers (the vector)
+    #
+    # Returns: [0.0123, -0.0456, 0.0789, ..., -0.0321]
+    # This list has exactly 1536 numbers for "text-embedding-3-small".
+
+
+# =============================================================================
+# SECTION 4: COSINE SIMILARITY FUNCTION
+# =============================================================================
 
 def cosine_similarity(vec1, vec2):
-    """Pure Python cosine similarity — no numpy required."""
-    dot   = sum(a * b for a, b in zip(vec1, vec2))
-    norm1 = math.sqrt(sum(a * a for a in vec1))
-    norm2 = math.sqrt(sum(b * b for b in vec2))
-    if norm1 == 0 or norm2 == 0:
-        return 0.0
-    return dot / (norm1 * norm2)
+    """
+    Compute cosine similarity between two vectors.
+    """
+    # PURPOSE: Given two vectors (lists of numbers), calculate HOW SIMILAR
+    #          they are in terms of the ANGLE between them.
+    #
+    # Why COSINE similarity and not just comparing the numbers directly?
+    #   Cosine similarity measures the ANGLE between two vectors, not their length.
+    #   Two vectors can have very different magnitudes but point in the same
+    #   direction → they're semantically similar.
+    #   This makes it robust to text length differences.
+    #
+    # Formula: cos(θ) = (A · B) / (||A|| × ||B||)
+    #   A · B    = dot product (sum of element-wise multiplications)
+    #   ||A||    = magnitude (length) of vector A
+    #   ||B||    = magnitude (length) of vector B
+    #
+    # Result range: -1.0 to 1.0
+    #   1.0  = identical direction (same meaning)
+    #   0.0  = perpendicular (completely unrelated meaning)
+    #  -1.0  = opposite direction (opposite meaning)
+    # For text, scores are typically 0.0 to 1.0.
+    #
+    # PARAMETERS:
+    #   vec1 (list) - First embedding vector (e.g. from job description)
+    #   vec2 (list) - Second embedding vector (e.g. from CV summary)
+    #
+    # RETURNS:
+    #   A float between -1.0 and 1.0
 
+    vec1 = np.array(vec1)
+    # Convert the Python list [0.012, -0.045, ...] into a NumPy array.
+    # NumPy arrays support mathematical operations that plain Python lists don't.
+    # e.g. You can't do list1 * list2 in Python, but numpy_array1 * numpy_array2 works.
+
+    vec2 = np.array(vec2)
+    # Same conversion for the second vector.
+
+    return np.dot(vec1, vec2) / (
+        np.linalg.norm(vec1) * np.linalg.norm(vec2)
+    )
+    # This is the cosine similarity formula:
+    #
+    # np.dot(vec1, vec2):
+    #   Computes the DOT PRODUCT of the two vectors.
+    #   Dot product = sum of (vec1[i] * vec2[i]) for all i
+    #   = vec1[0]*vec2[0] + vec1[1]*vec2[1] + ... + vec1[1535]*vec2[1535]
+    #   This measures "how much do these vectors align element by element?"
+    #
+    # np.linalg.norm(vec1):
+    #   Computes the MAGNITUDE (length) of vector 1.
+    #   norm = sqrt(vec1[0]² + vec1[1]² + ... + vec1[1535]²)
+    #   This normalizes for vector length so we only measure DIRECTION (meaning).
+    #
+    # np.linalg.norm(vec2):
+    #   Same for vector 2.
+    #
+    # Dividing the dot product by the product of both magnitudes gives us
+    # the cosine of the angle between the two vectors.
+    # High value (close to 1.0) = vectors point in same direction = similar meaning.
+
+
+# =============================================================================
+# SECTION 5: MAIN SEMANTIC MATCH FUNCTION
+# =============================================================================
 
 def semantic_match_score(job_description, cv_text):
-    """Compute semantic similarity score between job and CV. Returns 0-100."""
+    """
+    Compute semantic similarity score between job and CV.
+    """
+    # PURPOSE: The "public" function called from app.py.
+    #          Orchestrates the embedding → similarity calculation pipeline
+    #          and returns a clean percentage score.
+    #
+    # PARAMETERS:
+    #   job_description (str) - The full job posting text
+    #   cv_text         (str) - The AI-generated CV summary text
+    #
+    # RETURNS:
+    #   A float from 0 to ~100 representing semantic similarity percentage.
+    #   e.g. 78.42
+
     job_embedding = get_embedding(job_description)
-    cv_embedding  = get_embedding(cv_text)
-    similarity    = cosine_similarity(job_embedding, cv_embedding)
-    return round(similarity * 100, 2)
+    # ↑ JUMPS TO: get_embedding() function above (in this same file)
+    # Calls OpenAI Embeddings API with the job description text.
+    # Returns: [0.012, -0.045, 0.078, ...] — a list of 1536 numbers
+    # FLOW: → OpenAI API call → vector returned here
+
+    cv_embedding = get_embedding(cv_text)
+    # ↑ JUMPS TO: get_embedding() function above again
+    # Calls OpenAI Embeddings API with the CV summary text.
+    # Returns: another list of 1536 numbers representing the CV's meaning.
+    # FLOW: → second OpenAI API call → second vector returned here
+    #
+    # NOTE: This means semantic_match_score() makes TWO OpenAI API calls total.
+    # Combined with the one call in ai_engine.py, the /api/generate route
+    # makes THREE OpenAI API calls in total per CV generation.
+
+    similarity = cosine_similarity(job_embedding, cv_embedding)
+    # ↑ JUMPS TO: cosine_similarity() function above (in this same file)
+    # Passes both vectors in, gets back a number between -1.0 and 1.0.
+    # For real text comparisons, this will typically be 0.6 to 0.95.
+    # e.g. similarity = 0.7842
+
+    score = similarity * 100
+    # Convert from decimal (0.0–1.0) to percentage (0–100).
+    # e.g. 0.7842 * 100 = 78.42
+
+    return round(score, 2)
+    # Round to 2 decimal places for clean display.
+    # e.g. 78.4200001 → 78.42
+    # FLOW: Returns 78.42 → back to app.py
+    #       app.py passes this score into analyze_ats() as the semantic_score parameter
+
+
+
 
 
 ======================================================================
@@ -5584,12 +5960,16 @@ FILE: ./backend\services\smart_jobs_service.py
 # ============================================================
 # services/smart_jobs_service.py
 # Smart Job Search + LaTeX CV+CoverLetter Generator
+#
+# Job fetching now uses ALL 4 APIs via the existing search_jobs()
+# from job_search.py (JSearch + Adzuna + TheMuse + RemoteOK)
+# running in parallel — same engine as the regular Job Search page.
 # ============================================================
 
 import os
-import math
 import zipfile
 import tempfile
+import numpy as np
 from openai import OpenAI
 from services.job_search import search_jobs
 
@@ -5601,6 +5981,13 @@ client = OpenAI()
 # ============================================================
 
 def fetch_all_jobs(query, location="", page=1):
+    """
+    Calls search_jobs() which queries JSearch + Adzuna + TheMuse + RemoteOK
+    in parallel (same as the regular Job Search page) and returns a
+    deduplicated list of up to 100+ results.
+
+    We paginate in batches of 20 using the `page` parameter.
+    """
     raw_jobs = search_jobs(
         query=query,
         location=location,
@@ -5610,13 +5997,21 @@ def fetch_all_jobs(query, location="", page=1):
         date_posted="",
         remote_only=False,
     )
+
     normalised = [normalise_job(job) for job in raw_jobs]
+
+    # Return 20 per page
     start = (page - 1) * 20
     end   = start + 20
     return normalised[start:end], len(normalised)
 
 
 def normalise_job(raw):
+    """
+    Convert a job from job_search.py's unified format into Smart Jobs format.
+    job_search.py returns: id, title, company, location, type, salary,
+                           posted, description, url, source
+    """
     job_id  = raw.get("id", "") or raw.get("job_id", "")
     salary  = raw.get("salary", "") or "Not disclosed"
     if not salary.strip():
@@ -5626,12 +6021,15 @@ def normalise_job(raw):
     if not work_type:
         work_type = "Remote" if raw.get("job_is_remote") else "Onsite"
 
+    # Get description — Adzuna free tier often returns empty strings
     description = (
         raw.get("description", "")
         or raw.get("job_description", "")
         or ""
     ).strip()
 
+    # If description is empty, build a minimal one from available fields
+    # so AI ranking still has something to work with
     if not description:
         title   = raw.get("title", "") or raw.get("job_title", "")
         company = raw.get("company", "") or raw.get("employer_name", "")
@@ -5688,19 +6086,15 @@ def build_profile_text(profile):
 def get_embedding(text):
     response = client.embeddings.create(
         model="text-embedding-3-small",
-        input=text[:1000]
+        input=text[:8000]
     )
     return response.data[0].embedding
 
 
 def cosine_similarity(v1, v2):
-    """Pure Python cosine similarity — no numpy required."""
-    dot   = sum(a * b for a, b in zip(v1, v2))
-    norm1 = math.sqrt(sum(a * a for a in v1))
-    norm2 = math.sqrt(sum(b * b for b in v2))
-    if norm1 == 0 or norm2 == 0:
-        return 0.0
-    return dot / (norm1 * norm2)
+    v1 = np.array(v1)
+    v2 = np.array(v2)
+    return float(np.dot(v1, v2) / (np.linalg.norm(v1) * np.linalg.norm(v2)))
 
 
 def rank_jobs(jobs, profile):
@@ -5717,7 +6111,7 @@ def rank_jobs(jobs, profile):
 
     for job in jobs:
         try:
-            jd_text = f"{job['title']} {job['company']} {job['description'][:500]}"
+            jd_text = f"{job['title']} {job['company']} {job['description'][:3000]}"
             job_embedding = get_embedding(jd_text)
             job["match_score"] = round(cosine_similarity(profile_embedding, job_embedding) * 100, 1)
         except Exception as e:
@@ -5750,6 +6144,10 @@ def build_search_query(profile, user_query=None):
 
 # ============================================================
 # 4. GENERATE COMBINED LATEX FOR ONE JOB
+#    Uses the SAME builders as Bulk Generate:
+#      build_cv_tex()           from cv_latex.py
+#      build_cover_letter_tex() from cover_letter_latex.py
+#    Then combines them identically to BulkGenerate's buildCombined()
 # ============================================================
 
 from services.cv_latex import build_cv_tex
@@ -5759,6 +6157,12 @@ from services.ai_engine import generate_cv_content
 
 
 def _build_combined(cv_tex, cl_tex):
+    """
+    Merge two standalone .tex documents into one file.
+    Identical logic to BulkGenerate.jsx buildCombined():
+      - Uses CV preamble (has all packages, colours, fonts)
+      - Cover letter body first, then \\newpage, then CV body
+    """
     def extract_body(tex):
         start = tex.find("\\begin{document}")
         end   = tex.rfind("\\end{document}")
@@ -5792,8 +6196,22 @@ def _build_combined(cv_tex, cl_tex):
 
 
 def generate_latex_for_job(profile, job):
-    job_desc = job.get("description", "")
+    """
+    Generate the combined CV + Cover Letter .tex for one job.
+    Uses EXACTLY the same pipeline as Bulk Generate:
 
+    Step 1 — generate_cv_content()    → same AI engine as Generate CV page
+             (300-350 word summary, gpt-4o, full structured output)
+    Step 2 — generate_cover_letter()  → same as Cover Letter page
+    Step 3 — build_cv_tex()           → same as Download CV (.tex)
+    Step 4 — build_cover_letter_tex() → same as Download Cover Letter (.tex)
+    Step 5 — _build_combined()        → same as Bulk Generate combined tab
+    """
+    personal  = profile.get("personalInfo", {})
+    job_desc  = job.get("description", "")
+
+    # Extract profile fields in the format generate_cv_content() expects
+    # (same extraction the Generate CV page does before calling the API)
     base_skills = []
     for cat in profile.get("skills", []):
         if isinstance(cat, dict):
@@ -5811,6 +6229,7 @@ def generate_latex_for_job(profile, job):
     languages          = profile.get("languages", [])
     references         = profile.get("references", "Available upon Request")
 
+    # ── Step 1: Same AI engine as Generate CV page ────────────────────────────
     try:
         ai_result = generate_cv_content(
             job_description    = job_desc,
@@ -5824,15 +6243,16 @@ def generate_latex_for_job(profile, job):
     except Exception as ex:
         print(f"[SmartJobs LaTeX] CV AI error: {ex}")
         ai_result = {
-            "SUMMARY":            profile.get("summary", ""),
-            "skills":             profile.get("skills", []),
-            "experience":         base_experience,
+            "SUMMARY":          profile.get("summary", ""),
+            "skills":           profile.get("skills", []),
+            "experience":       base_experience,
             "project_experience": project_experience,
-            "education":          education,
-            "languages":          languages,
-            "REFERENCE":          references,
+            "education":        education,
+            "languages":        languages,
+            "REFERENCE":        references,
         }
 
+    # ── Step 2: Same cover letter generator as Cover Letter page ─────────────
     try:
         cl_result         = generate_cover_letter(job_desc, profile, tone="professional")
         cover_letter_text = cl_result.get("cover_letter", "")
@@ -5845,9 +6265,11 @@ def generate_latex_for_job(profile, job):
             "to your team."
         )
 
+    # ── Step 3 + 4: Same LaTeX builders as Download CV/Cover Letter ───────────
     cv_tex = build_cv_tex(profile, ai_result)
     cl_tex = build_cover_letter_tex(profile, cover_letter_text, job_title=job.get("title", ""))
 
+    # ── Step 5: Same combination as Bulk Generate combined tab ───────────────
     return _build_combined(cv_tex, cl_tex)
 
 
@@ -5877,6 +6299,8 @@ def generate_batch_zip(profile, jobs):
 
     os.unlink(zip_buffer.name)
     return zip_bytes
+
+
 
 
 ======================================================================
