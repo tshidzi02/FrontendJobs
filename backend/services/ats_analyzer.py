@@ -1,18 +1,38 @@
+
 """
 ats_analyzer.py — Hybrid ATS scoring
 
 ARCHITECTURE:
-  - CV side:  structured data extraction (NER removed — not available on server)
-  - JD side:  keyword extraction
+  - CV side:  NER model extracts skills (what it was trained for)
+  - JD side:  keyword extraction (NER wasn't trained on JDs)
   - Score:    how many JD keywords appear in CV skills + experience
+
+This is the correct approach given the NER model's training data
+consisted entirely of CV documents, not job descriptions.
 """
 
 import re
 import os
 
+try:
+    import spacy
+    _SPACY_AVAILABLE = True
+except ImportError:
+    _SPACY_AVAILABLE = False
 
 # ============================================================
-# CV SIDE — extract skills directly from CV data structure
+# LOAD NER MODEL
+# ============================================================
+
+_NER_MODEL = None
+
+def _get_nlp():
+    return None
+
+
+
+# ============================================================
+# NER — CV SIDE
 # ============================================================
 
 def preprocess(text):
@@ -21,10 +41,100 @@ def preprocess(text):
     return text.strip()
 
 
+def extract_cv_entities(text):
+    """Run NER on CV text. Returns list of [label, entity_text]."""
+    nlp = _get_nlp()
+    doc = nlp(preprocess(text))
+    return [[ent.label_, ent.text.strip()] for ent in doc.ents]
+
+
+def parse_skills_block(skills_text):
+    """
+    NER returns SKILLS as one big block:
+      "Python, JavaScript, Manual Testing • Agile (1 year), Docker"
+    Split into individual skill terms.
+    """
+    # Remove parenthetical notes like "(Less than 1 year)"
+    text = re.sub(r'\([^)]*\)', '', skills_text)
+
+    # Split on bullets, commas, pipes, semicolons, slashes
+    parts = re.split(r'[•\|\n,;/]+', text)
+
+    skills = set()
+    for part in parts:
+        part = part.strip(' .-–•')
+        # Strip leading section labels like "Programming language:"
+        part = re.sub(r'^[A-Za-z\s]{3,20}:\s*', '', part).strip()
+        if 2 <= len(part) <= 60:
+            skills.add(part.lower())
+
+    return skills
+
+
+def get_cv_skills_via_ner(cv_text):
+    """
+    Use NER model to extract skills from CV text.
+    Returns set of individual skill strings.
+    """
+    entities = extract_cv_entities(cv_text)
+    all_skills = set()
+    for label, text in entities:
+        if label == "SKILLS":
+            all_skills.update(parse_skills_block(text))
+    return all_skills
+
+
+# ============================================================
+# BUILD CV TEXT — structured to help NER recognise skills
+# ============================================================
+
+def build_cv_text(cv_data):
+    """
+    Build CV text that resembles the NER training data format.
+    Training data was full CV documents — we include all sections.
+    Crucially: skills are listed as a comma-separated block WITHOUT
+    the word 'SKILLS' as a header (which confuses the NAME detector).
+    """
+    parts = []
+
+    # Experience section first (like a real CV)
+    for exp in cv_data.get("experience", []):
+        if isinstance(exp, dict):
+            role = exp.get("role", "")
+            company = exp.get("company", "")
+            if role and company:
+                parts.append(f"{role} - {company}")
+            for bullet in exp.get("bullets", []):
+                parts.append(bullet)
+
+    # Skills as a plain comma-separated list (no header)
+    skill_names = []
+    for category in cv_data.get("skills", []):
+        if isinstance(category, dict):
+            for skill_obj in category.get("skills_list", []):
+                if isinstance(skill_obj, dict):
+                    skill = skill_obj.get("skill", "")
+                    if skill:
+                        skill_names.append(skill)
+        elif isinstance(category, str):
+            skill_names.append(category)
+
+    if skill_names:
+        parts.append(", ".join(skill_names))
+
+    return "\n".join(p for p in parts if p.strip())
+
+
+# ============================================================
+# FALLBACK: extract skills directly from CV data structure
+# (used when NER extracts nothing)
+# ============================================================
+
 def get_cv_skills_from_structure(cv_data):
     """
     Direct extraction from the structured cv_data dict.
-    Guaranteed to get skills regardless of any model availability.
+    This is the reliable fallback — guaranteed to get skills
+    regardless of NER model behaviour.
     """
     skills = set()
     for category in cv_data.get("skills", []):
@@ -109,6 +219,7 @@ def extract_jd_keywords(job_description):
     Returns set of normalized keyword strings.
     """
     jd_lower = job_description.lower()
+    # Remove common JD boilerplate sections
     jd_lower = re.sub(r'(location|salary|job type|employment type)\s*:.*', '', jd_lower)
 
     tokens = re.findall(r"[a-zA-Z][a-zA-Z0-9\+\#\.]*", jd_lower)
@@ -130,11 +241,17 @@ def extract_jd_keywords(job_description):
 # ============================================================
 
 def skill_in_jd(skill_str, jd_normalized_text, jd_keywords):
-    """Check if a CV skill matches the JD."""
+    """
+    Check if a CV skill matches the JD.
+    Uses both substring match on full JD text and keyword set match.
+    """
     skill_words = re.split(r'[\s/&,]+', skill_str.strip())
     norm_words = [normalize(w) for w in skill_words if len(w) > 1]
+
     if not norm_words:
         return False
+
+    # OR logic: any meaningful word from the skill found in JD
     return any(w in jd_keywords or w in jd_normalized_text for w in norm_words)
 
 
@@ -145,8 +262,9 @@ def skill_in_jd(skill_str, jd_normalized_text, jd_keywords):
 def analyze_ats(cv_data, job_description, semantic_score):
     """
     Hybrid ATS scoring:
-      - Structured cv_data extraction for CV skills
-      - Keyword extraction for JD
+      - NER model extracts skills from CV (what it was trained for)
+      - Keyword extraction for JD (NER not trained on JDs)
+      - Falls back to structured cv_data if NER finds nothing
 
     Weights:
         - Semantic similarity : 30%
@@ -167,10 +285,19 @@ def analyze_ats(cv_data, job_description, semantic_score):
         }
 
     # --------------------------------------------------
-    # 2. EXTRACT CV SKILLS from structured data
+    # 2. EXTRACT CV SKILLS
+    # Try NER first, fall back to structured data
     # --------------------------------------------------
-    cv_skills = get_cv_skills_from_structure(cv_data)
-    print(f"[ATS DEBUG] Struct skills count: {len(cv_skills)}")
+    cv_text = build_cv_text(cv_data)
+    cv_skills_ner = get_cv_skills_via_ner(cv_text)
+    cv_skills_struct = get_cv_skills_from_structure(cv_data)
+
+    # Use NER results if it found something, otherwise use structured data
+    cv_skills = cv_skills_ner if cv_skills_ner else cv_skills_struct
+
+    print(f"[ATS DEBUG] NER skills: {cv_skills_ner}")
+    print(f"[ATS DEBUG] Struct skills: {cv_skills_struct}")
+    print(f"[ATS DEBUG] Using: {'NER' if cv_skills_ner else 'STRUCT'}")
 
     # --------------------------------------------------
     # 3. EXTRACT JD KEYWORDS
@@ -180,6 +307,8 @@ def analyze_ats(cv_data, job_description, semantic_score):
 
     # --------------------------------------------------
     # 4. SKILLS MATCH (50% weight)
+    # How many CV skills appear in the JD?
+    # (Same direction as internet ATS: cv count / jd count)
     # --------------------------------------------------
     skill_hits = sum(
         1 for skill in cv_skills
@@ -221,6 +350,7 @@ def analyze_ats(cv_data, job_description, semantic_score):
 
     # --------------------------------------------------
     # 7. MISSING KEYWORDS
+    # JD keywords not found in CV skills or experience
     # --------------------------------------------------
     all_cv_words = set()
     for skill in cv_skills:
@@ -242,3 +372,5 @@ def analyze_ats(cv_data, job_description, semantic_score):
         "experience_match": round(experience_match, 2),
         "missing_keywords": missing[:10]
     }
+
+

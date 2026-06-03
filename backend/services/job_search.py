@@ -72,6 +72,8 @@ def _dedup(jobs):
 
 # =============================================================================
 # SOURCE 1 — ADZUNA
+# Queries ZA, US and GB in parallel. Each country can return up to `results`
+# per page. We fetch page 1 and page 2 for each country to maximise volume.
 # =============================================================================
 
 def _fetch_adzuna(query, location, employment_type, salary_min, salary_max,
@@ -116,6 +118,7 @@ def _fetch_adzuna(query, location, employment_type, salary_min, salary_max,
         data = resp.json()
         jobs = []
         for item in data.get("results", []):
+            # Salary
             sal_min = item.get("salary_min")
             sal_max = item.get("salary_max")
             if sal_min and sal_max:
@@ -125,6 +128,7 @@ def _fetch_adzuna(query, location, employment_type, salary_min, salary_max,
             else:
                 salary_str = ""
 
+            # Location
             loc_parts = []
             loc_obj = item.get("location", {})
             area = loc_obj.get("area", [])
@@ -142,6 +146,7 @@ def _fetch_adzuna(query, location, employment_type, salary_min, salary_max,
                 "posted":      _relative_date(item.get("created", "")),
                 "description": item.get("description", ""),
                 "url":         item.get("redirect_url", ""),
+                #"source":      "Adzuna",
             })
         return jobs
     except Exception as e:
@@ -150,7 +155,10 @@ def _fetch_adzuna(query, location, employment_type, salary_min, salary_max,
 
 
 def search_adzuna(query, location, employment_type, salary_min, salary_max, date_posted):
-    """Run Adzuna across ZA (p1+p2), US (p1), GB (p1) concurrently."""
+    """
+    Run Adzuna across ZA (p1+p2), US (p1), GB (p1) concurrently.
+    Target: up to 80 raw results before dedup.
+    """
     tasks = [
         ("za", 1, 20),
         ("za", 2, 20),
@@ -170,6 +178,7 @@ def search_adzuna(query, location, employment_type, salary_min, salary_max, date
             jobs = future.result()
             all_jobs.extend(jobs)
 
+    # ZA results first, then US, then GB
     za = [j for j in all_jobs if "za" in j["id"]]
     other = [j for j in all_jobs if "za" not in j["id"]]
     combined = za + other
@@ -180,6 +189,7 @@ def search_adzuna(query, location, employment_type, salary_min, salary_max, date
 
 # =============================================================================
 # SOURCE 2 — THE MUSE
+# Free tier, no auth required (key optional). Returns up to 20 per page.
 # =============================================================================
 
 def search_the_muse(query, location):
@@ -206,15 +216,21 @@ def search_the_muse(query, location):
                 break
             data = resp.json()
             for item in data.get("results", []):
+                # Filter by query keywords if provided
                 title = item.get("name", "")
                 if query:
                     q_words = query.lower().split()
                     if not any(w in title.lower() for w in q_words):
                         continue
 
+                # Location
                 locations = item.get("locations", [])
                 loc_str = locations[0].get("name", "") if locations else ""
+
+                # Remote detection
                 job_type = "Remote" if "remote" in loc_str.lower() else "On-site"
+
+                # Description
                 desc = _strip_html(item.get("contents", ""))
 
                 all_jobs.append({
@@ -227,6 +243,7 @@ def search_the_muse(query, location):
                     "posted":      _relative_date(item.get("publication_date", "")),
                     "description": desc,
                     "url":         item.get("refs", {}).get("landing_page", ""),
+                    #"source":      "TheMuse",
                 })
         except Exception as e:
             print(f"[TheMuse p{page}] Error: {e}")
@@ -238,6 +255,7 @@ def search_the_muse(query, location):
 
 # =============================================================================
 # SOURCE 3 — REMOTEOK
+# No auth. Returns all remote jobs; we filter by query keywords.
 # =============================================================================
 
 def search_remoteok(query):
@@ -252,8 +270,10 @@ def search_remoteok(query):
             return []
 
         data = resp.json()
+        # First item is a notice object, skip it
         jobs_raw = [item for item in data if isinstance(item, dict) and item.get("id")]
 
+        # Broaden keyword matching — check title AND tags AND description
         keywords = query.lower().split() if query else []
         matched = []
         for item in jobs_raw:
@@ -280,6 +300,7 @@ def search_remoteok(query):
                 "posted":      _relative_date(item.get("epoch", time.time())),
                 "description": _strip_html(item.get("description", "")),
                 "url":         item.get("url", ""),
+                #"source":      "RemoteOK",
             })
 
         print(f"[JobSearch] RemoteOK: {len(result)} results")
@@ -292,6 +313,7 @@ def search_remoteok(query):
 
 # =============================================================================
 # SOURCE 4 — JSEARCH (RapidAPI)
+# When available, fetches 2 pages × 10 = up to 20 results.
 # =============================================================================
 
 def search_jsearch(query, location, employment_type, date_posted):
@@ -300,10 +322,12 @@ def search_jsearch(query, location, employment_type, date_posted):
     if not api_key:
         return []
 
+    # Build query string
     q = query or "software developer"
     if location:
         q = f"{q} in {location}"
 
+    # Map employment type
     type_map = {
         "fulltime":   "FULLTIME",
         "parttime":   "PARTTIME",
@@ -312,6 +336,7 @@ def search_jsearch(query, location, employment_type, date_posted):
     }
     emp_type = type_map.get((employment_type or "").lower())
 
+    # Map date posted
     date_map = {
         "today": "today",
         "3days": "3days",
@@ -348,6 +373,7 @@ def search_jsearch(query, location, employment_type, date_posted):
 
             data = resp.json()
             for item in data.get("data", []):
+                # Salary
                 sal_min = item.get("job_min_salary")
                 sal_max = item.get("job_max_salary")
                 sal_cur = item.get("job_salary_currency", "")
@@ -358,6 +384,7 @@ def search_jsearch(query, location, employment_type, date_posted):
                 else:
                     salary_str = ""
 
+                # Type
                 emp = (item.get("job_employment_type") or "").upper()
                 type_map_rev = {
                     "FULLTIME": "Full-time", "PARTTIME": "Part-time",
@@ -365,6 +392,7 @@ def search_jsearch(query, location, employment_type, date_posted):
                 }
                 job_type = "Remote" if item.get("job_is_remote") else type_map_rev.get(emp, "On-site")
 
+                # Posted
                 ts = item.get("job_posted_at_timestamp")
                 posted = _relative_date(ts) if ts else item.get("job_posted_at_datetime_utc", "")
 
@@ -378,6 +406,7 @@ def search_jsearch(query, location, employment_type, date_posted):
                     "posted":      posted,
                     "description": (item.get("job_description") or ""),
                     "url":         item.get("job_apply_link") or item.get("job_google_link", ""),
+                    #"source":      "JSearch",
                 })
 
         except Exception as e:
@@ -393,18 +422,23 @@ def search_jsearch(query, location, employment_type, date_posted):
 # =============================================================================
 
 def search_jobs(
-    query           = "",
-    location        = "",
+    query          = "",
+    location       = "",
     employment_type = "",
-    salary_min      = None,
-    salary_max      = None,
-    date_posted     = "",
-    remote_only     = False,
+    salary_min     = None,
+    salary_max     = None,
+    date_posted    = "",
+    remote_only    = False,
 ):
     """
     Query all sources concurrently and return a deduplicated, merged list.
     Target: 50+ results when sources are available.
+
+    Source priority for dedup (first-wins):
+        JSearch → Adzuna → TheMuse → RemoteOK
     """
+
+    # If remote_only is set, force query to include "remote"
     effective_query = query
     if remote_only and "remote" not in (query or "").lower():
         effective_query = f"remote {query}".strip()
@@ -436,6 +470,7 @@ def search_jobs(
                 print(f"[JobSearch] {source} failed: {e}")
                 results[source] = []
 
+    # Merge in priority order: JSearch first (richest data), then Adzuna, TheMuse, RemoteOK
     merged = (
         results.get("jsearch",  []) +
         results.get("adzuna",   []) +
@@ -443,9 +478,11 @@ def search_jobs(
         results.get("remoteok", [])
     )
 
+    # If remote_only filter, remove non-remote results
     if remote_only:
         merged = [j for j in merged if j.get("type") == "Remote"]
 
+    # Deduplicate by title + company
     final = _dedup(merged)
 
     print(f"[JobSearch] Total after dedup: {len(final)} results")
