@@ -93,7 +93,7 @@ Return JSON:
             ],
             response_format={"type": "json_object"},
             temperature=0.5,
-            max_tokens=4000,
+            max_tokens=8000,
         )
         return json.loads(resp.choices[0].message.content)
 
@@ -123,7 +123,7 @@ Return JSON:
             ],
             response_format={"type": "json_object"},
             temperature=0.5,
-            max_tokens=2000,
+            max_tokens=8000,
         )
         return json.loads(resp.choices[0].message.content)
 
@@ -148,7 +148,7 @@ Return JSON:
             ],
             response_format={"type": "json_object"},
             temperature=0.3,
-            max_tokens=3000,
+            max_tokens=8000,
         )
         return json.loads(resp.choices[0].message.content).get("descriptions", {})
 
