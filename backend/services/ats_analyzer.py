@@ -1,4 +1,3 @@
-
 """
 ats_analyzer.py — Hybrid ATS scoring
 
@@ -30,7 +29,6 @@ def _get_nlp():
     return None
 
 
-
 # ============================================================
 # NER — CV SIDE
 # ============================================================
@@ -44,6 +42,8 @@ def preprocess(text):
 def extract_cv_entities(text):
     """Run NER on CV text. Returns list of [label, entity_text]."""
     nlp = _get_nlp()
+    if nlp is None:
+        return []
     doc = nlp(preprocess(text))
     return [[ent.label_, ent.text.strip()] for ent in doc.ents]
 
@@ -308,7 +308,6 @@ def analyze_ats(cv_data, job_description, semantic_score):
     # --------------------------------------------------
     # 4. SKILLS MATCH (50% weight)
     # How many CV skills appear in the JD?
-    # (Same direction as internet ATS: cv count / jd count)
     # --------------------------------------------------
     skill_hits = sum(
         1 for skill in cv_skills
@@ -372,5 +371,3 @@ def analyze_ats(cv_data, job_description, semantic_score):
         "experience_match": round(experience_match, 2),
         "missing_keywords": missing[:10]
     }
-
-
